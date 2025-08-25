@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import * as bip39 from 'bip39';
 import * as CryptoJS from 'crypto-js';
-import bcrypt from 'bcryptjs';
+import * as bcrypt from 'bcryptjs';
 
 // Generate BIP39 seed phrase (real implementation)
 export function generateBIP39SeedPhrase(): string {
@@ -30,7 +30,7 @@ export async function encryptData(data: string, password: string): Promise<strin
     // Derive key using PBKDF2
     const key = await crypto.subtle.importKey(
       'raw',
-      new TextEncoder().encode(password),
+      new TextEncoder().encode(password) as BufferSource,
       { name: 'PBKDF2' },
       false,
       ['deriveBits', 'deriveKey']
@@ -63,7 +63,7 @@ export async function encryptData(data: string, password: string): Promise<strin
     const encrypted = await crypto.subtle.encrypt(
       { name: 'AES-GCM', iv: iv },
       dataKey,
-      new TextEncoder().encode(data)
+      new TextEncoder().encode(data) as BufferSource
     );
     
     // Combine salt + iv + encrypted data
@@ -72,7 +72,7 @@ export async function encryptData(data: string, password: string): Promise<strin
     combined.set(iv, salt.length);
     combined.set(new Uint8Array(encrypted), salt.length + iv.length);
     
-    return btoa(String.fromCharCode(...combined));
+    return btoa(String.fromCharCode(...Array.from(combined)));
   } catch (error) {
     throw new Error('Encryption failed: ' + error);
   }
@@ -93,7 +93,7 @@ export async function decryptData(encryptedData: string, password: string): Prom
     // Derive key using PBKDF2
     const key = await crypto.subtle.importKey(
       'raw',
-      new TextEncoder().encode(password),
+      new TextEncoder().encode(password) as BufferSource,
       { name: 'PBKDF2' },
       false,
       ['deriveBits', 'deriveKey']
@@ -180,7 +180,7 @@ export function validatePrivateKey(privateKey: string): boolean {
     
     // Check if it's not zero or too large
     const keyBigInt = BigInt('0x' + cleanKey);
-    if (keyBigInt === 0n || keyBigInt >= BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')) {
+    if (keyBigInt === BigInt(0) || keyBigInt >= BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')) {
       return false;
     }
     

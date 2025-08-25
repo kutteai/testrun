@@ -184,7 +184,7 @@ async function handleGetNFTs(params: any) {
     const nftManager = new NFTManager();
     
     // Get real NFTs from blockchain
-    const nfts = await nftManager.getNFTs(address, network);
+    const nfts = await nftManager.importNFTs(address, network);
     return { success: true, nfts };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Failed to get NFTs' };

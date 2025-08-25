@@ -21,16 +21,6 @@ interface PayCioWalletProvider extends WalletProvider {
   autoRefreshOnNetworkChange: boolean;
 }
 
-// Extend Window interface for ethereum and web3
-declare global {
-  interface Window {
-    ethereum?: PayCioWalletProvider;
-    web3?: {
-      currentProvider?: PayCioWalletProvider;
-    };
-  }
-}
-
 class PayCioWalletInjected {
   private provider: PayCioWalletProvider;
   private isConnected = false;

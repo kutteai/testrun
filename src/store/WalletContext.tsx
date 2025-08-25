@@ -149,6 +149,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         publicKey: walletData.publicKey,
         seedPhrase: walletData.seedPhrase,
         network,
+        currentNetwork: network,
         derivationPath: walletData.derivationPath,
         createdAt: Date.now()
       };
@@ -189,6 +190,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         publicKey: walletData.publicKey,
         seedPhrase: walletData.seedPhrase,
         network,
+        currentNetwork: network,
         derivationPath: walletData.derivationPath,
         createdAt: Date.now()
       };
@@ -334,6 +336,46 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  // Add hardware wallet
+  const addHardwareWallet = async (type: 'ledger' | 'trezor', address: string, derivationPath: string): Promise<void> => {
+    try {
+      const { hardwareWalletManager } = await import('../utils/hardware-wallet');
+      
+      // Connect to hardware wallet
+      await hardwareWalletManager.connectHardwareWallet(type);
+      
+      // Verify the address matches
+      const addresses = await hardwareWalletManager.getHardwareWalletAddresses(derivationPath);
+      if (!addresses.includes(address)) {
+        throw new Error('Address verification failed');
+      }
+
+      // Create hardware wallet data
+      const hardwareWallet: WalletData = {
+        id: `hw_${type}_${Date.now()}`,
+        name: `${type.charAt(0).toUpperCase() + type.slice(1)} Wallet`,
+        address,
+        seedPhrase: '', // Hardware wallets don't expose seed phrases
+        privateKey: '', // Hardware wallets don't expose private keys
+        publicKey: await hardwareWalletManager.exportPublicKey(`hw_${type}_${Date.now()}`, derivationPath),
+        network: 'ethereum',
+        currentNetwork: 'ethereum',
+        derivationPath,
+        createdAt: Date.now()
+      };
+
+      // Store hardware wallet
+      await storeWallet(hardwareWallet);
+      
+      dispatch({ type: 'SET_WALLET', payload: hardwareWallet });
+      dispatch({ type: 'SET_HAS_WALLET', payload: true });
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} wallet added successfully`);
+    } catch (error) {
+      toast.error(`Failed to add ${type} wallet`);
+      dispatch({ type: 'SET_ERROR', payload: `Failed to add ${type} wallet` });
+    }
+  };
+
   const value: WalletContextType = {
     ...state,
     createWallet,
@@ -343,7 +385,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     switchNetwork,
     getBalance,
     updateAllBalances,
-    initializeWallet
+    initializeWallet,
+    addHardwareWallet
   };
 
   return (

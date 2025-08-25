@@ -5,8 +5,10 @@ function getConfig() {
   if (typeof window !== 'undefined' && window.CONFIG) {
     return window.CONFIG;
   }
+  // Fallback for build time
   return {
-    ENS_RPC_URL: process.env.ENS_RPC_URL || 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY'
+    ENS_RPC_URL: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY',
+    INFURA_PROJECT_ID: 'YOUR_INFURA_KEY'
   };
 }
 
@@ -77,7 +79,21 @@ export async function getENSRecords(ensName: string): Promise<{
     const resolver = await provider.getResolver(ensName);
     if (!resolver) return {};
     
-    const records = await resolver.getText();
+    // Get specific text records
+    const records: any = {};
+    const textKeys = ['email', 'url', 'avatar', 'description', 'keywords', 'com.discord', 'com.github', 'com.twitter', 'org.telegram'];
+    
+    for (const key of textKeys) {
+      try {
+        const value = await resolver.getText(key);
+        if (value) {
+          records[key] = value;
+        }
+      } catch (error) {
+        // Ignore individual record errors
+      }
+    }
+    
     return records;
   } catch (error) {
     console.error('ENS records fetch failed:', error);

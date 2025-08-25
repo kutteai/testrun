@@ -18,11 +18,16 @@ export interface WalletAccount {
 export interface WalletData {
   id: string;
   name: string;
+  address: string;
   seedPhrase: string;
+  privateKey: string;
+  publicKey: string;
+  network: string;
+  currentNetwork: string;
+  derivationPath: string;
+  createdAt: number;
   encryptedSeedPhrase: string;
   accounts: WalletAccount[];
-  network: string;
-  createdAt: number;
   lastAccessed: number;
 }
 
@@ -94,14 +99,22 @@ export class WalletManager {
       // Derive wallet accounts
       const accounts = await this.deriveAccounts(seedPhrase, request.network, request.accountCount || 1);
       
+      // Get the first account for the main wallet properties
+      const firstAccount = accounts[0];
+      
       const wallet: WalletData = {
         id: Date.now().toString(),
         name: request.name,
+        address: firstAccount.address,
         seedPhrase: seedPhrase,
+        privateKey: firstAccount.privateKey,
+        publicKey: firstAccount.publicKey,
+        network: request.network,
+        currentNetwork: request.network,
+        derivationPath: firstAccount.derivationPath,
+        createdAt: Date.now(),
         encryptedSeedPhrase: encryptedSeedPhrase,
         accounts: accounts,
-        network: request.network,
-        createdAt: Date.now(),
         lastAccessed: Date.now()
       };
 
@@ -129,14 +142,22 @@ export class WalletManager {
       // Derive wallet accounts
       const accounts = await this.deriveAccounts(request.seedPhrase, request.network, request.accountCount || 1);
       
+      // Get the first account for the main wallet properties
+      const firstAccount = accounts[0];
+      
       const wallet: WalletData = {
         id: Date.now().toString(),
         name: request.name,
+        address: firstAccount.address,
         seedPhrase: request.seedPhrase,
+        privateKey: firstAccount.privateKey,
+        publicKey: firstAccount.publicKey,
+        network: request.network,
+        currentNetwork: request.network,
+        derivationPath: firstAccount.derivationPath,
+        createdAt: Date.now(),
         encryptedSeedPhrase: encryptedSeedPhrase,
         accounts: accounts,
-        network: request.network,
-        createdAt: Date.now(),
         lastAccessed: Date.now()
       };
 
@@ -324,7 +345,7 @@ export class WalletManager {
       return sum + wallet.accounts.reduce((accSum, account) => accSum + parseFloat(account.balance), 0);
     }, 0).toString();
     
-    const networks = [...new Set(this.wallets.map(wallet => wallet.network))];
+    const networks = Array.from(new Set(this.wallets.map(wallet => wallet.network)));
 
     return {
       totalWallets,
@@ -411,6 +432,19 @@ export class WalletManager {
     // Return the most recently accessed wallet
     const sortedWallets = [...this.wallets].sort((a, b) => b.lastAccessed - a.lastAccessed);
     return sortedWallets[0];
+  }
+
+  // Get current wallet in the format expected by background script
+  getCurrentWalletForBackground(): { address: string; currentNetwork: string } | null {
+    if (this.wallets.length === 0) return null;
+    
+    const currentWallet = this.wallets[0]; // For now, use the first wallet
+    if (!currentWallet.accounts || currentWallet.accounts.length === 0) return null;
+    
+    return {
+      address: currentWallet.accounts[0].address,
+      currentNetwork: currentWallet.network
+    };
   }
 
   // Get current account (first account of current wallet)

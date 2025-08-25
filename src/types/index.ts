@@ -186,6 +186,7 @@ export interface WalletContextType {
   getBalance: (address: string, network: string) => Promise<string>;
   updateAllBalances: () => Promise<void>;
   initializeWallet: () => Promise<void>;
+  addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
 }
 
 export interface SecurityContextType {
@@ -388,6 +389,34 @@ export interface NotificationType {
   duration?: number;
 }
 
+export interface TransferResult {
+  success: boolean;
+  hash?: string;
+  txHash?: string;
+  bridgeTxHash?: string;
+  estimatedTime?: number;
+  fees?: string;
+  error?: string;
+  amount?: string;
+  fromChain?: string;
+  toChain?: string;
+}
+
+export interface BridgeConfig {
+  name: string;
+  url: string;
+  bridge: string;
+  contractAddress?: string;
+  minAmount?: string;
+  maxAmount?: string;
+  fees?: string | {
+    fixed: number;
+    percentage: number;
+  };
+  estimatedTime?: number;
+  supportedNetworks: string[];
+}
+
 export interface NFTMetadata {
   name: string;
   description: string;
@@ -398,7 +427,10 @@ export interface NFTMetadata {
   }>;
 } 
 
-// Ethereum Provider type declaration
+// Export to make this file a module
+export {};
+
+// Global type declarations
 declare global {
   interface Window {
     ethereum?: {
@@ -409,5 +441,50 @@ declare global {
       selectedAddress?: string;
       chainId?: string;
     };
+    web3?: {
+      currentProvider?: any;
+    };
   }
+}
+
+// Config interface
+export interface Config {
+  INFURA_PROJECT_ID: string;
+  ALCHEMY_API_KEY: string;
+  ETHERSCAN_API_KEY: string;
+  BSCSCAN_API_KEY: string;
+  POLYGONSCAN_API_KEY: string;
+  AVALANCHESCAN_API_KEY: string;
+  ARBITRUMSCAN_API_KEY: string;
+  OPTIMISMSCAN_API_KEY: string;
+  COINGECKO_API_KEY: string;
+  COINMARKETCAP_API_KEY: string;
+  OPENSEA_API_KEY: string;
+  ALCHEMY_NFT_API_KEY: string;
+  DEFI_PULSE_API_KEY: string;
+  ENS_RPC_URL: string;
+  IPFS_GATEWAY: string;
+  CUSTOM_RPC_ENDPOINTS: Record<string, string>;
+  SECURITY: {
+    AUTO_LOCK_TIMEOUT: number;
+    MAX_FAILED_ATTEMPTS: number;
+    SESSION_TIMEOUT: number;
+    REQUIRE_PASSWORD: boolean;
+    ENABLE_BIOMETRIC: boolean;
+  };
+  FEATURES: {
+    ENABLE_NFT_SUPPORT: boolean;
+    ENABLE_DEFI_INTEGRATION: boolean;
+    ENABLE_PORTFOLIO_TRACKING: boolean;
+    ENABLE_HARDWARE_WALLET: boolean;
+    ENABLE_WALLET_CONNECT: boolean;
+  };
+  NETWORKS: Record<string, {
+    rpcUrl: string;
+    chainId: string;
+    explorerUrl: string;
+    symbol: string;
+    decimals: number;
+    isEnabled: boolean;
+  }>;
 } 

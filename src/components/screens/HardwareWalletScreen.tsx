@@ -55,7 +55,7 @@ const HardwareWalletScreen: React.FC<HardwareWalletScreenProps> = ({ onNavigate 
       setSelectedWallet(type);
       
       // Get available accounts
-      const addresses = await hardwareWalletManager.getHardwareWalletAddresses(type, 5);
+      const addresses = await hardwareWalletManager.getHardwareWalletAddresses('m/44\'/60\'/0\'/0/0');
       setAccounts(addresses);
       
       if (addresses.length > 0) {
@@ -73,7 +73,7 @@ const HardwareWalletScreen: React.FC<HardwareWalletScreenProps> = ({ onNavigate 
     if (!selectedAccount || !selectedWallet) return;
 
     try {
-      await addHardwareWallet(selectedWallet, selectedAccount);
+      await addHardwareWallet(selectedWallet, selectedAccount, 'm/44\'/60\'/0\'/0/0');
       onNavigate('dashboard');
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to import account');
@@ -82,7 +82,7 @@ const HardwareWalletScreen: React.FC<HardwareWalletScreenProps> = ({ onNavigate 
 
   const disconnectWallet = async () => {
     if (selectedWallet) {
-      await hardwareWalletManager.disconnectHardwareWallet(selectedWallet);
+      await hardwareWalletManager.disconnectHardwareWallet();
       setSelectedWallet(null);
       setConnectionStatus('idle');
       setAccounts([]);

@@ -5,6 +5,8 @@ import { SecurityManager } from '../core/security-manager';
 const walletManager = new WalletManager();
 const securityManager = new SecurityManager();
 
+export {};
+
 // Background script initialization
 console.log('SOW Wallet background script initialized');
 
@@ -46,7 +48,7 @@ chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.Messa
 // Handle wallet connect
 async function handleWalletConnect(message: any, sendResponse: (response: any) => void) {
   try {
-    const currentWallet = walletManager.getCurrentWallet();
+    const currentWallet = walletManager.getCurrentWalletForBackground();
     if (currentWallet) {
       sendResponse({
         success: true,
@@ -70,7 +72,7 @@ async function handleWalletConnect(message: any, sendResponse: (response: any) =
 // Handle get accounts
 async function handleGetAccounts(message: any, sendResponse: (response: any) => void) {
   try {
-    const currentWallet = walletManager.getCurrentWallet();
+    const currentWallet = walletManager.getCurrentWalletForBackground();
     if (currentWallet) {
       sendResponse({
         success: true,

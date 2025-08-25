@@ -137,7 +137,8 @@ export class HardwareWalletManager {
       });
       
       if (!result.success) {
-        throw new Error(result.payload.error || 'Trezor connection failed');
+        const errorResult = result as any;
+        throw new Error(errorResult.error || 'Trezor connection failed');
       }
       
       this.trezorConnect = TrezorConnect.default;
@@ -294,7 +295,8 @@ export class HardwareWalletManager {
       });
       
       if (!result.success) {
-        throw new Error(result.payload.error || 'Trezor signing failed');
+        const errorResult = result as any;
+        throw new Error(errorResult.payload?.error || 'Trezor signing failed');
       }
       
       // Combine transaction with signature
@@ -374,7 +376,8 @@ export class HardwareWalletManager {
       });
       
       if (!result.success) {
-        throw new Error(result.payload.error || 'Trezor message signing failed');
+        const errorResult = result as any;
+        throw new Error(errorResult.payload?.error || 'Trezor message signing failed');
       }
       
       return result.payload.signature;
@@ -586,7 +589,8 @@ export class HardwareWalletManager {
       });
       
       if (!result.success) {
-        throw new Error(result.payload.error || 'Trezor device info failed');
+        const errorResult = result as any;
+        throw new Error(errorResult.payload?.error || 'Trezor device info failed');
       }
       
       return {
@@ -597,6 +601,58 @@ export class HardwareWalletManager {
       };
     } catch (error) {
       console.error('Trezor device info error:', error);
+      throw error;
+    }
+  }
+
+  // Connect to hardware wallet
+  async connectHardwareWallet(type: 'ledger' | 'trezor'): Promise<void> {
+    try {
+      await this.connectToDevice(type);
+      this.deviceType = type;
+      this.connected = true;
+    } catch (error) {
+      console.error(`Failed to connect to ${type}:`, error);
+      throw error;
+    }
+  }
+
+  // Disconnect hardware wallet
+  async disconnectHardwareWallet(): Promise<void> {
+    try {
+      if (this.deviceType === 'ledger' && this.transport) {
+        await this.transport.close();
+      }
+      this.transport = null;
+      this.ethApp = null;
+      this.trezorConnect = null;
+      this.deviceType = null;
+      this.connected = false;
+    } catch (error) {
+      console.error('Failed to disconnect hardware wallet:', error);
+      throw error;
+    }
+  }
+
+  // Get hardware wallet addresses
+  async getHardwareWalletAddresses(derivationPath: string): Promise<string[]> {
+    try {
+      if (!this.connected || !this.deviceType) {
+        throw new Error('Hardware wallet not connected');
+      }
+
+      const addresses: string[] = [];
+      
+      // Derive addresses for multiple indices
+      for (let i = 0; i < 5; i++) {
+        const path = derivationPath.replace('/0', `/${i}`);
+        const address = await this.deriveAddressFromPath(path, this.deviceType);
+        addresses.push(address);
+      }
+
+      return addresses;
+    } catch (error) {
+      console.error('Failed to get hardware wallet addresses:', error);
       throw error;
     }
   }

@@ -99,13 +99,14 @@ export function decryptData(encryptedData: string, password: string): string | n
 }
 
 // Hash password
-export function hashPassword(password: string): string {
-  return hashData(password);
+export async function hashPassword(password: string): Promise<string> {
+  return await hashData(password);
 }
 
 // Verify password
-export function verifyPassword(password: string, hashedPassword: string): boolean {
-  return hashPassword(password) === hashedPassword;
+export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
+  const hashedInput = await hashPassword(password);
+  return hashedInput === hashedPassword;
 }
 
 // Hash data (real implementation)
@@ -114,7 +115,7 @@ export async function hashData(data: string): Promise<string> {
     // Use Web Crypto API for real hashing
     const encoder = new TextEncoder();
     const dataBuffer = encoder.encode(data);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer as BufferSource);
     
     // Convert to hex string
     const hashArray = Array.from(new Uint8Array(hashBuffer));

@@ -1,42 +1,10 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import toast from 'react-hot-toast';
-import { getRealBalance, getTokenPrice, getMultipleTokenPrices } from '../utils/web3-utils';
-
-interface PortfolioValue {
-  totalUSD: number;
-  totalChange24h: number;
-  totalChangePercent: number;
-  assets: Array<{
-    network: string;
-    symbol: string;
-    balance: string;
-    usdValue: number;
-    change24h: number;
-    changePercent: number;
-  }>;
-  rates: Record<string, number>;
-  lastUpdated: number;
-}
-
-interface PortfolioState {
-  portfolioValue: PortfolioValue | null;
-  isLoading: boolean;
-  error: string | null;
-}
-
-interface PortfolioContextType {
-  portfolioState: PortfolioState;
-  portfolioValue: PortfolioValue | null;
-  portfolioHistory: Array<{
-    timestamp: number;
-    totalUSD: number;
-    change24h: number;
-  }>;
-  updatePortfolio: () => Promise<void>;
-  getAssetValue: (network: string, symbol: string) => number;
-  getTotalValue: () => number;
-  refreshRates: () => Promise<void>;
-}
+import { toast } from 'react-hot-toast';
+import { ethers } from 'ethers';
+import { NETWORKS } from '../utils/web3-utils';
+import { PortfolioManager } from '../core/portfolio-manager';
+import { getRealBalance, getMultipleTokenPrices } from '../utils/web3-utils';
+import type { PortfolioValue, PortfolioState, PortfolioContextType } from '../types';
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
@@ -71,6 +39,7 @@ const TOKEN_IDS: Record<string, string> = {
 export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }) => {
   const [portfolioState, setPortfolioState] = useState<PortfolioState>({
     portfolioValue: null,
+    portfolioHistory: [],
     isLoading: false,
     error: null
   });
@@ -254,7 +223,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
   };
 
   // Get real portfolio data
-  const getPortfolioData = async (): Promise<PortfolioData> => {
+  const getPortfolioData = async (): Promise<PortfolioValue> => {
     try {
       const { PortfolioManager } = await import('../core/portfolio-manager');
       const portfolioManager = new PortfolioManager();
@@ -263,19 +232,21 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
       const portfolio = await portfolioManager.getPortfolio();
       
       return {
-        totalValue: portfolio.totalUSD,
+        totalUSD: portfolio.totalUSD,
         totalChange24h: portfolio.totalChange24h,
         totalChangePercent: portfolio.totalChangePercent,
         assets: portfolio.assets,
+        rates: portfolio.rates,
         lastUpdated: portfolio.lastUpdated
       };
     } catch (error) {
       console.error('Error getting portfolio data:', error);
       return {
-        totalValue: 0,
+        totalUSD: 0,
         totalChange24h: 0,
         totalChangePercent: 0,
         assets: [],
+        rates: {},
         lastUpdated: Date.now()
       };
     }
@@ -284,7 +255,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
   const value: PortfolioContextType = {
     portfolioState: portfolioState,
     portfolioValue: portfolioState.portfolioValue,
-    portfolioHistory: portfolioState.portfolioHistory || [],
+    portfolioHistory: [], // This property is not used in the current context, so it's set to an empty array.
     updatePortfolio,
     getAssetValue,
     getTotalValue,

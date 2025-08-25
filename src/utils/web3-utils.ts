@@ -17,12 +17,30 @@ declare global {
   interface Window {
     CONFIG?: {
       INFURA_PROJECT_ID: string;
-      ETHERSCAN_API_KEY: string;
-      BSCSCAN_API_KEY: string;
-      POLYGONSCAN_API_KEY: string;
       ALCHEMY_API_KEY: string;
+      ETHERSCAN_API_KEY: string;
+      ALCHEMY_NFT_API_KEY: string;
+      ENS_RPC_URL: string;
       COINGECKO_API_KEY: string;
       OPENSEA_API_KEY: string;
+      COINMARKETCAP_API_KEY: string;
+      DEFI_PULSE_API_KEY: string;
+      IPFS_GATEWAY: string;
+      SECURITY: {
+        AUTO_LOCK_TIMEOUT: number;
+        MAX_FAILED_ATTEMPTS: number;
+        SESSION_TIMEOUT: number;
+        REQUIRE_PASSWORD: boolean;
+        ENABLE_BIOMETRIC: boolean;
+      };
+      FEATURES: {
+        ENABLE_NFT_SUPPORT: boolean;
+        ENABLE_DEFI_INTEGRATION: boolean;
+        ENABLE_PORTFOLIO_TRACKING: boolean;
+        ENABLE_HARDWARE_WALLET: boolean;
+        ENABLE_WALLET_CONNECT: boolean;
+      };
+      NETWORKS: Record<string, any>;
     };
   }
 }
@@ -35,11 +53,14 @@ const getConfig = () => {
   return {
     INFURA_PROJECT_ID: '',
     ETHERSCAN_API_KEY: '',
-    BSCSCAN_API_KEY: '',
-    POLYGONSCAN_API_KEY: '',
     ALCHEMY_API_KEY: '',
+    ALCHEMY_NFT_API_KEY: '',
+    ENS_RPC_URL: '',
     COINGECKO_API_KEY: '',
-    OPENSEA_API_KEY: ''
+    OPENSEA_API_KEY: '',
+    COINMARKETCAP_API_KEY: '',
+    DEFI_PULSE_API_KEY: '',
+    IPFS_GATEWAY: ''
   };
 };
 
@@ -64,7 +85,7 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     chainId: '56',
     rpcUrl: 'https://bsc-dataseed1.binance.org',
     explorerUrl: 'https://bscscan.com',
-    apiKey: getConfig().BSCSCAN_API_KEY,
+    apiKey: getConfig().ETHERSCAN_API_KEY,
     nativeCurrency: {
       name: 'BNB',
       symbol: 'BNB',
@@ -77,7 +98,7 @@ export const NETWORKS: Record<string, NetworkConfig> = {
     chainId: '137',
     rpcUrl: 'https://polygon-rpc.com',
     explorerUrl: 'https://polygonscan.com',
-    apiKey: getConfig().POLYGONSCAN_API_KEY,
+    apiKey: getConfig().ETHERSCAN_API_KEY,
     nativeCurrency: {
       name: 'MATIC',
     symbol: 'MATIC',

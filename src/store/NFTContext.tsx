@@ -56,10 +56,11 @@ function getConfig() {
   if (typeof window !== 'undefined' && window.CONFIG) {
     return window.CONFIG;
   }
+  // Fallback for build time
   return {
-    OPENSEA_API_KEY: process.env.OPENSEA_API_KEY || '',
-    ALCHEMY_NFT_API_KEY: process.env.ALCHEMY_NFT_API_KEY || '',
-    INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID || ''
+    OPENSEA_API_KEY: '',
+    ALCHEMY_NFT_API_KEY: '',
+    INFURA_PROJECT_ID: 'YOUR_INFURA_KEY'
   };
 }
 
@@ -188,7 +189,7 @@ async function fetchBlockchainNFTMetadata(contractAddress: string, tokenId: stri
     }
 
     // Decode the token URI
-    const tokenUri = ethers.utils.toUtf8String(data.result);
+    const tokenUri = ethers.toUtf8String(data.result);
     
     // Fetch metadata from IPFS or HTTP
     const metadataResponse = await fetch(tokenUri.replace('ipfs://', 'https://ipfs.io/ipfs/'));

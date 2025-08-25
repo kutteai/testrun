@@ -104,29 +104,6 @@ function buildForBrowser(browser) {
       env
     });
     
-    // Move files to browser-specific directory
-    const browserDistDir = path.join(config.distDir, browser);
-    if (!fs.existsSync(browserDistDir)) {
-      fs.mkdirSync(browserDistDir, { recursive: true });
-    }
-    
-    // Copy built files
-    const files = fs.readdirSync(config.distDir);
-    files.forEach(file => {
-      if (file !== browser) {
-        const sourcePath = path.join(config.distDir, file);
-        const destPath = path.join(browserDistDir, file);
-        
-        if (fs.statSync(sourcePath).isDirectory()) {
-          fs.cpSync(sourcePath, destPath, { recursive: true });
-          fs.rmSync(sourcePath, { recursive: true, force: true });
-        } else {
-          fs.copyFileSync(sourcePath, destPath);
-          fs.unlinkSync(sourcePath);
-        }
-      }
-    });
-    
     processManifest(browser);
     logSuccess(`Build completed for ${browser}`);
     

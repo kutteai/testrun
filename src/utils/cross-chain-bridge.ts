@@ -1,5 +1,11 @@
 import { ethers } from 'ethers';
 import { getRealBalance, getGasPrice, estimateGas } from './web3-utils';
+import { BridgeConfig, TransferResult } from '../types';
+
+export interface BridgeRequest {
+  fromChain?: string;
+  toChain?: string;
+}
 
 export interface BridgeRoute {
   fromChain: string;
@@ -195,6 +201,9 @@ export class CrossChainBridge {
     };
   }
 
+
+
+
   // Execute real cross-chain transfer
   async executeTransfer(
     fromChain: string,
@@ -320,28 +329,37 @@ export class CrossChainBridge {
     // Real bridge configurations for major bridges
     const bridgeConfigs: Record<string, BridgeConfig> = {
       'ethereum-polygon-usdc': {
+        name: 'Polygon Bridge',
+        url: 'https://wallet.polygon.technology/bridge',
         bridge: 'polygon-bridge',
         contractAddress: '0xA0c68C638235ee32657e8f720a23ceC1bFc77C77',
         minAmount: '0.001',
         maxAmount: '1000000',
         fees: '0.1%',
-        estimatedTime: 15 * 60 * 1000 // 15 minutes
+        estimatedTime: 15 * 60 * 1000, // 15 minutes
+        supportedNetworks: ['ethereum', 'polygon']
       },
       'ethereum-bsc-usdt': {
+        name: 'Multichain Bridge',
+        url: 'https://app.multichain.org',
         bridge: 'multichain',
         contractAddress: '0x3F5c5bd7d4C3E8e225Ee55F4d4C8CF23C7455F5f',
         minAmount: '0.001',
         maxAmount: '1000000',
         fees: '0.1%',
-        estimatedTime: 10 * 60 * 1000 // 10 minutes
+        estimatedTime: 10 * 60 * 1000, // 10 minutes
+        supportedNetworks: ['ethereum', 'bsc']
       },
       'ethereum-arbitrum-eth': {
+        name: 'Arbitrum Bridge',
+        url: 'https://bridge.arbitrum.io',
         bridge: 'arbitrum-bridge',
         contractAddress: '0x8315177aB297bA92A06054cE80a67Ed4DBd7ed3a',
         minAmount: '0.001',
         maxAmount: '1000',
         fees: '0.05%',
-        estimatedTime: 5 * 60 * 1000 // 5 minutes
+        estimatedTime: 5 * 60 * 1000, // 5 minutes
+        supportedNetworks: ['ethereum', 'arbitrum']
       }
     };
     

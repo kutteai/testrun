@@ -344,6 +344,11 @@ export class NFTManager {
     return this.nfts;
   }
 
+  // Get NFTs (alias for getAllNFTs for compatibility)
+  getNFTs(): NFT[] {
+    return this.nfts;
+  }
+
   // Get NFTs by network
   getNFTsByNetwork(network: string): NFT[] {
     return this.nfts.filter(nft => nft.network === network);

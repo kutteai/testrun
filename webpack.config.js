@@ -10,6 +10,9 @@ const dotenv = require('dotenv');
 // Load environment variables
 dotenv.config();
 
+// Load config
+const { CONFIG } = require('./config.js');
+
 module.exports = (env, argv) => {
   const isProduction = argv.mode === 'production';
   const browser = env.browser || 'chrome';
@@ -23,7 +26,7 @@ module.exports = (env, argv) => {
       options: './src/options/index.tsx'
     },
     output: {
-      path: path.resolve(__dirname, 'dist'),
+      path: path.resolve(__dirname, `dist/${browser}`),
       filename: '[name].js',
       clean: true
     },
@@ -31,7 +34,14 @@ module.exports = (env, argv) => {
       rules: [
         {
           test: /\.(ts|tsx)$/,
-          use: 'ts-loader',
+          use: {
+            loader: 'ts-loader',
+            options: {
+              transpileOnly: true,
+              experimentalWatchApi: false,
+              configFile: path.resolve(__dirname, 'tsconfig.json')
+            }
+          },
           exclude: /node_modules/
         },
         {
@@ -62,6 +72,17 @@ module.exports = (env, argv) => {
       extensions: ['.ts', '.tsx', '.js', '.jsx'],
       alias: {
         '@': path.resolve(__dirname, 'src')
+      },
+      fallback: {
+        "crypto": require.resolve("crypto-browserify"),
+        "stream": require.resolve("stream-browserify"),
+        "buffer": require.resolve("buffer"),
+        "util": require.resolve("util"),
+        "assert": require.resolve("assert"),
+        "http": require.resolve("stream-http"),
+        "https": require.resolve("https-browserify"),
+        "os": require.resolve("os-browserify/browser"),
+        "url": require.resolve("url")
       }
     },
     plugins: [
@@ -69,7 +90,8 @@ module.exports = (env, argv) => {
       new DefinePlugin({
         'process.env': JSON.stringify(process.env),
         'process.env.NODE_ENV': JSON.stringify(argv.mode),
-        'process.env.BROWSER': JSON.stringify(browser)
+        'process.env.BROWSER': JSON.stringify(browser),
+        'window.CONFIG': JSON.stringify(CONFIG)
       }),
 
       // HTML files

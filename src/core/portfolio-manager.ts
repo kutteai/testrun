@@ -243,6 +243,11 @@ export class PortfolioManager {
     return this.portfolioValue;
   }
 
+  // Get portfolio (alias for getPortfolioValue for compatibility)
+  getPortfolio(): PortfolioValue | null {
+    return this.portfolioValue;
+  }
+
   // Get portfolio history
   getPortfolioHistory(): PortfolioHistoryEntry[] {
     return this.history;

@@ -156,7 +156,7 @@ export class DeFiManager {
     for (const protocol of protocols) {
       try {
         // In a real implementation, you would fetch actual APY data from APIs
-        const yield: DeFiYield = {
+        const yieldData: DeFiYield = {
           protocol: protocol.id,
           token,
           apy: protocol.apy + Math.random() * 5, // Add some variation
@@ -165,7 +165,7 @@ export class DeFiManager {
           minAmount: '0.01',
           maxAmount: '1000000'
         };
-        yields.push(yield);
+        yields.push(yieldData);
       } catch (error) {
         console.warn(`Failed to get yield for ${protocol.name}:`, error);
       }
