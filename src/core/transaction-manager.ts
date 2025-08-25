@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import { getNetworkConfig, estimateGas, getTransactionReceipt } from '../utils/web3-utils';
+import { estimateGas, getTransactionReceipt, NETWORKS } from '../utils/web3-utils';
+import { WalletManager } from './wallet-manager';
 
 export interface Transaction {
   id: string;
@@ -46,9 +47,12 @@ export interface TransactionResult {
 
 export class TransactionManager {
   private transactions: Transaction[] = [];
-  private pendingTransactions: Map<string, number> = new Map();
+  private pendingTransactions: Transaction[] = [];
+  private pendingTimeouts: Map<string, any> = new Map();
+  private walletManager: WalletManager;
 
   constructor() {
+    this.walletManager = new WalletManager();
     this.loadTransactions();
     this.startPendingTransactionMonitoring();
   }
@@ -72,6 +76,15 @@ export class TransactionManager {
       chrome.storage.local.set({ transactions: this.transactions });
     } catch (error) {
       console.error('Failed to save transactions:', error);
+    }
+  }
+
+  // Save pending transactions to storage
+  private async savePendingTransactions(): Promise<void> {
+    try {
+      chrome.storage.local.set({ pendingTransactions: this.pendingTransactions });
+    } catch (error) {
+      console.error('Failed to save pending transactions:', error);
     }
   }
 
@@ -111,7 +124,7 @@ export class TransactionManager {
       // Validate balance
       const balance = await getRealBalance(currentAccount.address, network);
       const valueWei = ethers.parseEther(value);
-      const balanceWei = ethers.parseBigInt(balance);
+      const balanceWei = BigInt(balance);
       
       if (balanceWei < valueWei) {
         throw new Error('Insufficient balance');
@@ -128,7 +141,7 @@ export class TransactionManager {
       );
 
       // Calculate total cost
-      const gasCost = ethers.parseBigInt(gasLimit) * ethers.parseBigInt(gasPrice);
+      const gasCost = BigInt(gasLimit) * BigInt(gasPrice);
       const totalCost = valueWei + gasCost;
 
       if (balanceWei < totalCost) {
@@ -155,18 +168,22 @@ export class TransactionManager {
       const txHash = await sendSignedTransaction(signedTx, network);
 
       // Add to pending transactions
-      const pendingTx = {
+      const pendingTx: Transaction = {
         id: txHash,
         hash: txHash,
         from: currentAccount.address,
         to: to,
         value: value,
         network: network,
-        status: 'pending' as const,
+        status: 'pending',
         timestamp: Date.now(),
-        gasUsed: gasLimit,
         gasPrice: ethers.formatUnits(gasPrice, 'gwei'),
-        nonce: parseInt(nonce, 16)
+        nonce: parseInt(nonce, 16),
+        gasLimit: gasLimit,
+        data: '0x',
+        confirmations: 0,
+        fee: (BigInt(gasLimit) * BigInt(gasPrice)).toString(),
+        type: 'send'
       };
 
       this.pendingTransactions.push(pendingTx);
@@ -181,7 +198,7 @@ export class TransactionManager {
 
   // Monitor transaction status
   private async monitorTransaction(transaction: Transaction): Promise<void> {
-    const networkConfig = getNetworkConfig(transaction.network);
+    const networkConfig = NETWORKS[transaction.network];
     if (!networkConfig) return;
 
     const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl);
@@ -200,21 +217,21 @@ export class TransactionManager {
           await this.saveTransactions();
           
           // Stop monitoring
-          const timeoutId = this.pendingTransactions.get(transaction.hash);
+          const timeoutId = this.pendingTimeouts.get(transaction.hash);
           if (timeoutId) {
             clearTimeout(timeoutId);
-            this.pendingTransactions.delete(transaction.hash);
+            this.pendingTimeouts.delete(transaction.hash);
           }
         } else {
           // Still pending, check again in 10 seconds
           const timeoutId = setTimeout(checkStatus, 10000);
-          this.pendingTransactions.set(transaction.hash, timeoutId);
+          this.pendingTimeouts.set(transaction.hash, timeoutId);
         }
       } catch (error) {
         console.error(`Error monitoring transaction ${transaction.hash}:`, error);
         // Continue monitoring even if there's an error
         const timeoutId = setTimeout(checkStatus, 30000);
-        this.pendingTransactions.set(transaction.hash, timeoutId);
+        this.pendingTimeouts.set(transaction.hash, timeoutId);
       }
     };
 
@@ -338,7 +355,7 @@ export class TransactionManager {
     totalFee: string;
   }> {
     try {
-      const networkConfig = getNetworkConfig(network);
+      const networkConfig = NETWORKS[network];
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${network}`);
       }

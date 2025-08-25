@@ -25,8 +25,8 @@ const CreateWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setCopied(true);
       toast.success('Seed phrase copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      toast.error('Failed to copy seed phrase');
+    } catch {
+      toast.error('Failed to create wallet');
     }
   };
 

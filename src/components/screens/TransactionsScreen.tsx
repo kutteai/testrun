@@ -1,7 +1,9 @@
 import React from 'react';
 import type { ScreenProps } from '../../types/index';
 
-const TransactionsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+interface TransactionsScreenProps extends ScreenProps {}
+
+const TransactionsScreen: React.FC<TransactionsScreenProps> = () => {
   return (
     <div className="h-full bg-gray-50 p-6">
       <div className="max-w-sm mx-auto">

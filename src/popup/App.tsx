@@ -3,8 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
 import { useWallet } from '../store/WalletContext';
 import { useNetwork } from '../store/NetworkContext';
-import { useTransaction } from '../store/TransactionContext';
-import { usePortfolio } from '../store/PortfolioContext';
 import type { ScreenId, NotificationType } from '../types/index';
 import toast from 'react-hot-toast';
 
@@ -22,6 +20,7 @@ import NetworksScreen from '../components/screens/NetworksScreen';
 import NFTScreen from '../components/screens/NFTScreen';
 import PortfolioScreen from '../components/screens/PortfolioScreen';
 import TransactionsScreen from '../components/screens/TransactionsScreen';
+import TransactionHistoryScreen from '../components/screens/TransactionHistoryScreen';
 import LoadingScreen from '../components/screens/LoadingScreen';
 import ErrorScreen from '../components/screens/ErrorScreen';
 
@@ -45,8 +44,6 @@ const App: React.FC = () => {
   } = useWallet();
 
   const { currentNetwork } = useNetwork();
-  const { pendingTransactions } = useTransaction();
-  const { portfolioValue } = usePortfolio();
 
   // Initialize app
   useEffect(() => {
@@ -54,7 +51,7 @@ const App: React.FC = () => {
       try {
         await initializeWallet();
         setIsLoading(false);
-      } catch (err) {
+      } catch {
         toast.error('Failed to initialize app');
         setIsLoading(false);
       }
@@ -103,10 +100,6 @@ const App: React.FC = () => {
         return (
           <DashboardScreen 
             onNavigate={handleNavigate}
-            wallet={wallet}
-            currentNetwork={currentNetwork}
-            portfolioValue={portfolioValue}
-            pendingTransactions={pendingTransactions}
           />
         );
       case 'send':
@@ -125,6 +118,8 @@ const App: React.FC = () => {
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':
         return <TransactionsScreen onNavigate={handleNavigate} />;
+      case 'transaction-history':
+        return <TransactionHistoryScreen onNavigate={handleNavigate} />;
       case 'loading':
         return <LoadingScreen />;
       case 'error':
@@ -164,15 +159,13 @@ const App: React.FC = () => {
         <Navigation 
           currentScreen={currentScreen}
           onNavigate={handleNavigate}
-          wallet={wallet}
-          pendingTransactions={pendingTransactions}
         />
       )}
 
       {/* Notification banner */}
       <NotificationBanner 
         notification={notification}
-        onDismiss={handleDismissNotification}
+        onClose={handleDismissNotification}
       />
 
       {/* Toast notifications */}

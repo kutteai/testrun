@@ -697,6 +697,9 @@ export async function getTokenPrices(tokenIds: string[]): Promise<Record<string,
   }
 } 
 
+// Alias for backward compatibility
+export const getMultipleTokenPrices = getTokenPrices;
+
 // Get 24h price change from CoinGecko (real implementation)
 export async function get24hPriceChange(tokenId: string): Promise<any> {
   try {

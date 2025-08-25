@@ -147,8 +147,6 @@ export class TransactionManager {
     data: string = '0x'
   ): Promise<GasEstimate> {
     try {
-      const provider = this.getProvider(network);
-      
       // Get current gas price
       const currentGasPrice = await getGasPrice(network);
       const gasPriceBigInt = BigInt(currentGasPrice);
@@ -331,7 +329,7 @@ export class TransactionManager {
       const provider = this.getProvider(network);
       const block = await provider.getBlock('latest');
       return block?.baseFeePerGas || 0n;
-    } catch (error) {
+    } catch {
       return 0n; // Fallback to legacy gas pricing
     }
   }

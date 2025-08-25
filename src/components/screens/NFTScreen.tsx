@@ -1,7 +1,9 @@
 import React from 'react';
 import type { ScreenProps } from '../../types/index';
 
-const NFTScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+interface NFTScreenProps extends ScreenProps {}
+
+const NFTScreen: React.FC<NFTScreenProps> = () => {
   return (
     <div className="h-full bg-gray-50 p-6">
       <div className="max-w-sm mx-auto">

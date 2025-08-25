@@ -21,6 +21,7 @@ import NetworksScreen from './components/screens/NetworksScreen';
 import NFTScreen from './components/screens/NFTScreen';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
+import TransactionHistoryScreen from './components/screens/TransactionHistoryScreen';
 
 import type { ScreenId } from './types/index';
 
@@ -39,7 +40,7 @@ const App: React.FC = () => {
       try {
         await initializeWallet();
         setIsLoading(false);
-      } catch (error) {
+      } catch {
         toast.error('Failed to initialize app');
         setIsLoading(false);
       }
@@ -77,10 +78,6 @@ const App: React.FC = () => {
         return (
           <DashboardScreen 
             onNavigate={handleNavigate}
-            wallet={wallet}
-            currentNetwork={networkState.currentNetwork}
-            portfolioValue={portfolioValue}
-            pendingTransactions={pendingTransactions}
           />
         );
       case 'send':
@@ -99,6 +96,8 @@ const App: React.FC = () => {
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':
         return <TransactionsScreen onNavigate={handleNavigate} />;
+      case 'transaction-history':
+        return <TransactionHistoryScreen onNavigate={handleNavigate} />;
       default:
         return <WelcomeScreen onNavigate={handleNavigate} />;
     }

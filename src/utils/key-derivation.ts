@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
-import { HDNodeWallet } from 'ethers';
 import { validateBIP39SeedPhrase } from './crypto-utils';
 import * as bip39 from 'bip39';
+// @ts-ignore
 import { HDKey } from 'hdkey';
 
 export interface HDWallet {
@@ -11,6 +11,7 @@ export interface HDWallet {
   address: string;
   network: string;
   derivationPath: string;
+  mnemonic: string;
 }
 
 export interface WalletAccount {
@@ -24,12 +25,12 @@ export interface WalletAccount {
 // Generate HD wallet from seed phrase (real implementation)
 export async function generateHDWallet(
   seedPhrase: string, 
-  network: string = 'ethereum', 
+  _network: string = 'ethereum', 
   derivationPath: string = "m/44'/60'/0'/0/0"
 ): Promise<HDWallet> {
   try {
     const { ethers } = await import('ethers');
-    const * as bip39 = await import('bip39');
+    const bip39 = await import('bip39');
     
     // Validate seed phrase
     if (!bip39.validateMnemonic(seedPhrase)) {
@@ -50,7 +51,9 @@ export async function generateHDWallet(
       privateKey: derivedWallet.privateKey,
       publicKey: derivedWallet.publicKey,
       mnemonic: seedPhrase,
-      derivationPath: derivationPath
+      derivationPath: derivationPath,
+      seedPhrase: seedPhrase,
+      network: _network
     };
   } catch (error) {
     console.error('Error generating HD wallet:', error);
@@ -128,7 +131,8 @@ export function importWalletFromPrivateKey(
   // Real implementation: derive public key and address from private key
   try {
     const wallet = new ethers.Wallet(privateKey);
-    const publicKey = wallet.publicKey;
+    // Derive public key from private key
+    const publicKey = ethers.SigningKey.computePublicKey(privateKey);
     const address = wallet.address;
 
     return {
@@ -137,19 +141,20 @@ export function importWalletFromPrivateKey(
       publicKey,
       address,
       network,
-      derivationPath: 'm/44\'/60\'/0\'/0/0'
+      derivationPath: 'm/44\'/60\'/0\'/0/0',
+      mnemonic: '' // Not available when importing from private key
     };
-  } catch (error) {
+  } catch {
     throw new Error('Invalid private key');
   }
 }
 
 // Import wallet from seed phrase
-export function importWalletFromSeedPhrase(
+export async function importWalletFromSeedPhrase(
   seedPhrase: string,
   network: string = 'ethereum'
-): HDWallet {
-  return generateHDWallet(seedPhrase, network);
+): Promise<HDWallet> {
+  return await generateHDWallet(seedPhrase, network);
 }
 
 // Validate private key
@@ -163,7 +168,7 @@ export function validatePrivateKey(privateKey: string): boolean {
     // Try to create a wallet from the private key
     new ethers.Wallet(privateKey);
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }
@@ -173,7 +178,7 @@ export function deriveAddressFromPrivateKey(privateKey: string): string {
   try {
     const wallet = new ethers.Wallet(privateKey);
     return wallet.address;
-  } catch (error) {
+  } catch {
     throw new Error('Invalid private key');
   }
 }
@@ -215,17 +220,17 @@ export function getDerivationPath(network: string, accountIndex: number = 0): st
 }
 
 // Generate wallet for specific network (real implementation)
-export function generateNetworkWallet(
+export async function generateNetworkWallet(
   seedPhrase: string,
   network: string,
   accountIndex: number = 0
-): HDWallet {
+): Promise<HDWallet> {
   if (!validateBIP39SeedPhrase(seedPhrase)) {
     throw new Error('Invalid seed phrase');
   }
 
   const derivationPath = getDerivationPath(network, accountIndex);
-  return generateHDWallet(seedPhrase, network, derivationPath);
+  return await generateHDWallet(seedPhrase, network, derivationPath);
 }
 
 // Export wallet data (for backup)
@@ -258,7 +263,8 @@ export function importWalletData(data: string): HDWallet {
       publicKey: walletData.publicKey || '',
       address: walletData.address,
       network: walletData.network,
-      derivationPath: walletData.derivationPath || 'm/44\'/60\'/0\'/0/0'
+      derivationPath: walletData.derivationPath || 'm/44\'/60\'/0\'/0/0',
+      mnemonic: walletData.mnemonic || ''
     };
   } catch (error) {
     throw new Error('Failed to parse wallet data');

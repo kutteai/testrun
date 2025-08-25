@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { getNetworkConfig } from '../utils/web3-utils';
+import { NETWORKS } from '../utils/web3-utils';
 
 export interface NFT {
   id: string;
@@ -92,7 +92,7 @@ export class NFTManager {
   // Import NFTs for a wallet address
   async importNFTs(address: string, network: string): Promise<NFT[]> {
     try {
-      const networkConfig = getNetworkConfig(network);
+      const networkConfig = NETWORKS[network];
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${network}`);
       }
@@ -107,8 +107,8 @@ export class NFTManager {
       }
 
       // Use Alchemy API for other networks
-      if (networkConfig.alchemyUrl) {
-        const alchemyNfts = await this.fetchFromAlchemy(address, networkConfig.alchemyUrl, config.ALCHEMY_API_KEY);
+      if (networkConfig.rpcUrl) {
+        const alchemyNfts = await this.fetchFromAlchemy(address, networkConfig.rpcUrl, config.ALCHEMY_API_KEY);
         nfts.push(...alchemyNfts);
       }
 
@@ -278,7 +278,7 @@ export class NFTManager {
   // Get NFT metadata from contract
   async getNFTMetadata(contractAddress: string, tokenId: string, network: string): Promise<any> {
     try {
-      const networkConfig = getNetworkConfig(network);
+      const networkConfig = NETWORKS[network];
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${network}`);
       }
@@ -416,6 +416,5 @@ export class NFTManager {
       ALCHEMY_API_KEY: '',
       POLYGONSCAN_API_KEY: ''
     };
-  }
   }
 } 

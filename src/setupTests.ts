@@ -1,6 +1,17 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 
+// Jest types
+declare global {
+  namespace jest {
+    interface Matchers<R> {
+      toBeInTheDocument(): R;
+      toHaveClass(className: string): R;
+      toHaveTextContent(text: string): R;
+    }
+  }
+}
+
 // Mock browser extension APIs
 Object.defineProperty(window, 'chrome', {
   value: {

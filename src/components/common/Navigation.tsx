@@ -1,13 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import {
-  Home,
-  Send,
-  Download,
-  Settings,
-  Wallet,
+import { 
+  Home, 
+  Send, 
+  Download, 
+  Settings
 } from 'lucide-react';
-import { useWallet } from '../../store/WalletContext';
 import { useTransaction } from '../../store/TransactionContext';
 import type { ScreenId } from '../../types/index';
 
@@ -41,7 +39,7 @@ const Navigation: React.FC<NavigationProps> = ({ currentScreen, onNavigate }) =>
     {
       id: 'nfts' as ScreenId,
       label: 'NFTs',
-      icon: Wallet,
+      icon: Home,
       badge: null
     },
     {

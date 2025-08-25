@@ -284,7 +284,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
   const value: PortfolioContextType = {
     portfolioState: portfolioState,
     portfolioValue: portfolioState.portfolioValue,
-    portfolioHistory: [], // TODO: Implement portfolio history
+    portfolioHistory: portfolioState.portfolioHistory || [],
     updatePortfolio,
     getAssetValue,
     getTotalValue,

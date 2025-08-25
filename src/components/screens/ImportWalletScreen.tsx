@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { validateBIP39SeedPhrase, validatePrivateKey } from '../../utils/crypto-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
@@ -32,7 +32,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       // In a real implementation, you would import the wallet here
       toast.success('Wallet imported successfully!');
       onNavigate('dashboard');
-    } catch (error) {
+    } catch {
       toast.error('Failed to import wallet');
     }
   };

@@ -5,29 +5,30 @@ import {
   Send, 
   Download, 
   Settings, 
-  Shield,
   Eye,
   EyeOff
 } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
-import { useNetwork } from '../../store/NetworkContext';
 import { usePortfolio } from '../../store/PortfolioContext';
 import { useTransaction } from '../../store/TransactionContext';
-import type { ScreenProps, Wallet, Network, Transaction, PortfolioValue } from '../../types/index';
+import type { ScreenProps, ScreenId } from '../../types/index';
 
 interface DashboardScreenProps extends ScreenProps {
-  onNavigate: (screen: string) => void;
+  onNavigate: (screen: ScreenId) => void;
 }
 
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ 
   onNavigate
 }) => {
-  const { wallet, currentNetwork } = useWallet();
-  const { networks } = useNetwork();
+  const { currentNetwork } = useWallet();
   const { portfolioValue } = usePortfolio();
   const { pendingTransactions } = useTransaction();
 
   const [showBalance, setShowBalance] = React.useState(true);
+
+  const toggleBalanceVisibility = () => {
+    setShowBalance(!showBalance);
+  };
 
   const quickActions = [
     {
@@ -53,12 +54,6 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
     }
   ];
 
-  const formatBalance = (balance: string) => {
-    const num = parseFloat(balance);
-    if (isNaN(num)) return '0.00';
-    return num.toFixed(4);
-  };
-
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -75,7 +70,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
-            onClick={() => setShowBalance(!showBalance)}
+            onClick={toggleBalanceVisibility}
             className="p-2 rounded-lg transition-colors hover:bg-gray-100"
           >
             {showBalance ? <EyeOff className="w-5 h-5 text-gray-600" /> : <Eye className="w-5 h-5 text-gray-600" />}
@@ -135,7 +130,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-              onClick={() => onNavigate('transactions')}
+              onClick={() => onNavigate('transaction-history')}
             className="text-sm text-blue-600 hover:text-blue-700 font-medium"
             >
               View All
@@ -153,11 +148,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({
               >
                 <div className="flex items-center justify-between">
                     <div>
-                    <p className="font-medium text-gray-900">{tx.type}</p>
+                    <p className="font-medium text-gray-900">Transaction</p>
                     <p className="text-sm text-gray-500">{tx.hash}</p>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium text-gray-900">{tx.amount}</p>
+                    <p className="font-medium text-gray-900">{tx.value}</p>
                     <p className="text-sm text-gray-500">{tx.status}</p>
                   </div>
                 </div>

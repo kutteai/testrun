@@ -1,7 +1,9 @@
 import React from 'react';
 import type { ScreenProps } from '../../types/index';
 
-const PortfolioScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+interface PortfolioScreenProps extends ScreenProps {}
+
+const PortfolioScreen: React.FC<PortfolioScreenProps> = () => {
   return (
     <div className="h-full bg-gray-50 p-6">
       <div className="max-w-sm mx-auto">

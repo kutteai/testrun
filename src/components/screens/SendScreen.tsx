@@ -113,25 +113,20 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setIsLoading(true);
 
     try {
-      const result = await transactionManager.sendTransaction({
-        to: toAddress,
-        value: amount,
-        network: currentNetwork?.id || 'ethereum',
-        gasPrice: gasPrice || undefined,
-        gasLimit: gasLimit || undefined,
-        data: '0x',
-        password: password
-      });
+      const result = await transactionManager.sendTransaction(
+        toAddress,
+        amount,
+        currentNetwork?.id || 'ethereum'
+      );
       
       // Add to transaction history
       addTransaction({
-        hash: result.hash,
+        hash: result,
         from: wallet!.address,
         to: toAddress,
         value: amount,
         network: currentNetwork?.id || 'ethereum',
         status: 'pending',
-        gasUsed: gasLimit,
         gasPrice: gasPrice || '20',
         nonce: 0 // Will be set by the wallet
       });
@@ -184,18 +179,18 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             value={toAddress}
             onChange={(e) => setToAddress(e.target.value)}
             placeholder="0x..."
-            className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
+            className={`w-full px-3 py-2 border text-black rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent ${
               toAddress && !isValidAddress ? 'border-red-300' : 'border-gray-300'
             }`}
           />
           {toAddress && !isValidAddress && (
-            <div className="flex items-center mt-2 text-sm text-red-600">
+            <div className="flex items-center text-black mt-2 text-sm text-red-600">
               <AlertCircle className="w-4 h-4 mr-1" />
               Invalid Ethereum address
             </div>
           )}
           {isValidAddress && (
-            <div className="flex items-center mt-2 text-sm text-green-600">
+            <div className="flex items-center text-black mt-2 text-sm text-green-600">
               <CheckCircle className="w-4 h-4 mr-1" />
               Valid address: {formatAddress(toAddress)}
             </div>
@@ -214,7 +209,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             placeholder="0.0"
             step="0.0001"
             min="0"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-3 py-2 border text-black border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
 
@@ -228,7 +223,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="Enter your wallet password"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-3 py-2 border text-black border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
 
@@ -238,13 +233,13 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs text-gray-600 mb-1">Gas Price (Gwei)</label>
+              <label className="block text-xs text-black text-gray-600 mb-1">Gas Price (Gwei)</label>
               <input
                 type="number"
                 value={gasPrice}
                 onChange={(e) => setGasPrice(e.target.value)}
                 placeholder="20"
-                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                className="w-full px-2 py-1 text-sm text-black border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
               />
             </div>
             <div>
@@ -254,7 +249,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 value={gasLimit}
                 onChange={(e) => setGasLimit(e.target.value)}
                 placeholder="21000"
-                className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
+                className="w-full px-2 py-1 text-sm text-black border border-gray-300 rounded focus:ring-1 focus:ring-primary-500"
               />
             </div>
           </div>

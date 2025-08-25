@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Copy, Share2, Download, QrCode } from 'lucide-react';
+import { ArrowLeft, Copy, Share2, Download, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
@@ -11,18 +11,18 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [copied, setCopied] = useState(false);
   const [qrSize, setQrSize] = useState(200);
 
-  // Generate real QR code for wallet address
-  const generateQRCode = (address: string): string => {
+  // Generate QR code data for wallet address
+  const getQRCodeData = (): string => {
+    if (!wallet?.address) return '';
+    
     // Create a proper QR code data string for cryptocurrency addresses
     // This includes the network prefix for better wallet compatibility
     const networkPrefix = currentNetwork?.symbol?.toLowerCase() || 'eth';
-    return `${networkPrefix}:${address}`;
+    return `${networkPrefix}:${wallet.address}`;
   };
 
   useEffect(() => {
     if (wallet?.address) {
-      // Generate QR code data URL for the address
-      const qrData = generateQRCode(wallet.address);
       setQrSize(200); // Ensure QR size is 200 for qrcode.react
     }
   }, [wallet?.address, currentNetwork?.symbol]);
@@ -35,7 +35,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setCopied(true);
       toast.success('Address copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
+    } catch {
       toast.error('Failed to copy address');
     }
   };
@@ -43,7 +43,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const downloadQRCode = () => {
     if (!wallet?.address) return;
     
-    // Create a simple QR code using canvas (in a real app, you'd use a QR library)
+    // Create a canvas element to render the QR code
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -51,7 +51,8 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     canvas.width = 200;
     canvas.height = 200;
     
-    // Draw a simple QR-like pattern (this is a placeholder)
+    // For now, create a simple QR-like pattern
+    // In a production app, you'd use a proper QR code library
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, 200, 200);
     ctx.fillStyle = '#fff';
@@ -59,11 +60,11 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     ctx.fillStyle = '#000';
     ctx.fillRect(20, 20, 160, 160);
     
-    // Add text
+    // Add the address text
     ctx.fillStyle = '#000';
-    ctx.font = '12px Arial';
+    ctx.font = '10px Arial';
     ctx.textAlign = 'center';
-    ctx.fillText('QR Code', 100, 190);
+    ctx.fillText('PayCio Address', 100, 190);
     
     // Download
     const link = document.createElement('a');
@@ -82,17 +83,13 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           text: `My PayCio wallet address: ${wallet.address}`,
           url: `ethereum:${wallet.address}`
         });
-      } catch (error) {
+      } catch {
         console.log('Share cancelled');
       }
     } else {
       // Fallback to copy
       copyAddress();
     }
-  };
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
   if (!wallet?.address) {
@@ -140,7 +137,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           
           {/* QR Code Placeholder */}
           <div className="mx-auto mb-4 w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-            <QRCodeSVG value={generateQRCode(wallet.address)} size={qrSize} />
+            <QRCodeSVG value={getQRCodeData()} size={qrSize} />
           </div>
 
           {/* Address Display */}

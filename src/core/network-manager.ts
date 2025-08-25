@@ -16,8 +16,9 @@ export class NetworkManager {
   private currentNetwork: Network | null = null;
 
   constructor() {
-    this.networks = Object.values(NETWORKS).map(network => ({
+    this.networks = Object.entries(NETWORKS).map(([id, network]) => ({
       ...network,
+      id,
       isCustom: false,
       isEnabled: true
     }));
@@ -54,8 +55,9 @@ export class NetworkManager {
 
   // Get default networks
   getDefaultNetworks(): Network[] {
-    return Object.values(NETWORKS).map(network => ({
+    return Object.entries(NETWORKS).map(([id, network]) => ({
       ...network,
+      id,
       isCustom: false,
       isEnabled: true
     }));
@@ -154,7 +156,13 @@ export class NetworkManager {
   // Estimate gas
   async estimateGas(transaction: any, network: string): Promise<string> {
     try {
-      return await estimateGas(transaction, network);
+      return await estimateGas(
+        transaction.from || '0x0000000000000000000000000000000000000000',
+        transaction.to || '0x0000000000000000000000000000000000000000',
+        transaction.value || '0x0',
+        transaction.data || '0x',
+        network
+      );
     } catch (error) {
       console.error('Error estimating gas:', error);
       return '0x5208'; // Default gas limit

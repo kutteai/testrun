@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, ExternalLink, Copy, Check } from 'lucide-react';
 import { walletConnectManager, WalletConnectSession } from '../../utils/walletconnect-utils';
+import { toast } from 'react-toastify';
 
 export const WalletConnectSessions: React.FC = () => {
   const [sessions, setSessions] = useState<WalletConnectSession[]>([]);
@@ -19,12 +20,17 @@ export const WalletConnectSessions: React.FC = () => {
     }
   };
 
-  const disconnectSession = async (topic: string) => {
+  const disconnectSession = async (_topic: string) => {
     try {
-      await walletConnectManager.disconnect();
-      loadSessions();
+      // Disconnect the session
+      await window.ethereum?.request({
+        method: 'wallet_disconnectSession',
+        params: []
+      });
+      toast.success('Session disconnected');
     } catch (error) {
       console.error('Failed to disconnect session:', error);
+      toast.error('Failed to disconnect session');
     }
   };
 
