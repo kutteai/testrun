@@ -33,12 +33,14 @@ const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('welcome');
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState<NotificationType | null>(null);
+  const [initTimeout, setInitTimeout] = useState(false);
 
   // Context hooks
   const {
     wallet,
     isWalletUnlocked,
     isLoading: walletLoading,
+    isInitializing,
     error: walletError,
     initializeWallet
   } = useWallet();
@@ -49,16 +51,34 @@ const App: React.FC = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        await initializeWallet();
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('App initialization timeout')), 15000);
+        });
+        
+        await Promise.race([initializeWallet(), timeoutPromise]);
         setIsLoading(false);
-      } catch {
+      } catch (error) {
+        console.error('App initialization failed:', error);
         toast.error('Failed to initialize app');
         setIsLoading(false);
+        setInitTimeout(true);
       }
     };
 
+    // Add a fallback timeout to prevent infinite loading
+    const fallbackTimeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('Fallback timeout reached, showing welcome screen');
+        setIsLoading(false);
+        setInitTimeout(true);
+      }
+    }, 20000);
+
     initializeApp();
-  }, [initializeWallet]);
+
+    return () => clearTimeout(fallbackTimeout);
+  }, [initializeWallet, isLoading]);
 
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
@@ -71,7 +91,7 @@ const App: React.FC = () => {
   };
 
   // Show loading screen
-  if (isLoading || walletLoading) {
+  if ((isLoading || walletLoading || isInitializing) && !initTimeout) {
     return <LoadingScreen message="Initializing wallet..." />;
   }
 
@@ -106,7 +126,7 @@ const App: React.FC = () => {
   const renderScreen = () => {
     switch (currentScreen) {
       case 'welcome':
-        return <WelcomeScreen onNavigate={handleNavigate} />;
+        return <WelcomeScreen onNavigate={handleNavigate} hasWallet={!!wallet} isWalletUnlocked={isWalletUnlocked} />;
       case 'create':
         return <CreateWalletScreen onNavigate={handleNavigate} />;
       case 'import':
@@ -142,7 +162,7 @@ const App: React.FC = () => {
       case 'error':
         return <ErrorScreen error="Something went wrong" onRetry={() => window.location.reload()} />;
       default:
-        return <WelcomeScreen onNavigate={handleNavigate} />;
+        return <WelcomeScreen onNavigate={handleNavigate} hasWallet={!!wallet} isWalletUnlocked={isWalletUnlocked} />;
     }
   };
 

@@ -21,53 +21,121 @@ import NetworksScreen from './components/screens/NetworksScreen';
 import NFTScreen from './components/screens/NFTScreen';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
-import TransactionHistoryScreen from './components/screens/TransactionHistoryScreen';
 
 import type { ScreenId } from './types/index';
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('welcome');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAppInitialized, setIsAppInitialized] = useState(false);
 
-  const { wallet, initializeWallet } = useWallet();
-  const { networkState } = useNetwork();
-  const { portfolioValue } = usePortfolio();
+  const { 
+    wallet, 
+    isWalletUnlocked, 
+    hasWallet, 
+    isInitializing,
+    initializeWallet 
+  } = useWallet();
+  
+  const { currentNetwork } = useNetwork();
   const { pendingTransactions } = useTransaction();
+  const { portfolioValue } = usePortfolio();
 
-  // Initialize app
+  // Initialize app and determine initial screen
   useEffect(() => {
     const initializeApp = async () => {
       try {
+        // Wait for wallet initialization to complete
         await initializeWallet();
-        setIsLoading(false);
-      } catch {
+        
+        // Determine which screen to show based on wallet state
+        determineInitialScreen();
+        
+        setIsAppInitialized(true);
+      } catch (error) {
+        console.error('Failed to initialize app:', error);
         toast.error('Failed to initialize app');
-        setIsLoading(false);
+        setIsAppInitialized(true);
       }
     };
 
     initializeApp();
   }, [initializeWallet]);
 
+  // Determine initial screen based on wallet state
+  const determineInitialScreen = () => {
+    if (!hasWallet) {
+      // No wallet exists, show welcome screen
+      setCurrentScreen('welcome');
+    } else if (hasWallet && !isWalletUnlocked) {
+      // Wallet exists but is locked, show welcome screen for unlock
+      setCurrentScreen('welcome');
+    } else if (hasWallet && isWalletUnlocked) {
+      // Wallet exists and is unlocked, show dashboard
+      setCurrentScreen('dashboard');
+    } else {
+      // Default fallback
+      setCurrentScreen('welcome');
+    }
+  };
+
+  // Update screen when wallet state changes
+  useEffect(() => {
+    if (isAppInitialized && !isInitializing) {
+      if (hasWallet && isWalletUnlocked) {
+        // Only auto-navigate to dashboard if we're on welcome screen
+        if (currentScreen === 'welcome') {
+          setCurrentScreen('dashboard');
+        }
+      } else if (hasWallet && !isWalletUnlocked) {
+        // Wallet locked, go back to welcome for unlock
+        if (currentScreen !== 'welcome') {
+          setCurrentScreen('welcome');
+          toast('Please unlock your wallet to continue');
+        }
+      }
+    }
+  }, [hasWallet, isWalletUnlocked, isAppInitialized, isInitializing, currentScreen]);
+
+  // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
+    // Prevent navigation to protected screens if wallet is locked
+    const protectedScreens: ScreenId[] = [
+      'dashboard', 'send', 'receive', 'settings', 
+      'security', 'networks', 'nfts', 'portfolio', 'transactions'
+    ];
+    
+    if (protectedScreens.includes(screen) && !isWalletUnlocked) {
+      toast.error('Please unlock your wallet first');
+      setCurrentScreen('welcome');
+      return;
+    }
+    
     setCurrentScreen(screen);
   };
 
-  if (isLoading) {
+  // Show loading screen during initialization
+  if (!isAppInitialized || isInitializing) {
     return (
       <div className="h-full bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Initializing wallet...</p>
         </div>
       </div>
     );
   }
 
+  // Render current screen
   const renderScreen = () => {
     switch (currentScreen) {
       case 'welcome':
-        return <WelcomeScreen onNavigate={handleNavigate} />;
+        return (
+          <WelcomeScreen 
+            onNavigate={handleNavigate}
+            hasWallet={hasWallet}
+            isWalletUnlocked={isWalletUnlocked}
+          />
+        );
       case 'create':
         return <CreateWalletScreen onNavigate={handleNavigate} />;
       case 'import':
@@ -96,10 +164,14 @@ const App: React.FC = () => {
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':
         return <TransactionsScreen onNavigate={handleNavigate} />;
-      case 'transaction-history':
-        return <TransactionHistoryScreen onNavigate={handleNavigate} />;
       default:
-        return <WelcomeScreen onNavigate={handleNavigate} />;
+        return (
+          <WelcomeScreen 
+            onNavigate={handleNavigate}
+            hasWallet={hasWallet}
+            isWalletUnlocked={isWalletUnlocked}
+          />
+        );
     }
   };
 
@@ -117,6 +189,7 @@ const App: React.FC = () => {
           {renderScreen()}
         </motion.div>
       </AnimatePresence>
+      
       <Toaster
         position="top-center"
         toastOptions={{
@@ -131,4 +204,4 @@ const App: React.FC = () => {
   );
 };
 
-export default App; 
+export default App;

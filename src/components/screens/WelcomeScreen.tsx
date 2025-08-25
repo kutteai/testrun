@@ -1,9 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, Download, Shield, Zap, Globe, Lock } from 'lucide-react';
+import { Wallet, Download, Shield, Zap, Globe, Lock, Eye, EyeOff } from 'lucide-react';
+import { useWallet } from '../../store/WalletContext';
+import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
-const WelcomeScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+interface WelcomeScreenProps extends ScreenProps {
+  hasWallet: boolean;
+  isWalletUnlocked: boolean;
+}
+
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ 
+  onNavigate, 
+  hasWallet, 
+  isWalletUnlocked 
+}) => {
+  const { unlockWallet } = useWallet();
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+
   const features = [
     {
       icon: <Globe className="w-6 h-6" />,
@@ -27,6 +43,109 @@ const WelcomeScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   ];
 
+  // Handle wallet unlock
+  const handleUnlockWallet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!password.trim()) {
+      toast.error('Please enter your password');
+      return;
+    }
+
+    setIsUnlocking(true);
+    
+    try {
+      const success = await unlockWallet(password);
+      if (success) {
+        setPassword('');
+        // Navigation will be handled automatically by App component
+      }
+    } catch (error) {
+      console.error('Unlock failed:', error);
+      toast.error('Failed to unlock wallet');
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  // If wallet exists but is locked, show unlock form
+  if (hasWallet && !isWalletUnlocked) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="h-full bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-600 flex flex-col items-center justify-center px-8"
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="w-full max-w-sm"
+        >
+          {/* Wallet Icon */}
+          <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6 mx-auto">
+            <Lock className="w-10 h-10 text-white" />
+          </div>
+
+          {/* Title */}
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
+            <p className="text-white/80 text-lg">Enter your password to unlock your wallet</p>
+          </div>
+
+          {/* Unlock Form */}
+          <form onSubmit={handleUnlockWallet} className="space-y-6">
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                className="w-full px-4 py-4 rounded-xl bg-white/10 backdrop-blur-sm border border-white/20 text-white placeholder-white/60 focus:outline-none focus:ring-2 focus:ring-white/30 focus:border-transparent"
+                disabled={isUnlocking}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 transform -translate-y-1/2 text-white/60 hover:text-white/80"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              type="submit"
+              disabled={isUnlocking || !password.trim()}
+              className="w-full bg-white text-primary-700 font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            >
+              {isUnlocking ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-primary-700 border-t-transparent"></div>
+                  <span>Unlocking...</span>
+                </>
+              ) : (
+                <>
+                  <Lock className="w-5 h-5" />
+                  <span>Unlock Wallet</span>
+                </>
+              )}
+            </motion.button>
+          </form>
+
+          {/* Security Notice */}
+          <div className="mt-6 text-center">
+            <p className="text-white/60 text-sm">
+              Your wallet is secured with end-to-end encryption
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    );
+  }
+
+  // If no wallet exists, show welcome screen for new users
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -44,7 +163,7 @@ const WelcomeScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6 mx-auto">
             <Wallet className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">PayCio Wallet</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">SOW Wallet</h1>
           <p className="text-white/80 text-lg">Your gateway to the decentralized world</p>
         </motion.div>
 
@@ -120,4 +239,4 @@ const WelcomeScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   );
 };
 
-export default WelcomeScreen; 
+export default WelcomeScreen;
