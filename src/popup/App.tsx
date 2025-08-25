@@ -133,6 +133,14 @@ const App: React.FC = () => {
     );
   }
 
+  // FORCE DEBUG: Always show welcome screen
+  console.log('Debug: Current states:', { isLoading, walletLoading, isInitializing, initTimeout, currentScreen });
+  
+  // Force show welcome screen for debugging
+  if (currentScreen !== 'welcome') {
+    setCurrentScreen('welcome');
+  }
+
   // Show error screen
   if (walletError) {
     return (
@@ -162,6 +170,9 @@ const App: React.FC = () => {
 
   // Render current screen
   const renderScreen = () => {
+    // FORCE DEBUG: Always render welcome screen
+    return <WelcomeScreen onNavigate={handleNavigate} hasWallet={false} isWalletUnlocked={false} />;
+    
     switch (currentScreen) {
       case 'welcome':
         return <WelcomeScreen onNavigate={handleNavigate} hasWallet={!!wallet} isWalletUnlocked={isWalletUnlocked} />;
