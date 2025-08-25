@@ -23,13 +23,16 @@ export interface WalletData {
   id: string;
   name: string;
   address: string;
-  seedPhrase: string;
   privateKey: string;
   publicKey: string;
-  network: string;
+  encryptedSeedPhrase: string;
+  accounts: string[];
+  networks: string[];
   currentNetwork: string;
   derivationPath: string;
+  balance: string;
   createdAt: number;
+  lastUsed: number;
 }
 
 // Alias for backward compatibility
@@ -52,7 +55,9 @@ export interface Transaction {
   from: string;
   to: string;
   value: string;
+  amount: string;
   network: string;
+  type: 'send' | 'receive';
   status: 'pending' | 'confirmed' | 'failed';
   timestamp: number;
   gasUsed?: string;

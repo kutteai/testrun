@@ -133,7 +133,7 @@ const App: React.FC = () => {
     <div className="h-full bg-gray-50 flex flex-col">
       {/* Header */}
       <Header 
-        title={currentScreen === 'dashboard' ? 'SOW Wallet' : currentScreen.charAt(0).toUpperCase() + currentScreen.slice(1)}
+        title={currentScreen === 'dashboard' ? 'PayCio Wallet' : currentScreen.charAt(0).toUpperCase() + currentScreen.slice(1)}
         wallet={wallet}
         currentNetwork={currentNetwork}
       />

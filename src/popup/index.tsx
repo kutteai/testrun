@@ -7,6 +7,7 @@ import { NetworkProvider } from '../store/NetworkContext';
 import { TransactionProvider } from '../store/TransactionContext';
 import { NFTProvider } from '../store/NFTContext';
 import { PortfolioProvider } from '../store/PortfolioContext';
+import ErrorBoundary from '../components/ErrorBoundary';
 import App from '../App';
 import './index.css';
 
@@ -20,20 +21,31 @@ if (!rootElement) {
 
   root.render(
     <React.StrictMode>
-      <WalletProvider>
-      <SecurityProvider>
-          <NetworkProvider>
-            <TransactionProvider>
-              <NFTProvider>
-                <PortfolioProvider>
-                  <App />
-                  <Toaster position="top-right" />
-                </PortfolioProvider>
-              </NFTProvider>
-            </TransactionProvider>
-          </NetworkProvider>
-        </SecurityProvider>
+      <ErrorBoundary>
+        <WalletProvider>
+          <SecurityProvider>
+            <NetworkProvider>
+              <TransactionProvider>
+                <NFTProvider>
+                  <PortfolioProvider>
+                    <App />
+                    <Toaster 
+                      position="top-right"
+                      toastOptions={{
+                        duration: 4000,
+                        style: {
+                          background: '#363636',
+                          color: '#fff',
+                        },
+                      }}
+                    />
+                  </PortfolioProvider>
+                </NFTProvider>
+              </TransactionProvider>
+            </NetworkProvider>
+          </SecurityProvider>
         </WalletProvider>
+      </ErrorBoundary>
     </React.StrictMode>
   );
 } 

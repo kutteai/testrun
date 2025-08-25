@@ -44,7 +44,7 @@ const WelcomeScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-6 mx-auto">
             <Wallet className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">SOW Wallet</h1>
+          <h1 className="text-4xl font-bold text-white mb-2">PayCio Wallet</h1>
           <p className="text-white/80 text-lg">Your gateway to the decentralized world</p>
         </motion.div>
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Copy, Share2, Download, Check } from 'lucide-react';
+import { ArrowLeft, Copy, Share2, Download, Check, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
@@ -92,14 +92,18 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   };
 
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
   if (!wallet?.address) {
     return (
-      <div className="h-full bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="text-gray-500 mb-4">No wallet found</div>
+          <div className="text-slate-400 mb-4">No wallet found</div>
           <button
             onClick={() => onNavigate('dashboard')}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg"
+            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
           >
             Go to Dashboard
           </button>
@@ -109,107 +113,132 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   }
 
   return (
-    <div className="h-full bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-gray-200">
-        <div className="flex justify-between items-center">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-6 pb-4"
+      >
+        <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => onNavigate('dashboard')}
-            className="p-2 rounded-lg hover:bg-gray-100"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">Receive ETH</h1>
-          <div className="w-9"></div>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+              <QrCode className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Receive</h1>
+              <p className="text-slate-400 text-sm">Get crypto</p>
+            </div>
+          </div>
+          <div className="w-10"></div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Content */}
-      <div className="p-4 space-y-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="px-6 space-y-6"
+      >
         {/* QR Code */}
-        <div className="p-6 bg-white rounded-xl text-center">
-          <div className="mb-4">
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Your Address</h2>
-            <p className="text-sm text-gray-600">
-              Share this address to receive ETH and other ERC-20 tokens
+        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+          <div className="text-center mb-6">
+            <h2 className="text-lg font-semibold mb-2">Your Address</h2>
+            <p className="text-slate-400 text-sm">
+              Share this QR code or address to receive {currentNetwork?.symbol || 'ETH'}
             </p>
           </div>
-          
-          {/* QR Code Placeholder */}
-          <div className="mx-auto mb-4 w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300">
-            <QRCodeSVG value={getQRCodeData()} size={qrSize} />
-          </div>
 
-          {/* Address Display */}
-          <div className="p-3 bg-gray-50 rounded-lg mb-4">
-            <div className="text-sm text-gray-600 mb-1">Wallet Address</div>
-            <div className="font-mono text-sm text-gray-900 break-all">
-              {wallet.address}
+          <div className="flex justify-center mb-6">
+            <div className="bg-white p-4 rounded-2xl">
+              <QRCodeSVG
+                value={getQRCodeData()}
+                size={qrSize}
+                level="M"
+                includeMargin={true}
+              />
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-3 gap-3">
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={copyAddress}
-              className="flex flex-col items-center p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors"
-            >
-              {copied ? (
-                <Check className="w-5 h-5 text-green-600 mb-1" />
-              ) : (
-                <Copy className="w-5 h-5 text-blue-600 mb-1" />
-              )}
-              <span className="text-xs text-gray-700">
-                {copied ? 'Copied!' : 'Copy'}
-              </span>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={downloadQRCode}
-              className="flex flex-col items-center p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors"
-            >
-              <Download className="w-5 h-5 text-green-600 mb-1" />
-              <span className="text-xs text-gray-700">Download</span>
-            </motion.button>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={shareAddress}
-              className="flex flex-col items-center p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors"
-            >
-              <Share2 className="w-5 h-5 text-purple-600 mb-1" />
-              <span className="text-xs text-gray-700">Share</span>
-            </motion.button>
+          {/* Address */}
+          <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                <span className="text-sm font-mono">{formatAddress(wallet.address)}</span>
+              </div>
+              <button
+                onClick={copyAddress}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Instructions */}
-        <div className="p-4 bg-blue-50 rounded-xl">
-          <h3 className="font-semibold text-blue-900 mb-2">How to receive ETH</h3>
-          <ul className="text-sm text-blue-800 space-y-1">
-            <li>• Share your address with the sender</li>
-            <li>• They can scan the QR code or copy the address</li>
-            <li>• Transactions typically confirm in 1-3 minutes</li>
-            <li>• You'll see the balance update automatically</li>
-          </ul>
+        {/* Action Buttons */}
+        <div className="grid grid-cols-2 gap-4">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={shareAddress}
+            className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all"
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <Share2 className="w-5 h-5" />
+              <span className="text-sm font-medium">Share</span>
+            </div>
+          </motion.button>
+
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={downloadQRCode}
+            className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20 hover:bg-white/20 transition-all"
+          >
+            <div className="flex items-center justify-center space-x-2">
+              <Download className="w-5 h-5" />
+              <span className="text-sm font-medium">Download</span>
+            </div>
+          </motion.button>
         </div>
 
-        {/* Security Notice */}
-        <div className="p-4 bg-yellow-50 rounded-xl">
-          <h3 className="font-semibold text-yellow-900 mb-2">Security Tips</h3>
-          <ul className="text-sm text-yellow-800 space-y-1">
-            <li>• Only share this address with trusted sources</li>
-            <li>• Double-check the address before sharing</li>
-            <li>• Never share your private key or seed phrase</li>
-            <li>• This address is safe to share publicly</li>
-          </ul>
+        {/* Network Info */}
+        <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Network</p>
+              <p className="text-slate-400 text-sm">{currentNetwork?.name || 'Ethereum'}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-medium">Symbol</p>
+              <p className="text-slate-400 text-sm">{currentNetwork?.symbol || 'ETH'}</p>
+            </div>
+          </div>
         </div>
-      </div>
+
+        {/* Security Note */}
+        <div className="bg-blue-500/10 border border-blue-400/20 rounded-xl p-4">
+          <div className="flex items-start space-x-3">
+            <div className="w-5 h-5 bg-blue-400 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+              <div className="w-2 h-2 bg-white rounded-full"></div>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-blue-300 mb-1">Security Note</h3>
+              <p className="text-blue-200 text-sm">
+                Only send {currentNetwork?.symbol || 'ETH'} to this address. Sending other cryptocurrencies may result in permanent loss.
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     </div>
   );
 };

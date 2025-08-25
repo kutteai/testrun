@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { getRealBalance } from '../utils/web3-utils';
 import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, hashPassword, verifyPassword } from '../utils/crypto-utils';
@@ -9,6 +9,9 @@ import {
   WalletContextType, 
   Network
 } from '../types/index';
+
+// Auto-lock timeout (30 minutes)
+const AUTO_LOCK_TIMEOUT = 30 * 60 * 1000;
 
 // Initial state
 const initialState: WalletState = {
@@ -98,6 +101,8 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 // Provider component
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(walletReducer, initialState);
+  const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   // Initialize wallet on mount
   useEffect(() => {
@@ -111,6 +116,60 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [state.isWalletUnlocked, state.address]);
 
+  // Auto-lock functionality
+  useEffect(() => {
+    if (state.isWalletUnlocked) {
+      startAutoLockTimer();
+      
+      // Reset timer on user activity
+      const handleUserActivity = () => {
+        lastActivityRef.current = Date.now();
+        resetAutoLockTimer();
+      };
+
+      // Listen for user activity
+      document.addEventListener('mousedown', handleUserActivity);
+      document.addEventListener('keydown', handleUserActivity);
+      document.addEventListener('touchstart', handleUserActivity);
+      document.addEventListener('scroll', handleUserActivity);
+
+      return () => {
+        clearAutoLockTimer();
+        document.removeEventListener('mousedown', handleUserActivity);
+        document.removeEventListener('keydown', handleUserActivity);
+        document.removeEventListener('touchstart', handleUserActivity);
+        document.removeEventListener('scroll', handleUserActivity);
+      };
+    } else {
+      clearAutoLockTimer();
+    }
+  }, [state.isWalletUnlocked]);
+
+  // Auto-lock timer functions
+  const startAutoLockTimer = () => {
+    clearAutoLockTimer();
+    autoLockTimerRef.current = setTimeout(() => {
+              if (state.isWalletUnlocked) {
+          lockWallet();
+          toast('Wallet auto-locked due to inactivity');
+        }
+    }, AUTO_LOCK_TIMEOUT);
+  };
+
+  const resetAutoLockTimer = () => {
+    if (autoLockTimerRef.current) {
+      clearTimeout(autoLockTimerRef.current);
+      startAutoLockTimer();
+    }
+  };
+
+  const clearAutoLockTimer = () => {
+    if (autoLockTimerRef.current) {
+      clearTimeout(autoLockTimerRef.current);
+      autoLockTimerRef.current = null;
+    }
+  };
+
   // Initialize wallet
   const initializeWallet = async (): Promise<void> => {
     try {
@@ -120,7 +179,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const storedWallet = await getStoredWallet();
       if (storedWallet) {
         dispatch({ type: 'SET_WALLET_CREATED', payload: true });
-        dispatch({ type: 'SET_WALLET', payload: storedWallet });
+        dispatch({ type: 'SET_HAS_WALLET', payload: true });
+        
+        // Check if wallet was previously unlocked
+        const unlockTime = await getStoredUnlockTime();
+        if (unlockTime && (Date.now() - unlockTime) < AUTO_LOCK_TIMEOUT) {
+          dispatch({ type: 'SET_WALLET', payload: storedWallet });
+        }
       }
     } catch (error) {
       toast.error('Failed to initialize wallet');
@@ -147,11 +212,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         address: walletData.address,
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
-        seedPhrase: walletData.seedPhrase,
-        network,
+        encryptedSeedPhrase: walletData.seedPhrase,
+        accounts: [walletData.address],
+        networks: [network],
         currentNetwork: network,
         derivationPath: walletData.derivationPath,
-        createdAt: Date.now()
+        balance: '0',
+        createdAt: Date.now(),
+        lastUsed: Date.now()
       };
 
       // Store wallet securely
@@ -188,11 +256,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         address: walletData.address,
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
-        seedPhrase: walletData.seedPhrase,
-        network,
+        encryptedSeedPhrase: walletData.seedPhrase,
+        accounts: [walletData.address],
+        networks: [network],
         currentNetwork: network,
         derivationPath: walletData.derivationPath,
-        createdAt: Date.now()
+        balance: '0',
+        createdAt: Date.now(),
+        lastUsed: Date.now()
       };
 
       // Store wallet securely
@@ -225,6 +296,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const hash = await hashPassword(password);
         await storePasswordHash(hash);
         dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+        dispatch({ type: 'SET_WALLET', payload: storedWallet });
+        await storeUnlockTime(Date.now());
         toast.success('Wallet unlocked successfully');
         return true;
       }
@@ -232,9 +305,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Verify password
       const isValid = await verifyPassword(password, storedHash);
       if (isValid) {
-      dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+        dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+        dispatch({ type: 'SET_WALLET', payload: storedWallet });
+        await storeUnlockTime(Date.now());
         toast.success('Wallet unlocked successfully');
-      return true;
+        return true;
       } else {
         toast.error('Invalid password');
         return false;
@@ -249,6 +324,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Lock wallet
   const lockWallet = (): void => {
     dispatch({ type: 'LOCK_WALLET' });
+    clearAutoLockTimer();
+    storeUnlockTime(0);
     toast.success('Wallet locked');
   };
 
@@ -336,13 +413,28 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
+  // Store unlock time
+  const storeUnlockTime = async (timestamp: number): Promise<void> => {
+    chrome.storage.local.set({ unlockTime: timestamp });
+  };
+
+  // Get stored unlock time
+  const getStoredUnlockTime = async (): Promise<number | null> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['unlockTime'], (result) => {
+        resolve(result.unlockTime || null);
+      });
+    });
+  };
+
   // Add hardware wallet
   const addHardwareWallet = async (type: 'ledger' | 'trezor', address: string, derivationPath: string): Promise<void> => {
     try {
-      const { hardwareWalletManager } = await import('../utils/hardware-wallet');
+      const { HardwareWalletManager } = await import('../utils/hardware-wallet');
+      const hardwareWalletManager = new HardwareWalletManager();
       
       // Connect to hardware wallet
-      await hardwareWalletManager.connectHardwareWallet(type);
+      await hardwareWalletManager.connectToDevice(type);
       
       // Verify the address matches
       const addresses = await hardwareWalletManager.getHardwareWalletAddresses(derivationPath);
@@ -355,13 +447,18 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         id: `hw_${type}_${Date.now()}`,
         name: `${type.charAt(0).toUpperCase() + type.slice(1)} Wallet`,
         address,
-        seedPhrase: '', // Hardware wallets don't expose seed phrases
         privateKey: '', // Hardware wallets don't expose private keys
-        publicKey: await hardwareWalletManager.exportPublicKey(`hw_${type}_${Date.now()}`, derivationPath),
-        network: 'ethereum',
+        publicKey: type === 'ledger' 
+          ? await hardwareWalletManager.exportPublicKeyLedger()
+          : await hardwareWalletManager.exportPublicKeyTrezor(),
+        encryptedSeedPhrase: '', // Hardware wallets don't expose seed phrases
+        accounts: [address],
+        networks: ['ethereum'],
         currentNetwork: 'ethereum',
         derivationPath,
-        createdAt: Date.now()
+        balance: '0',
+        createdAt: Date.now(),
+        lastUsed: Date.now()
       };
 
       // Store hardware wallet

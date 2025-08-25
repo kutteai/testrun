@@ -6,6 +6,7 @@ const TerserPlugin = require('terser-webpack-plugin');
 const CompressionPlugin = require('compression-webpack-plugin');
 const { DefinePlugin } = require('webpack');
 const dotenv = require('dotenv');
+const webpack = require('webpack');
 
 // Load environment variables
 dotenv.config();
@@ -28,7 +29,8 @@ module.exports = (env, argv) => {
     output: {
       path: path.resolve(__dirname, `dist/${browser}`),
       filename: '[name].js',
-      clean: true
+      clean: true,
+      publicPath: ''
     },
     module: {
       rules: [
@@ -82,7 +84,9 @@ module.exports = (env, argv) => {
         "http": require.resolve("stream-http"),
         "https": require.resolve("https-browserify"),
         "os": require.resolve("os-browserify/browser"),
-        "url": require.resolve("url")
+        "url": require.resolve("url"),
+        "process": require.resolve("process/browser"),
+        "vm": require.resolve("vm-browserify")
       }
     },
     plugins: [
@@ -92,6 +96,12 @@ module.exports = (env, argv) => {
         'process.env.NODE_ENV': JSON.stringify(argv.mode),
         'process.env.BROWSER': JSON.stringify(browser),
         'window.CONFIG': JSON.stringify(CONFIG)
+      }),
+
+      // Provide Buffer global
+      new webpack.ProvidePlugin({
+        Buffer: ['buffer', 'Buffer'],
+        process: 'process/browser'
       }),
 
       // HTML files

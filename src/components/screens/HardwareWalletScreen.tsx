@@ -7,7 +7,7 @@ import {
   XCircle, 
   Loader
 } from 'lucide-react';
-import { hardwareWalletManager } from '../../utils/hardware-wallet';
+import { HardwareWalletManager } from '../../utils/hardware-wallet';
 import { useWallet } from '../../store/WalletContext';
 import type { ScreenProps } from '../../types/index';
 
@@ -24,6 +24,7 @@ const HardwareWalletScreen: React.FC<HardwareWalletScreenProps> = ({ onNavigate 
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   
   const { addHardwareWallet } = useWallet();
+  const hardwareWalletManager = new HardwareWalletManager();
 
   const hardwareWallets = [
     {
@@ -50,7 +51,7 @@ const HardwareWalletScreen: React.FC<HardwareWalletScreenProps> = ({ onNavigate 
     setError(null);
 
     try {
-      await hardwareWalletManager.connectHardwareWallet(type);
+      await hardwareWalletManager.connectToDevice(type);
       setConnectionStatus('connected');
       setSelectedWallet(type);
       
@@ -82,7 +83,7 @@ const HardwareWalletScreen: React.FC<HardwareWalletScreenProps> = ({ onNavigate 
 
   const disconnectWallet = async () => {
     if (selectedWallet) {
-      await hardwareWalletManager.disconnectHardwareWallet();
+      await hardwareWalletManager.disconnectDevice(selectedWallet);
       setSelectedWallet(null);
       setConnectionStatus('idle');
       setAccounts([]);

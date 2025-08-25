@@ -120,7 +120,7 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         {
           id: 'network',
           label: 'Network',
-          value: wallet?.network || 'Ethereum',
+          value: wallet?.currentNetwork || 'Ethereum',
           type: 'text'
         }
       ]
@@ -138,7 +138,7 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const walletData = {
         name: wallet.name,
         address: wallet.address,
-        network: wallet.network,
+        network: wallet.currentNetwork,
         createdAt: wallet.createdAt
       };
 
@@ -252,37 +252,58 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="h-full bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
       {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-gray-200">
-        <div className="flex justify-between items-center">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-6 pb-4"
+      >
+        <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => onNavigate('dashboard')}
-            className="p-2 rounded-lg hover:bg-gray-100"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">Settings</h1>
-          <div className="w-9"></div>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Settings className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Settings</h1>
+              <p className="text-slate-400 text-sm">Configure your wallet</p>
+            </div>
+          </div>
+          <div className="w-10"></div>
         </div>
-      </div>
+      </motion.div>
 
       {/* Content */}
-      <div className="p-4 space-y-6">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="px-6 space-y-6 pb-6"
+      >
         {settingsSections.map((section) => (
-          <div key={section.id} className="bg-white rounded-xl overflow-hidden">
-            <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
-              <div className="flex items-center space-x-2">
-                <section.icon className="w-5 h-5 text-gray-600" />
-                <h2 className="text-lg font-semibold text-gray-900">{section.title}</h2>
+          <motion.div 
+            key={section.id} 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white/10 backdrop-blur-xl rounded-2xl overflow-hidden border border-white/20"
+          >
+            <div className="px-6 py-4 bg-white/5 border-b border-white/10">
+              <div className="flex items-center space-x-3">
+                <section.icon className="w-5 h-5 text-blue-400" />
+                <h2 className="text-lg font-semibold">{section.title}</h2>
               </div>
             </div>
             
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-white/10">
               {section.items.map((item) => (
-                <div key={item.id} className="px-4 py-3 flex items-center justify-between">
+                <div key={item.id} className="px-6 py-4 flex items-center justify-between">
                   <div className="flex-1">
-                    <label className="text-sm font-medium text-gray-700">{item.label}</label>
+                    <label className="text-sm font-medium text-slate-300">{item.label}</label>
                   </div>
                   <div className="ml-4">
                     {renderSettingItem(item)}
@@ -290,9 +311,9 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </div>
               ))}
             </div>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
     </div>
   );
 };
