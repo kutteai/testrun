@@ -40,26 +40,12 @@ const App: React.FC = () => {
   const { pendingTransactions } = useTransaction();
   const { portfolioValue } = usePortfolio();
 
-  // Initialize app and determine initial screen
+  // Initialize app and determine initial screen - DISABLED
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        // Wait for wallet initialization to complete
-        await initializeWallet();
-        
-        // Determine which screen to show based on wallet state
-        determineInitialScreen();
-        
-        setIsAppInitialized(true);
-      } catch (error) {
-        console.error('Failed to initialize app:', error);
-        toast.error('Failed to initialize app');
-        setIsAppInitialized(true);
-      }
-    };
-
-    initializeApp();
-  }, [initializeWallet]);
+    console.log('App: Skipping initialization...');
+    setIsAppInitialized(true);
+    setCurrentScreen('welcome');
+  }, []);
 
   // Determine initial screen based on wallet state
   const determineInitialScreen = () => {
@@ -113,8 +99,8 @@ const App: React.FC = () => {
     setCurrentScreen(screen);
   };
 
-  // Show loading screen during initialization
-  if (!isAppInitialized || isInitializing) {
+  // Show loading screen during initialization - DISABLED
+  if (false) { // Temporarily disable loading
     return (
       <div className="h-full bg-gray-50 flex items-center justify-center">
         <div className="text-center">

@@ -116,52 +116,55 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [state.isWalletUnlocked, state.address]);
 
-  // Initialize wallet on mount
+  // Initialize wallet on mount - COMPLETELY DISABLED
   useEffect(() => {
-    console.log('WalletContext: Initializing wallet on mount...');
-    initializeWallet();
+    console.log('WalletContext: Skipping initialization completely...');
+    dispatch({ type: 'SET_INITIALIZING', payload: false });
+    dispatch({ type: 'SET_HAS_WALLET', payload: false });
+    dispatch({ type: 'SET_WALLET_CREATED', payload: false });
+    dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
   }, []); // Only run once on mount
 
-  // Save wallet state to storage whenever it changes
-  useEffect(() => {
-    if (state.hasWallet) {
-      storeWalletState();
-    }
-  }, [state.isWalletUnlocked, state.hasWallet, state.isWalletCreated]);
+  // Save wallet state to storage whenever it changes - DISABLED
+  // useEffect(() => {
+  //   if (state.hasWallet) {
+  //     storeWalletState();
+  //   }
+  // }, [state.isWalletUnlocked, state.hasWallet, state.isWalletCreated]);
 
-  // Auto-lock functionality - only when password is set
-  useEffect(() => {
-    const checkAutoLock = async () => {
-      const storedHash = await getStoredPasswordHash();
-      if (state.isWalletUnlocked && storedHash) {
-        startAutoLockTimer();
-        
-        // Reset timer on user activity
-        const handleUserActivity = () => {
-          lastActivityRef.current = Date.now();
-          resetAutoLockTimer();
-        };
+  // Auto-lock functionality - DISABLED
+  // useEffect(() => {
+  //   const checkAutoLock = async () => {
+  //     const storedHash = await getStoredPasswordHash();
+  //     if (state.isWalletUnlocked && storedHash) {
+  //       startAutoLockTimer();
+  //       
+  //       // Reset timer on user activity
+  //       const handleUserActivity = () => {
+  //         lastActivityRef.current = Date.now();
+  //         resetAutoLockTimer();
+  //       };
 
-        // Listen for user activity
-        document.addEventListener('mousedown', handleUserActivity);
-        document.addEventListener('keydown', handleUserActivity);
-        document.addEventListener('touchstart', handleUserActivity);
-        document.addEventListener('scroll', handleUserActivity);
+  //       // Listen for user activity
+  //       document.addEventListener('mousedown', handleUserActivity);
+  //       document.addEventListener('keydown', handleUserActivity);
+  //       document.addEventListener('touchstart', handleUserActivity);
+  //       document.addEventListener('scroll', handleUserActivity);
 
-        return () => {
-          clearAutoLockTimer();
-          document.removeEventListener('mousedown', handleUserActivity);
-          document.removeEventListener('keydown', handleUserActivity);
-          document.removeEventListener('touchstart', handleUserActivity);
-          document.removeEventListener('scroll', handleUserActivity);
-        };
-      } else {
-        clearAutoLockTimer();
-      }
-    };
+  //       return () => {
+  //         clearAutoLockTimer();
+  //         document.removeEventListener('mousedown', handleUserActivity);
+  //         document.removeEventListener('keydown', handleUserActivity);
+  //         document.removeEventListener('touchstart', handleUserActivity);
+  //         document.removeEventListener('scroll', handleUserActivity);
+  //       };
+  //     } else {
+  //       clearAutoLockTimer();
+  //     }
+  //   };
 
-    checkAutoLock();
-  }, [state.isWalletUnlocked]);
+  //   checkAutoLock();
+  // }, [state.isWalletUnlocked]);
 
   // Auto-lock timer functions
   const startAutoLockTimer = () => {
