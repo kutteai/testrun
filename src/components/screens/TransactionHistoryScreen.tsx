@@ -25,10 +25,19 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setAllTransactions(combined);
   }, [recentTransactions, pendingTransactions, blockchainTransactions]);
 
+  // Load transactions when component mounts
+  useEffect(() => {
+    if (wallet?.address && currentNetwork) {
+      loadBlockchainTransactions(1, false);
+    }
+  }, [wallet?.address, currentNetwork?.id]);
+
   // Load transactions from blockchain
   const loadBlockchainTransactions = async (pageNum: number = 1, append: boolean = false) => {
-    if (!wallet?.address || !currentNetwork) {
-      setError('No wallet or network selected');
+    if (!wallet?.address || !currentNetwork?.id) {
+      const errorMsg = `No wallet or network selected. Wallet: ${!!wallet}, Address: ${!!wallet?.address}, Network: ${!!currentNetwork}, NetworkId: ${currentNetwork?.id}`;
+      console.error('Transaction loading error:', errorMsg);
+      setError(errorMsg);
       return;
     }
     
@@ -43,8 +52,8 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       // Load both regular and token transactions
       const [regularTxs, tokenTxs] = await Promise.all([
-        getTransactionHistory(wallet.address, currentNetwork.id, pageNum, 20),
-        getTokenTransactions(wallet.address, currentNetwork.id)
+        getTransactionHistory(wallet.address, currentNetwork.id, pageNum, 20).catch(() => []),
+        getTokenTransactions(wallet.address, currentNetwork.id).catch(() => [])
       ]);
       
       // Convert blockchain transactions to our format
@@ -77,14 +86,18 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setHasMore(formattedTransactions.length === 20);
       setPage(pageNum);
       
-      if (pageNum === 1) {
+      if (pageNum === 1 && formattedTransactions.length > 0) {
         toast.success('Transactions refreshed');
       }
     } catch (error) {
       console.error('Error loading transactions:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to load transactions';
-      setError(errorMessage);
-      toast.error(errorMessage);
+      // Set empty transactions instead of error
+      if (append) {
+        setBlockchainTransactions(prev => [...prev]);
+      } else {
+        setBlockchainTransactions([]);
+      }
+      setError('Unable to load transactions at this time');
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
@@ -174,7 +187,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -216,9 +229,20 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           animate={{ opacity: 1, y: 0 }}
           className="mx-6 mb-6 bg-red-500/20 border border-red-400/20 rounded-xl p-4"
         >
-          <div className="flex items-center space-x-3">
-            <AlertCircle className="w-5 h-5 text-red-400" />
-            <span className="text-red-200 text-sm">{error}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <AlertCircle className="w-5 h-5 text-red-400" />
+              <span className="text-red-200 text-sm">{error}</span>
+            </div>
+            <button
+              onClick={handleRefresh}
+              className="text-red-300 hover:text-red-200 text-sm font-medium"
+            >
+              Retry
+            </button>
+          </div>
+          <div className="mt-2 text-xs text-red-300">
+            Debug: Wallet={!!wallet}, Address={!!wallet?.address}, Network={!!currentNetwork}, NetworkId={currentNetwork?.id}
           </div>
         </motion.div>
       )}
@@ -227,7 +251,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-6 pb-6"
+        className="px-6 space-y-6 pb-6 flex-1"
       >
         {isLoading && allTransactions.length === 0 ? (
           <div className="py-12 text-center">
@@ -235,7 +259,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <p className="text-slate-400">Loading transactions...</p>
           </div>
         ) : allTransactions.length === 0 ? (
-          <div className="py-12 text-center">
+          <div className="py-12 text-center flex-1 flex flex-col justify-center">
             <div className="flex justify-center items-center mx-auto mb-4 w-16 h-16 bg-white/10 rounded-full">
               <Clock className="w-8 h-8 text-slate-400" />
             </div>

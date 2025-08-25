@@ -85,6 +85,23 @@ const App: React.FC = () => {
     );
   }
 
+  // Ensure wallet is properly initialized before showing protected screens
+  const isProtectedScreen = ['dashboard', 'send', 'receive', 'settings', 'security', 'networks', 'nfts', 'portfolio', 'transactions', 'transaction-history'].includes(currentScreen);
+  
+  if (isProtectedScreen && (!wallet || !isWalletUnlocked)) {
+    // Redirect to welcome if wallet is not properly initialized
+    if (currentScreen !== 'welcome') {
+      console.log('Redirecting to welcome - Wallet state:', { 
+        hasWallet: !!wallet, 
+        isUnlocked: isWalletUnlocked, 
+        walletAddress: wallet?.address,
+        currentScreen 
+      });
+      setCurrentScreen('welcome');
+      return <LoadingScreen message="Redirecting..." />;
+    }
+  }
+
   // Render current screen
   const renderScreen = () => {
     switch (currentScreen) {

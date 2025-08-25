@@ -116,33 +116,45 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [state.isWalletUnlocked, state.address]);
 
-  // Auto-lock functionality
+  // Save wallet state to storage whenever it changes
   useEffect(() => {
-    if (state.isWalletUnlocked) {
-      startAutoLockTimer();
-      
-      // Reset timer on user activity
-      const handleUserActivity = () => {
-        lastActivityRef.current = Date.now();
-        resetAutoLockTimer();
-      };
-
-      // Listen for user activity
-      document.addEventListener('mousedown', handleUserActivity);
-      document.addEventListener('keydown', handleUserActivity);
-      document.addEventListener('touchstart', handleUserActivity);
-      document.addEventListener('scroll', handleUserActivity);
-
-      return () => {
-        clearAutoLockTimer();
-        document.removeEventListener('mousedown', handleUserActivity);
-        document.removeEventListener('keydown', handleUserActivity);
-        document.removeEventListener('touchstart', handleUserActivity);
-        document.removeEventListener('scroll', handleUserActivity);
-      };
-    } else {
-      clearAutoLockTimer();
+    if (state.hasWallet) {
+      storeWalletState();
     }
+  }, [state.isWalletUnlocked, state.hasWallet, state.isWalletCreated]);
+
+  // Auto-lock functionality - only when password is set
+  useEffect(() => {
+    const checkAutoLock = async () => {
+      const storedHash = await getStoredPasswordHash();
+      if (state.isWalletUnlocked && storedHash) {
+        startAutoLockTimer();
+        
+        // Reset timer on user activity
+        const handleUserActivity = () => {
+          lastActivityRef.current = Date.now();
+          resetAutoLockTimer();
+        };
+
+        // Listen for user activity
+        document.addEventListener('mousedown', handleUserActivity);
+        document.addEventListener('keydown', handleUserActivity);
+        document.addEventListener('touchstart', handleUserActivity);
+        document.addEventListener('scroll', handleUserActivity);
+
+        return () => {
+          clearAutoLockTimer();
+          document.removeEventListener('mousedown', handleUserActivity);
+          document.removeEventListener('keydown', handleUserActivity);
+          document.removeEventListener('touchstart', handleUserActivity);
+          document.removeEventListener('scroll', handleUserActivity);
+        };
+      } else {
+        clearAutoLockTimer();
+      }
+    };
+
+    checkAutoLock();
   }, [state.isWalletUnlocked]);
 
   // Auto-lock timer functions
@@ -173,24 +185,67 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Initialize wallet
   const initializeWallet = async (): Promise<void> => {
     try {
+      console.log('Starting wallet initialization...');
       dispatch({ type: 'SET_INITIALIZING', payload: true });
+      dispatch({ type: 'SET_ERROR', payload: null });
       
-      // Check if wallet exists in storage
-      const storedWallet = await getStoredWallet();
-      if (storedWallet) {
-        dispatch({ type: 'SET_WALLET_CREATED', payload: true });
-        dispatch({ type: 'SET_HAS_WALLET', payload: true });
+      // Add timeout to prevent infinite loading
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Initialization timeout')), 10000);
+      });
+      
+      const initPromise = (async () => {
+        // Check if wallet exists in storage
+        console.log('Fetching stored wallet...');
+        const storedWallet = await getStoredWallet();
+        console.log('Stored wallet:', !!storedWallet);
         
-        // Check if wallet was previously unlocked
-        const unlockTime = await getStoredUnlockTime();
-        if (unlockTime && (Date.now() - unlockTime) < AUTO_LOCK_TIMEOUT) {
+        const storedState = await getStoredWalletState();
+        console.log('Stored state:', storedState);
+        
+        if (storedWallet) {
+          dispatch({ type: 'SET_WALLET_CREATED', payload: true });
+          dispatch({ type: 'SET_HAS_WALLET', payload: true });
+          
+          // Always set the wallet data
           dispatch({ type: 'SET_WALLET', payload: storedWallet });
+          
+          // Restore wallet state if available
+          if (storedState) {
+            dispatch({ type: 'SET_WALLET_UNLOCKED', payload: storedState.isWalletUnlocked });
+          } else {
+            // Check if password is set
+            const storedHash = await getStoredPasswordHash();
+            if (!storedHash) {
+              // No password set yet, keep wallet unlocked
+              dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+            } else {
+              // Password is set, check if wallet was previously unlocked
+              const unlockTime = await getStoredUnlockTime();
+              if (unlockTime && (Date.now() - unlockTime) < AUTO_LOCK_TIMEOUT) {
+                dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+              } else {
+                dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
+              }
+            }
+          }
+        } else {
+          // No wallet found, ensure clean state
+          dispatch({ type: 'SET_WALLET_CREATED', payload: false });
+          dispatch({ type: 'SET_HAS_WALLET', payload: false });
+          dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
         }
-      }
+      })();
+      
+      await Promise.race([initPromise, timeoutPromise]);
+      console.log('Wallet initialization completed successfully');
+      
     } catch (error) {
-      toast.error('Failed to initialize wallet');
-      dispatch({ type: 'SET_ERROR', payload: 'Failed to initialize wallet' });
+      console.error('Wallet initialization error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize wallet';
+      dispatch({ type: 'SET_ERROR', payload: `Wallet initialization failed: ${errorMessage}` });
     } finally {
+      console.log('Setting isInitializing to false');
       dispatch({ type: 'SET_INITIALIZING', payload: false });
     }
   };
@@ -387,15 +442,64 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const storeWallet = async (wallet: WalletData): Promise<void> => {
     // In a real implementation, you would encrypt the wallet data
     // For now, we'll store it as is (should be encrypted in production)
-    chrome.storage.local.set({ wallet });
+    chrome.storage.local.set({ 
+      wallet,
+      walletState: {
+        isWalletUnlocked: state.isWalletUnlocked,
+        hasWallet: true,
+        isWalletCreated: true,
+        lastUpdated: Date.now()
+      }
+    });
+  };
+
+  // Store wallet state
+  const storeWalletState = async (): Promise<void> => {
+    chrome.storage.local.set({ 
+      walletState: {
+        isWalletUnlocked: state.isWalletUnlocked,
+        hasWallet: state.hasWallet,
+        isWalletCreated: state.isWalletCreated,
+        lastUpdated: Date.now()
+      }
+    });
   };
 
   // Get stored wallet
   const getStoredWallet = async (): Promise<WalletData | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['wallet'], (result) => {
-        resolve(result.wallet || null);
-      });
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.get(['wallet', 'walletState'], (result) => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome storage error:', chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(result.wallet || null);
+          }
+        });
+      } catch (error) {
+        console.error('Storage access error:', error);
+        reject(error);
+      }
+    });
+  };
+
+  // Get stored wallet state
+  const getStoredWalletState = async (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.get(['walletState'], (result) => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome storage error:', chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(result.walletState || null);
+          }
+        });
+      } catch (error) {
+        console.error('Storage access error:', error);
+        reject(error);
+      }
     });
   };
 
@@ -406,24 +510,58 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Get stored password hash
   const getStoredPasswordHash = async (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['passwordHash'], (result) => {
-        resolve(result.passwordHash || null);
-      });
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.get(['passwordHash'], (result) => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome storage error:', chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(result.passwordHash || null);
+          }
+        });
+      } catch (error) {
+        console.error('Storage access error:', error);
+        reject(error);
+      }
     });
   };
 
   // Store unlock time
   const storeUnlockTime = async (timestamp: number): Promise<void> => {
-    chrome.storage.local.set({ unlockTime: timestamp });
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.set({ unlockTime: timestamp }, () => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome storage error:', chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve();
+          }
+        });
+      } catch (error) {
+        console.error('Storage access error:', error);
+        reject(error);
+      }
+    });
   };
 
   // Get stored unlock time
   const getStoredUnlockTime = async (): Promise<number | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['unlockTime'], (result) => {
-        resolve(result.unlockTime || null);
-      });
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.storage.local.get(['unlockTime'], (result) => {
+          if (chrome.runtime.lastError) {
+            console.error('Chrome storage error:', chrome.runtime.lastError);
+            reject(new Error(chrome.runtime.lastError.message));
+          } else {
+            resolve(result.unlockTime || null);
+          }
+        });
+      } catch (error) {
+        console.error('Storage access error:', error);
+        reject(error);
+      }
     });
   };
 

@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
 const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet, currentNetwork } = useWallet();
+  const { wallet, currentNetwork, isWalletUnlocked, isLoading, isInitializing } = useWallet();
   const [copied, setCopied] = useState(false);
   const [qrSize, setQrSize] = useState(200);
 
@@ -96,14 +96,58 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
-  if (!wallet?.address) {
+  // Check if wallet is loading or initializing
+  if (isLoading || isInitializing) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-4"></div>
+          <div className="text-slate-400 mb-4">Loading wallet...</div>
+          <div className="text-xs text-slate-500 mb-4">
+            Debug: isLoading={isLoading?.toString()}, isInitializing={isInitializing?.toString()}
+          </div>
+          <button
+            onClick={() => onNavigate('dashboard')}
+            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+          >
+            Go to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if wallet exists
+  if (!wallet) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
         <div className="text-center">
           <div className="text-slate-400 mb-4">No wallet found</div>
           <button
+            onClick={() => onNavigate('welcome')}
+            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+          >
+            Create Wallet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if wallet is locked or has no address
+  if (!isWalletUnlocked || !wallet?.address) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-slate-400 mb-4">
+            {!wallet?.address ? 'Wallet not properly initialized' : 'Wallet is locked'}
+          </div>
+          <div className="text-xs text-slate-500 mb-4">
+            Debug: isWalletUnlocked={isWalletUnlocked?.toString()}, hasAddress={!!wallet?.address}
+          </div>
+          <button
             onClick={() => onNavigate('dashboard')}
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
           >
             Go to Dashboard
           </button>
@@ -113,7 +157,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -171,7 +215,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-sm font-mono">{formatAddress(wallet.address)}</span>
+                <span className="text-sm font-mono">{formatAddress(wallet?.address || '')}</span>
               </div>
               <button
                 onClick={copyAddress}

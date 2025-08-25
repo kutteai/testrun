@@ -71,7 +71,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col h-full">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -221,7 +221,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-6 pb-6"
+        className="px-6 pb-6 flex-1 overflow-y-auto"
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Recent Activity</h3>
@@ -269,7 +269,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           ))}
 
           {recentTransactions.length === 0 && (
-            <div className="text-center py-8">
+            <div className="text-center py-8 flex-1 flex flex-col justify-center">
               <Activity className="w-12 h-12 mx-auto mb-4 text-slate-400" />
               <p className="text-slate-400">No transactions yet</p>
               <p className="text-slate-500 text-sm">Your transaction history will appear here</p>
