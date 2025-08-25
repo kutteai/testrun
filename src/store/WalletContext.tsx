@@ -595,6 +595,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [state.isWalletUnlocked]);
 
+  // Initialize wallet on mount
+  useEffect(() => {
+    console.log('WalletContext: Initializing wallet on mount...');
+    initializeWallet();
+  }, []); // Only run once on mount
+
   const value: WalletContextType = {
     ...state,
     createWallet,

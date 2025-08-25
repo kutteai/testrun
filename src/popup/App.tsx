@@ -31,9 +31,9 @@ import NotificationBanner from '../components/common/NotificationBanner';
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('welcome');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Start with false to skip loading
   const [notification, setNotification] = useState<NotificationType | null>(null);
-  const [initTimeout, setInitTimeout] = useState(false);
+  const [initTimeout, setInitTimeout] = useState(true); // Start with true to skip initialization
 
   // Context hooks
   const {
@@ -45,40 +45,73 @@ const App: React.FC = () => {
     initializeWallet
   } = useWallet();
 
+  // Debug function to force stop initialization
+  const forceStopInitialization = () => {
+    console.log('Debug: Force stopping initialization');
+    setIsLoading(false);
+    setInitTimeout(true);
+    // Force the wallet context to stop initializing by dispatching an action
+    // This is a workaround since we can't directly access the dispatch
+  };
+
   const { currentNetwork } = useNetwork();
 
   // Initialize app
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeApp = async () => {
       try {
+        console.log('Starting app initialization...');
+        
         // Add timeout to prevent infinite loading
         const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('App initialization timeout')), 15000);
+          setTimeout(() => reject(new Error('App initialization timeout')), 10000);
         });
         
         await Promise.race([initializeWallet(), timeoutPromise]);
-        setIsLoading(false);
+        
+        if (isMounted) {
+          console.log('App initialization completed successfully');
+          setIsLoading(false);
+        }
       } catch (error) {
         console.error('App initialization failed:', error);
-        toast.error('Failed to initialize app');
-        setIsLoading(false);
-        setInitTimeout(true);
+        if (isMounted) {
+          toast.error('Failed to initialize app');
+          setIsLoading(false);
+          setInitTimeout(true);
+        }
       }
     };
 
     // Add a fallback timeout to prevent infinite loading
     const fallbackTimeout = setTimeout(() => {
-      if (isLoading) {
+      if (isMounted && isLoading) {
         console.log('Fallback timeout reached, showing welcome screen');
         setIsLoading(false);
         setInitTimeout(true);
       }
-    }, 20000);
+    }, 15000);
 
     initializeApp();
 
-    return () => clearTimeout(fallbackTimeout);
-  }, [initializeWallet, isLoading]);
+    return () => {
+      isMounted = false;
+      clearTimeout(fallbackTimeout);
+    };
+  }, [initializeWallet]); // Removed isLoading from dependencies
+
+  // Aggressive timeout fallback - force welcome screen after 3 seconds
+  useEffect(() => {
+    const aggressiveTimeout = setTimeout(() => {
+      console.log('Aggressive timeout - forcing welcome screen');
+      setIsLoading(false);
+      setInitTimeout(true);
+    }, 3000); // 3 seconds max - very aggressive
+
+    return () => clearTimeout(aggressiveTimeout);
+  }, []); // Only run once on mount
 
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
@@ -90,9 +123,14 @@ const App: React.FC = () => {
     setNotification(null);
   };
 
-  // Show loading screen
-  if ((isLoading || walletLoading || isInitializing) && !initTimeout) {
-    return <LoadingScreen message="Initializing wallet..." />;
+  // Show loading screen - but only for a very short time
+  if (isLoading && !initTimeout) {
+    return (
+      <LoadingScreen 
+        message="Initializing wallet..." 
+        onDebugClick={forceStopInitialization}
+      />
+    );
   }
 
   // Show error screen
