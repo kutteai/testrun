@@ -1,5 +1,19 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Transaction } from '../types/index';
+
+interface Transaction {
+  id: string;
+  hash: string;
+  from: string;
+  to: string;
+  value: string;
+  network: string;
+  status: 'pending' | 'confirmed' | 'failed';
+  timestamp: number;
+  gasUsed?: string;
+  gasPrice?: string;
+  nonce: number;
+  data?: string;
+}
 
 interface TransactionState {
   recentTransactions: Transaction[];
@@ -70,11 +84,8 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
   const addTransaction = (transaction: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTransaction: Transaction = {
       ...transaction,
-      id: `${transaction.hash}-${transaction.nonce || 0}`,
-      timestamp: Date.now(),
-      // Set default values for required properties if not provided
-      amount: transaction.amount || transaction.value,
-      type: transaction.type || (transaction.from === transaction.to ? 'receive' : 'send')
+      id: `${transaction.hash}-${transaction.nonce}`,
+      timestamp: Date.now()
     };
 
     setTransactionState(prev => {

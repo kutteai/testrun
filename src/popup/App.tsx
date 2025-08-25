@@ -31,87 +31,71 @@ import NotificationBanner from '../components/common/NotificationBanner';
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('welcome');
-  const [isLoading, setIsLoading] = useState(false); // Start with false to skip loading
+  const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState<NotificationType | null>(null);
-  const [initTimeout, setInitTimeout] = useState(true); // Start with true to skip initialization
 
   // Context hooks
   const {
     wallet,
     isWalletUnlocked,
     isLoading: walletLoading,
-    isInitializing,
     error: walletError,
     initializeWallet
   } = useWallet();
 
-  // Debug function to force stop initialization
-  const forceStopInitialization = () => {
-    console.log('Debug: Force stopping initialization');
-    setIsLoading(false);
-    setInitTimeout(true);
-    // Force the wallet context to stop initializing by dispatching an action
-    // This is a workaround since we can't directly access the dispatch
-  };
+  // Derive hasWallet from wallet object
+  const hasWallet = !!wallet;
 
   const { currentNetwork } = useNetwork();
 
-  // Initialize app - DISABLED FOR DEBUG
-  // useEffect(() => {
-  //   let isMounted = true;
-    
-  //   const initializeApp = async () => {
-  //     try {
-  //       console.log('Starting app initialization...');
-        
-  //       // Add timeout to prevent infinite loading
-  //       const timeoutPromise = new Promise((_, reject) => {
-  //         setTimeout(() => reject(new Error('App initialization timeout')), 10000);
-  //       });
-        
-  //       await Promise.race([initializeWallet(), timeoutPromise]);
-        
-  //       if (isMounted) {
-  //         console.log('App initialization completed successfully');
-  //           setIsLoading(false);
-  //         }
-  //     } catch (error) {
-  //       console.error('App initialization failed:', error);
-  //       if (isMounted) {
-  //         toast.error('Failed to initialize app');
-  //         setIsLoading(false);
-  //         setInitTimeout(true);
-  //       }
-  //     }
-  //   };
+  // Initialize app
+  useEffect(() => {
+    const initializeApp = async () => {
+      try {
+        await initializeWallet();
+        setIsLoading(false);
+      } catch (error) {
+        console.error('App initialization error:', error);
+        toast.error(`Failed to initialize app: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        setIsLoading(false);
+      }
+    };
 
-  //   // Add a fallback timeout to prevent infinite loading
-  //   const fallbackTimeout = setTimeout(() => {
-  //     if (isMounted && isLoading) {
-  //       console.log('Fallback timeout reached, showing welcome screen');
-  //       setIsLoading(false);
-  //       setInitTimeout(true);
-  //     }
-  //   }, 15000);
+    initializeApp();
+  }, [initializeWallet]);
 
-  //   initializeApp();
+  // Global error handler
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('Global error caught:', event.error);
+      setNotification({
+        id: Date.now().toString(),
+        type: 'error',
+        title: 'Error',
+        message: `Unexpected error: ${event.error?.message || event.message}`,
+        duration: 5000
+      });
+    };
 
-  //   return () => {
-  //     isMounted = false;
-  //     clearTimeout(fallbackTimeout);
-  //   };
-  // }, [initializeWallet]); // Removed isLoading from dependencies
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('Unhandled promise rejection:', event.reason);
+      setNotification({
+        id: Date.now().toString(),
+        type: 'error',
+        title: 'Error',
+        message: `Promise error: ${event.reason?.message || 'Unknown promise error'}`,
+        duration: 5000
+      });
+    };
 
-  // Aggressive timeout fallback - DISABLED FOR DEBUG
-  // useEffect(() => {
-  //   const aggressiveTimeout = setTimeout(() => {
-  //     console.log('Aggressive timeout - forcing welcome screen');
-  //     setIsLoading(false);
-  //     setInitTimeout(true);
-  //   }, 3000); // 3 seconds max - very aggressive
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
-  //   return () => clearTimeout(aggressiveTimeout);
-  // }, []); // Only run once on mount
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, []);
 
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
@@ -123,29 +107,17 @@ const App: React.FC = () => {
     setNotification(null);
   };
 
-  // Show loading screen - but only for a very short time
-  if (isLoading && !initTimeout) {
-    return (
-      <LoadingScreen 
-        message="Initializing wallet..." 
-        onDebugClick={forceStopInitialization}
-      />
-    );
-  }
-
-  // FORCE DEBUG: Always show welcome screen
-  console.log('Debug: Current states:', { isLoading, walletLoading, isInitializing, initTimeout, currentScreen });
-  
-  // Force show welcome screen for debugging
-  if (currentScreen !== 'welcome') {
-    setCurrentScreen('welcome');
+  // Show loading screen
+  if (isLoading || walletLoading) {
+    return <LoadingScreen message="Initializing wallet..." />;
   }
 
   // Show error screen
   if (walletError) {
+    console.error('Wallet Error:', walletError);
     return (
       <ErrorScreen 
-        error={walletError || 'An unknown error occurred'} 
+        error={`Wallet Error: ${walletError}`} 
         onRetry={() => window.location.reload()} 
       />
     );
@@ -170,12 +142,15 @@ const App: React.FC = () => {
 
   // Render current screen
   const renderScreen = () => {
-    // FORCE DEBUG: Always render welcome screen
-    return <WelcomeScreen onNavigate={handleNavigate} hasWallet={false} isWalletUnlocked={false} />;
-    
     switch (currentScreen) {
       case 'welcome':
-        return <WelcomeScreen onNavigate={handleNavigate} hasWallet={!!wallet} isWalletUnlocked={isWalletUnlocked} />;
+        return (
+          <WelcomeScreen 
+            onNavigate={handleNavigate}
+            hasWallet={hasWallet}
+            isWalletUnlocked={isWalletUnlocked}
+          />
+        );
       case 'create':
         return <CreateWalletScreen onNavigate={handleNavigate} />;
       case 'import':
@@ -211,7 +186,13 @@ const App: React.FC = () => {
       case 'error':
         return <ErrorScreen error="Something went wrong" onRetry={() => window.location.reload()} />;
       default:
-        return <WelcomeScreen onNavigate={handleNavigate} hasWallet={!!wallet} isWalletUnlocked={isWalletUnlocked} />;
+        return (
+          <WelcomeScreen 
+            onNavigate={handleNavigate}
+            hasWallet={hasWallet}
+            isWalletUnlocked={isWalletUnlocked}
+          />
+        );
     }
   };
 

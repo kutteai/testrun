@@ -143,11 +143,7 @@ const App: React.FC = () => {
       case 'verify':
         return <VerifySeedScreen onNavigate={handleNavigate} />;
       case 'dashboard':
-        return (
-          <DashboardScreen 
-            onNavigate={handleNavigate}
-          />
-        );
+        return <DashboardScreen onNavigate={handleNavigate} />;
       case 'send':
         return <SendScreen onNavigate={handleNavigate} />;
       case 'receive':

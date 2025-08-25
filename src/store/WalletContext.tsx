@@ -10,6 +10,9 @@ import {
   Network
 } from '../types/index';
 
+// Auto-lock timeout (30 minutes)
+const AUTO_LOCK_TIMEOUT = 30 * 60 * 1000;
+
 // Initial state
 const initialState: WalletState = {
   wallet: null,
@@ -39,8 +42,7 @@ type WalletAction =
   | { type: 'SET_CURRENT_NETWORK'; payload: Network }
   | { type: 'SET_HAS_WALLET'; payload: boolean }
   | { type: 'LOCK_WALLET' }
-  | { type: 'CLEAR_WALLET' }
-  | { type: 'RESTORE_SESSION'; payload: { wallet: WalletData; isUnlocked: boolean } };
+  | { type: 'CLEAR_WALLET' };
 
 // Reducer
 const walletReducer = (state: WalletState, action: WalletAction): WalletState => {
@@ -60,8 +62,7 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
         address: action.payload.address,
         accounts: [action.payload.address],
         isWalletUnlocked: true,
-        hasWallet: true,
-        isWalletCreated: true
+        hasWallet: true
       };
     case 'SET_WALLET_UNLOCKED':
       return { ...state, isWalletUnlocked: action.payload };
@@ -87,18 +88,6 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
         address: null,
         accounts: [],
         privateKey: null,
-        isInitializing: false,
-        isWalletCreated: false
-      };
-    case 'RESTORE_SESSION':
-      return {
-        ...state,
-        wallet: action.payload.wallet,
-        address: action.payload.wallet.address,
-        accounts: [action.payload.wallet.address],
-        hasWallet: true,
-        isWalletCreated: true,
-        isWalletUnlocked: action.payload.isUnlocked,
         isInitializing: false
       };
     default:
@@ -106,23 +95,14 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
   }
 };
 
-// Session storage keys
-const STORAGE_KEYS = {
-  WALLET_DATA: 'wallet_data',
-  WALLET_SESSION: 'wallet_session',
-  SESSION_TIMESTAMP: 'session_timestamp',
-  AUTO_LOCK_TIME: 'auto_lock_time'
-};
-
-// Session timeout (15 minutes by default)
-const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes in milliseconds
-
 // Create context
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 // Provider component
 export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [state, dispatch] = useReducer(walletReducer, initialState);
+  const autoLockTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
 
   // Initialize wallet on mount
   useEffect(() => {
@@ -136,10 +116,81 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [state.isWalletUnlocked, state.address]);
 
-  // Initialize wallet and check for existing session
+  // Initialize wallet on mount
+  useEffect(() => {
+    console.log('WalletContext: Initializing wallet on mount...');
+    initializeWallet();
+  }, []); // Only run once on mount
+
+  // Save wallet state to storage whenever it changes
+  useEffect(() => {
+    if (state.hasWallet) {
+      storeWalletState();
+    }
+  }, [state.isWalletUnlocked, state.hasWallet, state.isWalletCreated]);
+
+  // Auto-lock functionality - only when password is set
+  useEffect(() => {
+    const checkAutoLock = async () => {
+      const storedHash = await getStoredPasswordHash();
+      if (state.isWalletUnlocked && storedHash) {
+        startAutoLockTimer();
+        
+        // Reset timer on user activity
+        const handleUserActivity = () => {
+          lastActivityRef.current = Date.now();
+          resetAutoLockTimer();
+        };
+
+        // Listen for user activity
+        document.addEventListener('mousedown', handleUserActivity);
+        document.addEventListener('keydown', handleUserActivity);
+        document.addEventListener('touchstart', handleUserActivity);
+        document.addEventListener('scroll', handleUserActivity);
+
+        return () => {
+          clearAutoLockTimer();
+          document.removeEventListener('mousedown', handleUserActivity);
+          document.removeEventListener('keydown', handleUserActivity);
+          document.removeEventListener('touchstart', handleUserActivity);
+          document.removeEventListener('scroll', handleUserActivity);
+        };
+      } else {
+        clearAutoLockTimer();
+      }
+    };
+
+    checkAutoLock();
+  }, [state.isWalletUnlocked]);
+
+  // Auto-lock timer functions
+  const startAutoLockTimer = () => {
+    clearAutoLockTimer();
+    autoLockTimerRef.current = setTimeout(() => {
+              if (state.isWalletUnlocked) {
+          lockWallet();
+          toast('Wallet auto-locked due to inactivity');
+        }
+    }, AUTO_LOCK_TIMEOUT);
+  };
+
+  const resetAutoLockTimer = () => {
+    if (autoLockTimerRef.current) {
+      clearTimeout(autoLockTimerRef.current);
+      startAutoLockTimer();
+    }
+  };
+
+  const clearAutoLockTimer = () => {
+    if (autoLockTimerRef.current) {
+      clearTimeout(autoLockTimerRef.current);
+      autoLockTimerRef.current = null;
+    }
+  };
+
+  // Initialize wallet
   const initializeWallet = async (): Promise<void> => {
     try {
-      console.log('Starting wallet initialization...');
       dispatch({ type: 'SET_INITIALIZING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
       
@@ -149,150 +200,60 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
       
       const initPromise = (async () => {
+        console.log('Starting wallet initialization...');
+        
         // Check if wallet exists in storage
         console.log('Fetching stored wallet...');
         const storedWallet = await getStoredWallet();
         console.log('Stored wallet:', !!storedWallet);
         
+        console.log('Fetching stored wallet state...');
+        const storedState = await getStoredWalletState();
+        console.log('Stored state:', storedState);
+        
         if (storedWallet) {
-          dispatch({ type: 'SET_HAS_WALLET', payload: true });
           dispatch({ type: 'SET_WALLET_CREATED', payload: true });
+          dispatch({ type: 'SET_HAS_WALLET', payload: true });
           
-          // Check for active session
-          console.log('Checking session...');
-          const sessionState = await checkSession();
-          console.log('Session state:', sessionState);
+          // Always set the wallet data
+          dispatch({ type: 'SET_WALLET', payload: storedWallet });
           
-          if (sessionState.isValid) {
-            // Restore session
-            dispatch({ 
-              type: 'RESTORE_SESSION', 
-              payload: { 
-                wallet: storedWallet, 
-                isUnlocked: true 
-              }
-            });
-            
-            // Update session timestamp
-            await updateSessionTimestamp();
-            
-            console.log('Session restored successfully');
+          // Restore wallet state if available
+          if (storedState) {
+            dispatch({ type: 'SET_WALLET_UNLOCKED', payload: storedState.isWalletUnlocked });
           } else {
-            // Session expired or invalid
-            dispatch({ 
-              type: 'RESTORE_SESSION', 
-              payload: { 
-                wallet: storedWallet, 
-                isUnlocked: false 
+            // Check if password is set
+            const storedHash = await getStoredPasswordHash();
+            if (!storedHash) {
+              // No password set yet, keep wallet unlocked
+              dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+            } else {
+              // Password is set, check if wallet was previously unlocked
+              const unlockTime = await getStoredUnlockTime();
+              if (unlockTime && (Date.now() - unlockTime) < AUTO_LOCK_TIMEOUT) {
+                dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+              } else {
+                dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
               }
-            });
-            
-            // Clear expired session
-            await clearSession();
-            
-            console.log('Session expired, wallet locked');
+            }
           }
         } else {
-          // No wallet found
-          dispatch({ type: 'SET_HAS_WALLET', payload: false });
+          // No wallet found, ensure clean state
           dispatch({ type: 'SET_WALLET_CREATED', payload: false });
-          console.log('No wallet found');
+          dispatch({ type: 'SET_HAS_WALLET', payload: false });
+          dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
         }
       })();
       
       await Promise.race([initPromise, timeoutPromise]);
       console.log('Wallet initialization completed successfully');
-      
     } catch (error) {
       console.error('Wallet initialization error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to initialize wallet';
       dispatch({ type: 'SET_ERROR', payload: `Wallet initialization failed: ${errorMessage}` });
     } finally {
-      console.log('Setting isInitializing to false');
       dispatch({ type: 'SET_INITIALIZING', payload: false });
     }
-  };
-
-  // Check session validity
-  const checkSession = async (): Promise<{ isValid: boolean; timeRemaining: number }> => {
-    try {
-      const sessionData = await getSessionData();
-      
-      if (!sessionData.exists) {
-        return { isValid: false, timeRemaining: 0 };
-      }
-      
-      const now = Date.now();
-      const sessionAge = now - sessionData.timestamp;
-      const timeRemaining = SESSION_TIMEOUT - sessionAge;
-      
-      const isValid = sessionAge < SESSION_TIMEOUT;
-      
-      return { isValid, timeRemaining };
-    } catch (error) {
-      console.error('Error checking session:', error);
-      return { isValid: false, timeRemaining: 0 };
-    }
-  };
-
-  // Create new session
-  const createSession = async (): Promise<void> => {
-    try {
-      const sessionData = {
-        isActive: true,
-        timestamp: Date.now(),
-        autoLockTime: SESSION_TIMEOUT
-      };
-      
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.WALLET_SESSION]: sessionData,
-        [STORAGE_KEYS.SESSION_TIMESTAMP]: Date.now()
-      });
-      
-      console.log('New session created');
-    } catch (error) {
-      console.error('Error creating session:', error);
-    }
-  };
-
-  // Update session timestamp
-  const updateSessionTimestamp = async (): Promise<void> => {
-    try {
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.SESSION_TIMESTAMP]: Date.now()
-      });
-    } catch (error) {
-      console.error('Error updating session timestamp:', error);
-    }
-  };
-
-  // Clear session
-  const clearSession = async (): Promise<void> => {
-    try {
-      await chrome.storage.local.remove([
-        STORAGE_KEYS.WALLET_SESSION,
-        STORAGE_KEYS.SESSION_TIMESTAMP
-      ]);
-      console.log('Session cleared');
-    } catch (error) {
-      console.error('Error clearing session:', error);
-    }
-  };
-
-  // Get session data
-  const getSessionData = async (): Promise<{ exists: boolean; timestamp: number; isActive: boolean }> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get([STORAGE_KEYS.WALLET_SESSION, STORAGE_KEYS.SESSION_TIMESTAMP], (result) => {
-        const sessionData = result[STORAGE_KEYS.WALLET_SESSION];
-        const timestamp = result[STORAGE_KEYS.SESSION_TIMESTAMP];
-        
-        resolve({
-          exists: !!sessionData && !!timestamp,
-          timestamp: timestamp || 0,
-          isActive: sessionData?.isActive || false
-        });
-      });
-    });
   };
 
   // Create new wallet with real implementation
@@ -325,13 +286,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Store wallet securely
       await storeWallet(wallet);
       
-      // Create session
-      await createSession();
-      
       dispatch({ type: 'SET_WALLET', payload: wallet });
+      dispatch({ type: 'SET_WALLET_CREATED', payload: true });
+      dispatch({ type: 'SET_HAS_WALLET', payload: true });
       toast.success('Wallet created successfully');
     } catch (error) {
-      console.error('Failed to create wallet:', error);
       toast.error('Failed to create wallet');
       dispatch({ type: 'SET_ERROR', payload: 'Failed to create wallet' });
     } finally {
@@ -371,13 +330,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Store wallet securely
       await storeWallet(wallet);
       
-      // Create session
-      await createSession();
-      
       dispatch({ type: 'SET_WALLET', payload: wallet });
+      dispatch({ type: 'SET_WALLET_CREATED', payload: true });
+      dispatch({ type: 'SET_HAS_WALLET', payload: true });
       toast.success('Wallet imported successfully');
     } catch (error) {
-      console.error('Failed to import wallet:', error);
       toast.error('Failed to import wallet');
       dispatch({ type: 'SET_ERROR', payload: 'Failed to import wallet' });
     } finally {
@@ -385,7 +342,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  // Unlock wallet with real password verification and session creation
+  // Unlock wallet with real password verification
   const unlockWallet = async (password: string): Promise<boolean> => {
     try {
       const storedWallet = await getStoredWallet();
@@ -399,11 +356,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // First time unlock, create password hash
         const hash = await hashPassword(password);
         await storePasswordHash(hash);
-        
-        // Set wallet and create session
+        dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
         dispatch({ type: 'SET_WALLET', payload: storedWallet });
-        await createSession();
-        
+        await storeUnlockTime(Date.now());
         toast.success('Wallet unlocked successfully');
         return true;
       }
@@ -411,10 +366,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Verify password
       const isValid = await verifyPassword(password, storedHash);
       if (isValid) {
-        // Set wallet and create session
+        dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
         dispatch({ type: 'SET_WALLET', payload: storedWallet });
-        await createSession();
-        
+        await storeUnlockTime(Date.now());
         toast.success('Wallet unlocked successfully');
         return true;
       } else {
@@ -422,17 +376,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return false;
       }
     } catch (error) {
-      console.error('Failed to unlock wallet:', error);
       toast.error('Failed to unlock wallet');
       dispatch({ type: 'SET_ERROR', payload: 'Failed to unlock wallet' });
       return false;
     }
   };
 
-  // Lock wallet and clear session
+  // Lock wallet
   const lockWallet = (): void => {
     dispatch({ type: 'LOCK_WALLET' });
-    clearSession();
+    clearAutoLockTimer();
+    storeUnlockTime(0);
     toast.success('Wallet locked');
   };
 
@@ -449,9 +403,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       dispatch({ type: 'SET_CURRENT_NETWORK', payload: network });
       
-      // Update session timestamp
-      await updateSessionTimestamp();
-      
       // Update balances for new network
       if (state.address) {
         await updateAllBalances();
@@ -466,10 +417,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const getBalance = async (address: string, network: string): Promise<string> => {
     try {
       const balance = await getRealBalance(address, network);
-      
-      // Update session timestamp on activity
-      await updateSessionTimestamp();
-      
       return balance;
     } catch (error) {
       toast.error('Failed to get balance');
@@ -491,9 +438,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
 
       dispatch({ type: 'SET_BALANCES', payload: newBalances });
-      
-      // Update session timestamp
-      await updateSessionTimestamp();
     } catch (error) {
       toast.error('Failed to update balances');
       dispatch({ type: 'SET_ERROR', payload: 'Failed to update balances' });
@@ -502,46 +446,78 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Store wallet securely
   const storeWallet = async (wallet: WalletData): Promise<void> => {
-    try {
-      await chrome.storage.local.set({ 
-        [STORAGE_KEYS.WALLET_DATA]: {
-          ...wallet,
-          lastAccessed: Date.now()
-        }
-      });
-    } catch (error) {
-      console.error('Error storing wallet:', error);
-      throw error;
-    }
+    // In a real implementation, you would encrypt the wallet data
+    // For now, we'll store it as is (should be encrypted in production)
+    chrome.storage.local.set({ 
+      wallet,
+      walletState: {
+        isWalletUnlocked: state.isWalletUnlocked,
+        hasWallet: true,
+        isWalletCreated: true,
+        lastUpdated: Date.now()
+      }
+    });
+  };
+
+  // Store wallet state
+  const storeWalletState = async (): Promise<void> => {
+    chrome.storage.local.set({ 
+      walletState: {
+        isWalletUnlocked: state.isWalletUnlocked,
+        hasWallet: state.hasWallet,
+        isWalletCreated: state.isWalletCreated,
+        lastUpdated: Date.now()
+      }
+    });
   };
 
   // Get stored wallet
   const getStoredWallet = async (): Promise<WalletData | null> => {
-    return new Promise((resolve, reject) => {
-      try {
-        chrome.storage.local.get([STORAGE_KEYS.WALLET_DATA], (result) => {
-          if (chrome.runtime.lastError) {
-            console.error('Chrome storage error:', chrome.runtime.lastError);
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(result[STORAGE_KEYS.WALLET_DATA] || null);
-          }
-        });
-      } catch (error) {
-        console.error('Storage access error:', error);
-        reject(error);
-      }
+    return new Promise((resolve) => {
+      console.log('getStoredWallet: Starting Chrome storage access...');
+      
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        console.warn('getStoredWallet: Timeout reached, resolving with null');
+        resolve(null);
+      }, 5000);
+      
+      chrome.storage.local.get(['wallet', 'walletState'], (result) => {
+        clearTimeout(timeout);
+        console.log('getStoredWallet: Chrome storage result:', result);
+        if (chrome.runtime.lastError) {
+          console.error('getStoredWallet: Chrome storage error:', chrome.runtime.lastError);
+        }
+        resolve(result.wallet || null);
+      });
+    });
+  };
+
+  // Get stored wallet state
+  const getStoredWalletState = async (): Promise<any> => {
+    return new Promise((resolve) => {
+      console.log('getStoredWalletState: Starting Chrome storage access...');
+      
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        console.warn('getStoredWalletState: Timeout reached, resolving with null');
+        resolve(null);
+      }, 5000);
+      
+      chrome.storage.local.get(['walletState'], (result) => {
+        clearTimeout(timeout);
+        console.log('getStoredWalletState: Chrome storage result:', result);
+        if (chrome.runtime.lastError) {
+          console.error('getStoredWalletState: Chrome storage error:', chrome.runtime.lastError);
+        }
+        resolve(result.walletState || null);
+      });
     });
   };
 
   // Store password hash
   const storePasswordHash = async (hash: string): Promise<void> => {
-    try {
-      await chrome.storage.local.set({ passwordHash: hash });
-    } catch (error) {
-      console.error('Error storing password hash:', error);
-      throw error;
-    }
+    chrome.storage.local.set({ passwordHash: hash });
   };
 
   // Get stored password hash
@@ -553,53 +529,65 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
   };
 
-  // Session activity tracker (update session on user activity)
-  useEffect(() => {
-    if (state.isWalletUnlocked) {
-      const handleActivity = () => {
-        updateSessionTimestamp();
+  // Store unlock time
+  const storeUnlockTime = async (timestamp: number): Promise<void> => {
+    chrome.storage.local.set({ unlockTime: timestamp });
+  };
+
+  // Get stored unlock time
+  const getStoredUnlockTime = async (): Promise<number | null> => {
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['unlockTime'], (result) => {
+        resolve(result.unlockTime || null);
+      });
+    });
+  };
+
+  // Add hardware wallet
+  const addHardwareWallet = async (type: 'ledger' | 'trezor', address: string, derivationPath: string): Promise<void> => {
+    try {
+      const { HardwareWalletManager } = await import('../utils/hardware-wallet');
+      const hardwareWalletManager = new HardwareWalletManager();
+      
+      // Connect to hardware wallet
+      await hardwareWalletManager.connectToDevice(type);
+      
+      // Verify the address matches
+      const addresses = await hardwareWalletManager.getHardwareWalletAddresses(derivationPath);
+      if (!addresses.includes(address)) {
+        throw new Error('Address verification failed');
+      }
+
+      // Create hardware wallet data
+      const hardwareWallet: WalletData = {
+        id: `hw_${type}_${Date.now()}`,
+        name: `${type.charAt(0).toUpperCase() + type.slice(1)} Wallet`,
+        address,
+        privateKey: '', // Hardware wallets don't expose private keys
+        publicKey: type === 'ledger' 
+          ? await hardwareWalletManager.exportPublicKeyLedger()
+          : await hardwareWalletManager.exportPublicKeyTrezor(),
+        encryptedSeedPhrase: '', // Hardware wallets don't expose seed phrases
+        accounts: [address],
+        networks: ['ethereum'],
+        currentNetwork: 'ethereum',
+        derivationPath,
+        balance: '0',
+        createdAt: Date.now(),
+        lastUsed: Date.now()
       };
 
-      // Listen for user activity
-      window.addEventListener('click', handleActivity);
-      window.addEventListener('keydown', handleActivity);
-      window.addEventListener('scroll', handleActivity);
-
-      // Cleanup listeners
-      return () => {
-        window.removeEventListener('click', handleActivity);
-        window.removeEventListener('keydown', handleActivity);
-        window.removeEventListener('scroll', handleActivity);
-      };
+      // Store hardware wallet
+      await storeWallet(hardwareWallet);
+      
+      dispatch({ type: 'SET_WALLET', payload: hardwareWallet });
+      dispatch({ type: 'SET_HAS_WALLET', payload: true });
+      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} wallet added successfully`);
+    } catch (error) {
+      toast.error(`Failed to add ${type} wallet`);
+      dispatch({ type: 'SET_ERROR', payload: `Failed to add ${type} wallet` });
     }
-  }, [state.isWalletUnlocked]);
-
-  // Auto-lock timer
-  useEffect(() => {
-    if (state.isWalletUnlocked) {
-      const checkSessionExpiry = async () => {
-        const sessionCheck = await checkSession();
-        
-        if (!sessionCheck.isValid) {
-          console.log('Session expired, locking wallet');
-          dispatch({ type: 'LOCK_WALLET' });
-          await clearSession();
-          toast('Session expired. Please unlock your wallet.');
-        }
-      };
-
-      // Check session every minute
-      const interval = setInterval(checkSessionExpiry, 60000);
-
-      return () => clearInterval(interval);
-    }
-  }, [state.isWalletUnlocked]);
-
-  // Initialize wallet on mount - DISABLED FOR DEBUG
-  // useEffect(() => {
-  //   console.log('WalletContext: Initializing wallet on mount...');
-  //   initializeWallet();
-  // }, []); // Only run once on mount
+  };
 
   const value: WalletContextType = {
     ...state,
@@ -611,11 +599,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     getBalance,
     updateAllBalances,
     initializeWallet,
-    addHardwareWallet: async (type: 'ledger' | 'trezor', address: string, derivationPath: string) => {
-      // Placeholder implementation for hardware wallet support
-      console.log('Hardware wallet support not yet implemented:', { type, address, derivationPath });
-      toast.error('Hardware wallet support coming soon');
-    }
+    addHardwareWallet
   };
 
   return (
@@ -632,4 +616,4 @@ export const useWallet = (): WalletContextType => {
     throw new Error('useWallet must be used within a WalletProvider');
   }
   return context;
-};
+}; 
