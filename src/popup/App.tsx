@@ -56,62 +56,62 @@ const App: React.FC = () => {
 
   const { currentNetwork } = useNetwork();
 
-  // Initialize app
-  useEffect(() => {
-    let isMounted = true;
+  // Initialize app - DISABLED FOR DEBUG
+  // useEffect(() => {
+  //   let isMounted = true;
     
-    const initializeApp = async () => {
-      try {
-        console.log('Starting app initialization...');
+  //   const initializeApp = async () => {
+  //     try {
+  //       console.log('Starting app initialization...');
         
-        // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('App initialization timeout')), 10000);
-        });
+  //       // Add timeout to prevent infinite loading
+  //       const timeoutPromise = new Promise((_, reject) => {
+  //         setTimeout(() => reject(new Error('App initialization timeout')), 10000);
+  //       });
         
-        await Promise.race([initializeWallet(), timeoutPromise]);
+  //       await Promise.race([initializeWallet(), timeoutPromise]);
         
-        if (isMounted) {
-          console.log('App initialization completed successfully');
-          setIsLoading(false);
-        }
-      } catch (error) {
-        console.error('App initialization failed:', error);
-        if (isMounted) {
-          toast.error('Failed to initialize app');
-          setIsLoading(false);
-          setInitTimeout(true);
-        }
-      }
-    };
+  //       if (isMounted) {
+  //         console.log('App initialization completed successfully');
+  //           setIsLoading(false);
+  //         }
+  //     } catch (error) {
+  //       console.error('App initialization failed:', error);
+  //       if (isMounted) {
+  //         toast.error('Failed to initialize app');
+  //         setIsLoading(false);
+  //         setInitTimeout(true);
+  //       }
+  //     }
+  //   };
 
-    // Add a fallback timeout to prevent infinite loading
-    const fallbackTimeout = setTimeout(() => {
-      if (isMounted && isLoading) {
-        console.log('Fallback timeout reached, showing welcome screen');
-        setIsLoading(false);
-        setInitTimeout(true);
-      }
-    }, 15000);
+  //   // Add a fallback timeout to prevent infinite loading
+  //   const fallbackTimeout = setTimeout(() => {
+  //     if (isMounted && isLoading) {
+  //       console.log('Fallback timeout reached, showing welcome screen');
+  //       setIsLoading(false);
+  //       setInitTimeout(true);
+  //     }
+  //   }, 15000);
 
-    initializeApp();
+  //   initializeApp();
 
-    return () => {
-      isMounted = false;
-      clearTimeout(fallbackTimeout);
-    };
-  }, [initializeWallet]); // Removed isLoading from dependencies
+  //   return () => {
+  //     isMounted = false;
+  //     clearTimeout(fallbackTimeout);
+  //   };
+  // }, [initializeWallet]); // Removed isLoading from dependencies
 
-  // Aggressive timeout fallback - force welcome screen after 3 seconds
-  useEffect(() => {
-    const aggressiveTimeout = setTimeout(() => {
-      console.log('Aggressive timeout - forcing welcome screen');
-      setIsLoading(false);
-      setInitTimeout(true);
-    }, 3000); // 3 seconds max - very aggressive
+  // Aggressive timeout fallback - DISABLED FOR DEBUG
+  // useEffect(() => {
+  //   const aggressiveTimeout = setTimeout(() => {
+  //     console.log('Aggressive timeout - forcing welcome screen');
+  //     setIsLoading(false);
+  //     setInitTimeout(true);
+  //   }, 3000); // 3 seconds max - very aggressive
 
-    return () => clearTimeout(aggressiveTimeout);
-  }, []); // Only run once on mount
+  //   return () => clearTimeout(aggressiveTimeout);
+  // }, []); // Only run once on mount
 
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
