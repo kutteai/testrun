@@ -2,15 +2,52 @@ import React, { useState, useEffect } from 'react';
 import { Wallet, Plus, ExternalLink, Settings } from 'lucide-react';
 import { WalletConnectModal } from '../common/WalletConnectModal';
 import { WalletConnectSessions } from '../common/WalletConnectSessions';
-import { walletConnectManager, WalletConnectSession } from '../../utils/walletconnect-utils';
+import { WalletConnectApprovalModal } from '../common/WalletConnectApprovalModal';
+import { walletConnectManager, WalletConnectSession, WalletConnectProposal, WalletConnectRequest } from '../../utils/walletconnect-utils';
 
 export const WalletConnectScreen: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [sessions, setSessions] = useState<WalletConnectSession[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Approval modal state
+  const [approvalModal, setApprovalModal] = useState<{
+    isOpen: boolean;
+    type: 'session' | 'request';
+    proposal?: WalletConnectProposal;
+    request?: WalletConnectRequest;
+  }>({
+    isOpen: false,
+    type: 'session'
+  });
 
   useEffect(() => {
     loadSessions();
+    
+    // Set up WalletConnect event listeners
+    const handleSessionProposal = (proposal: WalletConnectProposal) => {
+      setApprovalModal({
+        isOpen: true,
+        type: 'session',
+        proposal
+      });
+    };
+    
+    const handleSessionRequest = (requestEvent: any) => {
+      setApprovalModal({
+        isOpen: true,
+        type: 'request',
+        request: requestEvent.request
+      });
+    };
+    
+    walletConnectManager.on('session_proposal', handleSessionProposal);
+    walletConnectManager.on('session_request', handleSessionRequest);
+    
+    return () => {
+      walletConnectManager.off('session_proposal', handleSessionProposal);
+      walletConnectManager.off('session_request', handleSessionRequest);
+    };
   }, []);
 
   const loadSessions = () => {
@@ -34,6 +71,52 @@ export const WalletConnectScreen: React.FC = () => {
       loadSessions();
     } catch (error) {
       console.error('Failed to disconnect:', error);
+    }
+  };
+
+  // Approval handlers
+  const handleApproveSession = async () => {
+    try {
+      if (approvalModal.proposal) {
+        await walletConnectManager.approveSession(approvalModal.proposal);
+        setApprovalModal({ isOpen: false, type: 'session' });
+        loadSessions();
+      }
+    } catch (error) {
+      console.error('Failed to approve session:', error);
+    }
+  };
+
+  const handleRejectSession = async () => {
+    try {
+      if (approvalModal.proposal) {
+        await walletConnectManager.rejectSession(approvalModal.proposal);
+        setApprovalModal({ isOpen: false, type: 'session' });
+      }
+    } catch (error) {
+      console.error('Failed to reject session:', error);
+    }
+  };
+
+  const handleApproveRequest = async () => {
+    try {
+      if (approvalModal.request) {
+        await walletConnectManager.approveRequest(approvalModal.request);
+        setApprovalModal({ isOpen: false, type: 'request' });
+      }
+    } catch (error) {
+      console.error('Failed to approve request:', error);
+    }
+  };
+
+  const handleRejectRequest = async () => {
+    try {
+      if (approvalModal.request) {
+        await walletConnectManager.rejectRequest(approvalModal.request);
+        setApprovalModal({ isOpen: false, type: 'request' });
+      }
+    } catch (error) {
+      console.error('Failed to reject request:', error);
     }
   };
 
@@ -154,6 +237,17 @@ export const WalletConnectScreen: React.FC = () => {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onConnected={handleConnected}
+      />
+
+      {/* Approval Modal */}
+      <WalletConnectApprovalModal
+        isOpen={approvalModal.isOpen}
+        onClose={() => setApprovalModal({ isOpen: false, type: 'session' })}
+        proposal={approvalModal.proposal}
+        request={approvalModal.request}
+        onApprove={approvalModal.type === 'session' ? handleApproveSession : handleApproveRequest}
+        onReject={approvalModal.type === 'session' ? handleRejectSession : handleRejectRequest}
+        type={approvalModal.type}
       />
     </div>
   );

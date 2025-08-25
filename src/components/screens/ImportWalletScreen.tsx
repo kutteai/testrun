@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { validateBIP39SeedPhrase, validatePrivateKey } from '../../utils/crypto-utils';
+import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
@@ -10,30 +11,73 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [seedPhrase, setSeedPhrase] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [isValid, setIsValid] = useState(false);
+
+  const { importWallet, importWalletFromPrivateKey } = useWallet();
 
   const handleSeedPhraseChange = (value: string) => {
     setSeedPhrase(value);
-    setIsValid(validateBIP39SeedPhrase(value));
+    const isValid = validateBIP39SeedPhrase(value);
+    setIsValid(isValid);
+    
+    // Debug logging
+    console.log('Seed phrase validation:', {
+      phrase: value,
+      wordCount: value.trim().split(/\s+/).length,
+      isValid: isValid,
+      trimmed: value.trim()
+    });
   };
 
   const handlePrivateKeyChange = (value: string) => {
     setPrivateKey(value);
-    setIsValid(validatePrivateKey(value));
+    const isValidKey = validatePrivateKey(value);
+    setIsValid(isValidKey);
+    
+    if (value.trim() && !isValidKey) {
+      console.log('Invalid private key format. Expected: 64 character hex string (with or without 0x prefix)');
+    }
   };
 
-  const handleImport = () => {
+  const handleImport = async () => {
     if (!isValid) {
       toast.error('Please enter a valid seed phrase or private key');
       return;
     }
 
     try {
-      // In a real implementation, you would import the wallet here
+      console.log('Importing wallet...');
+      
+      if (importMethod === 'privateKey') {
+        console.log('Importing from private key...');
+        // Validate the private key again
+        if (!validatePrivateKey(privateKey)) {
+          toast.error('Invalid private key format. Please check your MetaMask private key.');
+          return;
+        }
+        
+        // Import wallet from private key
+        await importWalletFromPrivateKey(privateKey, 'ethereum');
+        console.log('Private key import successful');
+      } else {
+        console.log('Importing from seed phrase...');
+        // Validate the seed phrase
+        if (!validateBIP39SeedPhrase(seedPhrase)) {
+          toast.error('Invalid seed phrase. Please check your 12 or 24 word phrase.');
+          return;
+        }
+        
+        // Import wallet from seed phrase
+        await importWallet(seedPhrase, 'ethereum');
+        console.log('Seed phrase import successful');
+      }
+      
       toast.success('Wallet imported successfully!');
       onNavigate('dashboard');
-    } catch {
-      toast.error('Failed to import wallet');
+    } catch (error) {
+      console.error('Import failed:', error);
+      toast.error(`Failed to import wallet: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -115,12 +159,24 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Seed Phrase
                 </label>
-                <textarea
-                  value={seedPhrase}
-                  onChange={(e) => handleSeedPhraseChange(e.target.value)}
-                  placeholder="Enter your 12 or 24 word seed phrase"
-                  className="w-full h-24 px-3 py-2 border border-white/20 bg-white/10 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-white placeholder-slate-400"
-                />
+                <div className="relative">
+                  <textarea
+                    value={showSeedPhrase ? seedPhrase : seedPhrase.split(' ').map(() => '••••••••').join(' ')}
+                    onChange={(e) => handleSeedPhraseChange(e.target.value)}
+                    placeholder="Enter your 12 or 24 word seed phrase"
+                    className="w-full h-24 px-3 py-2 pr-10 border border-white/20 bg-white/10 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-white placeholder-slate-400"
+                  />
+                  <button
+                    onClick={() => setShowSeedPhrase(!showSeedPhrase)}
+                    className="absolute right-3 top-3 p-1 rounded hover:bg-white/10"
+                  >
+                    {showSeedPhrase ? (
+                      <EyeOff className="w-4 h-4 text-slate-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+                </div>
                 <p className="text-xs text-slate-400 mt-1">
                   Separate words with spaces
                 </p>
@@ -152,7 +208,10 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </button>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Your private key should start with 0x
+                Your private key should be 64 characters long (with or without 0x prefix)
+              </p>
+              <p className="text-xs text-blue-400 mt-1">
+                💡 For MetaMask: Export your private key from MetaMask settings
               </p>
               </div>
             </div>

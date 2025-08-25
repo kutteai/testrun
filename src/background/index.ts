@@ -8,7 +8,7 @@ const securityManager = new SecurityManager();
 export {};
 
 // Background script initialization
-console.log('SOW Wallet background script initialized');
+console.log('PayCio Wallet background script initialized');
 
 // Handle extension installation
 chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {

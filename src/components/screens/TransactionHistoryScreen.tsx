@@ -36,11 +36,12 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setAllTransactions(combined);
   }, [recentTransactions, pendingTransactions, blockchainTransactions]);
 
-  // Load transactions when component mounts
+  // Load transactions when component mounts - DISABLED FOR NOW
   useEffect(() => {
-    if (wallet?.address && currentNetwork) {
-      loadBlockchainTransactions(1, false);
-    }
+    console.log('TransactionHistoryScreen: Skipping blockchain transaction loading...');
+    // if (wallet?.address && currentNetwork) {
+    //   loadBlockchainTransactions(1, false);
+    // }
   }, [wallet?.address, currentNetwork?.id]);
 
   // Load transactions from blockchain

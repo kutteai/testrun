@@ -185,6 +185,7 @@ export interface WalletContextType {
   privateKey: string | null;
   createWallet: (name: string, network: string) => Promise<void>;
   importWallet: (seedPhrase: string, network: string) => Promise<void>;
+  importWalletFromPrivateKey: (privateKey: string, network: string) => Promise<void>;
   unlockWallet: (password: string) => Promise<boolean>;
   lockWallet: () => void;
   switchNetwork: (networkId: string) => Promise<void>;

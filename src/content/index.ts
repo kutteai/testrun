@@ -12,6 +12,132 @@ const defiManager = new DeFiManager();
 
 console.log('PayCio Wallet content script initialized');
 
+// Add a global indicator that content script is running
+(window as any).paycioWalletContentScript = {
+  isRunning: true,
+  timestamp: Date.now(),
+  test: () => {
+    console.log('PayCio Wallet content script is running!');
+    return true;
+  }
+};
+
+// Add visible debugging to main page console
+console.log('PayCio Wallet content script loaded at:', new Date().toISOString());
+
+// Create a visible indicator in the page
+const debugDiv = document.createElement('div');
+debugDiv.id = 'paycio-wallet-debug';
+debugDiv.style.cssText = `
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: #333;
+  color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-size: 12px;
+  z-index: 999999;
+  display: none;
+`;
+debugDiv.innerHTML = 'PayCio Wallet: Content Script Loaded';
+document.body.appendChild(debugDiv);
+
+// Show debug info for 3 seconds
+setTimeout(() => {
+  debugDiv.style.display = 'block';
+  setTimeout(() => {
+    debugDiv.style.display = 'none';
+  }, 3000);
+}, 1000);
+
+// Add global test function to main page
+(window as any).testPayCioWalletInjection = () => {
+  console.log('=== PayCio Wallet Injection Test ===');
+  console.log('Content script running:', (window as any).paycioWalletContentScript?.isRunning);
+  console.log('Ethereum provider:', window.ethereum);
+  console.log('Is PayCio Wallet:', (window.ethereum as any)?.isPayCioWallet);
+  console.log('PayCio Wallet provider:', (window as any).paycioWallet);
+  console.log('=== End Test ===');
+  
+  if ((window.ethereum as any)?.isPayCioWallet) {
+    console.log('✅ PayCio Wallet detected!');
+    return true;
+  } else {
+    console.log('❌ PayCio Wallet not detected');
+    return false;
+  }
+};
+
+// Check if wallet is available
+async function checkWalletAvailability() {
+  try {
+    const currentWallet = walletManager.getCurrentWallet();
+    console.log('Current wallet state:', {
+      hasWallet: !!currentWallet,
+      address: currentWallet?.address,
+      isUnlocked: currentWallet ? true : false
+    });
+    return currentWallet;
+  } catch (error) {
+    console.error('Error checking wallet availability:', error);
+    return null;
+  }
+}
+
+// Get wallet from Chrome storage directly
+async function getWalletFromStorage() {
+  return new Promise<any>((resolve) => {
+    chrome.storage.local.get(['wallet'], (result) => {
+      console.log('Wallet from storage:', result.wallet);
+      resolve(result.wallet || null);
+    });
+  });
+}
+
+// Initialize wallet check
+checkWalletAvailability();
+
+// Test wallet injection
+setTimeout(() => {
+  console.log('=== PayCio Wallet Injection Test ===');
+  console.log('window.ethereum:', window.ethereum);
+  console.log('window.paycioWallet:', (window as any).paycioWallet);
+  console.log('window.web3:', (window as any).web3);
+  
+  // Test if ethereum provider is available
+  if (window.ethereum) {
+    console.log('✅ Ethereum provider detected');
+    if ((window.ethereum as any).isPayCioWallet) {
+      console.log('✅ PayCio Wallet provider detected');
+    } else {
+      console.log('❌ PayCio Wallet provider not detected');
+    }
+  } else {
+    console.log('❌ No ethereum provider found');
+  }
+  
+  console.log('=== End Test ===');
+}, 2000);
+
+// Inject the wallet provider script with better error handling
+console.log('Attempting to inject PayCio Wallet script...');
+const scriptUrl = chrome.runtime.getURL('injected.js');
+console.log('Script URL:', scriptUrl);
+
+const script = document.createElement('script');
+script.src = scriptUrl;
+script.onload = () => {
+  console.log('✅ PayCio Wallet script loaded successfully');
+  script.remove();
+};
+script.onerror = (error) => {
+  console.error('❌ Failed to load PayCio Wallet script:', error);
+  console.error('Script URL was:', scriptUrl);
+};
+(document.head || document.documentElement).appendChild(script);
+
 // Listen for messages from injected script
 window.addEventListener('message', async (event) => {
   // Only accept messages from the same window
@@ -89,31 +215,65 @@ window.addEventListener('message', async (event) => {
 
 // Handle wallet connect
 async function handleWalletConnect() {
-  const currentWallet = walletManager.getCurrentWallet();
-  if (!currentWallet) {
-    return { success: false, error: 'No wallet available' };
-  }
+  try {
+    console.log('Attempting to connect wallet...');
+    
+    // Try to get wallet from manager first
+    let currentWallet = walletManager.getCurrentWallet();
+    
+    // If not available, try to get from storage
+    if (!currentWallet) {
+      console.log('Wallet not found in manager, trying storage...');
+      currentWallet = await getWalletFromStorage();
+    }
+    
+    if (!currentWallet) {
+      console.log('No wallet available for connection');
+      return { success: false, error: 'No wallet available. Please create or import a wallet first.' };
+    }
 
-  return {
-    success: true,
-    address: currentWallet.address,
-    network: currentWallet.currentNetwork
-  };
+    console.log('Wallet connected:', currentWallet.address);
+    return {
+      success: true,
+      address: currentWallet.address,
+      network: currentWallet.currentNetwork || 'ethereum'
+    };
+  } catch (error) {
+    console.error('Wallet connect error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to connect wallet' };
+  }
 }
 
 // Handle get accounts
 async function handleGetAccounts() {
-  const currentWallet = walletManager.getCurrentWallet();
-  if (!currentWallet) {
-    return { success: true, accounts: [] };
-  }
+  try {
+    console.log('Getting accounts...');
+    
+    // Try to get wallet from manager first
+    let currentWallet = walletManager.getCurrentWallet();
+    
+    // If not available, try to get from storage
+    if (!currentWallet) {
+      console.log('Wallet not found in manager, trying storage...');
+      currentWallet = await getWalletFromStorage();
+    }
+    
+    if (!currentWallet) {
+      console.log('No wallet available for getting accounts');
+      return { success: true, accounts: [] };
+    }
 
-  // Return all accounts from the current wallet
-  const accounts = currentWallet.accounts.map(account => account.address);
-  return {
-    success: true,
-    accounts: accounts
-  };
+    // Return all accounts from the current wallet
+    const accounts = currentWallet.accounts ? currentWallet.accounts.map(account => account.address) : [currentWallet.address];
+    console.log('Returning accounts:', accounts);
+    return {
+      success: true,
+      accounts: accounts
+    };
+  } catch (error) {
+    console.error('Get accounts error:', error);
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to get accounts' };
+  }
 }
 
 // Handle get balance
@@ -216,40 +376,66 @@ async function handleGetDeFiPositions() {
   }
 }
 
-// Handle wallet request (new format)
-async function handleWalletRequest(method: string, params: any[] = []) {
+// Handle wallet request (new unified method)
+async function handleWalletRequest(method: string, params: any[]): Promise<any> {
+  console.log('Handling wallet request:', method, params);
+  
   try {
     switch (method) {
       case 'eth_requestAccounts':
       case 'eth_accounts':
-        return await handleGetAccounts();
+        const accountsResult = await handleGetAccounts();
+        if (accountsResult.success) {
+          return accountsResult.accounts;
+        } else {
+          throw new Error(accountsResult.error);
+        }
+        
+      case 'eth_chainId':
+        const currentWallet = walletManager.getCurrentWallet();
+        if (!currentWallet) {
+          return '0x1'; // Default to Ethereum mainnet
+        }
+        return '0x1'; // Ethereum mainnet chain ID
+        
       case 'eth_getBalance':
-        const [address, blockTag] = params;
-        return await handleGetBalance({ address, network: 'ethereum' });
+        const [address, block] = params;
+        const balanceResult = await handleGetBalance({ address, network: 'ethereum' });
+        if (balanceResult.success) {
+          return balanceResult.balance;
+        } else {
+          throw new Error(balanceResult.error);
+        }
+        
       case 'eth_sendTransaction':
         const [transaction] = params;
-        return await handleSendTransaction({
+        const txResult = await handleSendTransaction({
           to: transaction.to,
           value: transaction.value,
           network: 'ethereum'
         });
-      case 'eth_signTransaction':
-        return await handleSignTransaction();
-      case 'eth_chainId':
-        return { success: true, data: '0x1' }; // Ethereum mainnet
-      case 'net_version':
-        return { success: true, data: '1' }; // Ethereum mainnet
-      case 'eth_getTransactionCount':
-        return await handleGetTransactionCount(params[0]); // Real nonce
-      case 'eth_estimateGas':
-        return await handleEstimateGas(params[0]); // Real gas estimation
-      case 'eth_gasPrice':
-        return await handleGetGasPrice(); // Real gas price
+        if (txResult.success) {
+          return txResult.txHash;
+        } else {
+          throw new Error(txResult.error);
+        }
+        
+      case 'wallet_switchEthereumChain':
+        const [{ chainId }] = params;
+        const switchResult = await handleSwitchNetwork({ networkId: chainId });
+        if (switchResult.success) {
+          return null;
+        } else {
+          throw new Error(switchResult.error);
+        }
+        
       default:
-        return { success: false, error: `Method ${method} not supported` };
+        console.log('Unhandled method:', method);
+        throw new Error(`Method ${method} not supported`);
     }
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    console.error('Wallet request error:', error);
+    throw error;
   }
 }
 
@@ -353,12 +539,4 @@ async function promptForPassword(): Promise<string | null> {
     console.error('Error prompting for password:', error);
     return null;
   }
-}
-
-// Inject the wallet provider script
-const script = document.createElement('script');
-script.src = chrome.runtime.getURL('injected.js');
-script.onload = () => {
-  script.remove();
-};
-(document.head || document.documentElement).appendChild(script); 
+} 

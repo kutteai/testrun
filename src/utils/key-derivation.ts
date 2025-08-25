@@ -124,20 +124,27 @@ export function importWalletFromPrivateKey(
   privateKey: string,
   network: string = 'ethereum'
 ): HDWallet {
-  if (!privateKey.startsWith('0x') || privateKey.length !== 66) {
-    throw new Error('Invalid private key format');
+  // Normalize private key format
+  let normalizedKey = privateKey.trim();
+  if (!normalizedKey.startsWith('0x')) {
+    normalizedKey = '0x' + normalizedKey;
+  }
+  
+  // Validate length (should be 66 characters with 0x prefix)
+  if (normalizedKey.length !== 66) {
+    throw new Error('Invalid private key format: must be 64 characters (with or without 0x prefix)');
   }
 
   // Real implementation: derive public key and address from private key
   try {
-    const wallet = new ethers.Wallet(privateKey);
+    const wallet = new ethers.Wallet(normalizedKey);
     // Derive public key from private key
-    const publicKey = ethers.SigningKey.computePublicKey(privateKey);
+    const publicKey = ethers.SigningKey.computePublicKey(normalizedKey);
     const address = wallet.address;
 
     return {
       seedPhrase: '', // Not available when importing from private key
-      privateKey,
+      privateKey: normalizedKey,
       publicKey,
       address,
       network,

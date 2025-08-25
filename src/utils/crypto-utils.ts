@@ -8,9 +8,36 @@ export function generateBIP39SeedPhrase(): string {
   return bip39.generateMnemonic(256); // 24 words for maximum security
 }
 
+// Generate 12-word seed phrase (like MetaMask)
+export function generateBIP39SeedPhrase12(): string {
+  return bip39.generateMnemonic(128); // 12 words like MetaMask
+}
+
+// Generate seed phrase with specified entropy (128 for 12 words, 256 for 24 words)
+export function generateBIP39SeedPhraseWithEntropy(entropy: 128 | 256 = 256): string {
+  return bip39.generateMnemonic(entropy);
+}
+
 // Validate BIP39 seed phrase (real implementation)
 export function validateBIP39SeedPhrase(seedPhrase: string): boolean {
-  return bip39.validateMnemonic(seedPhrase);
+  try {
+    const trimmed = seedPhrase.trim();
+    const wordCount = trimmed.split(/\s+/).length;
+    const isValid = bip39.validateMnemonic(trimmed);
+    
+    console.log('BIP39 validation:', {
+      original: seedPhrase,
+      trimmed: trimmed,
+      wordCount: wordCount,
+      isValid: isValid,
+      expectedWords: wordCount === 12 ? '12 (MetaMask style)' : wordCount === 24 ? '24 (Enhanced security)' : 'Invalid count'
+    });
+    
+    return isValid;
+  } catch (error) {
+    console.error('Seed phrase validation error:', error);
+    return false;
+  }
 }
 
 // Generate wallet address from public key for specific network (real implementation)
@@ -167,25 +194,42 @@ export function generateSeedFromMnemonic(mnemonic: string): string {
   return bip39.mnemonicToSeedSync(mnemonic).toString('hex');
 }
 
-// Validate private key format
+// Validate private key format (including MetaMask format)
 export function validatePrivateKey(privateKey: string): boolean {
   try {
-    // Remove 0x prefix if present
-    const cleanKey = privateKey.startsWith('0x') ? privateKey.slice(2) : privateKey;
+    // Remove any whitespace and 0x prefix if present
+    const cleanKey = privateKey.trim();
+    const processedKey = cleanKey.startsWith('0x') ? cleanKey.slice(2) : cleanKey;
     
     // Check if it's a valid hex string of correct length (64 characters = 32 bytes)
-    if (!/^[0-9a-fA-F]{64}$/.test(cleanKey)) {
+    if (!/^[0-9a-fA-F]{64}$/.test(processedKey)) {
+      console.log('Private key validation failed: Invalid hex format or length');
       return false;
     }
     
     // Check if it's not zero or too large
-    const keyBigInt = BigInt('0x' + cleanKey);
-    if (keyBigInt === BigInt(0) || keyBigInt >= BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')) {
+    const keyBigInt = BigInt('0x' + processedKey);
+    if (keyBigInt === BigInt(0)) {
+      console.log('Private key validation failed: Key is zero');
       return false;
     }
     
+    if (keyBigInt >= BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')) {
+      console.log('Private key validation failed: Key is too large');
+      return false;
+    }
+    
+    // Try to create a wallet to validate
+    const wallet = new ethers.Wallet('0x' + processedKey);
+    if (!wallet.address) {
+      console.log('Private key validation failed: Could not derive address');
+      return false;
+    }
+    
+    console.log('Private key validation successful for address:', wallet.address);
     return true;
-  } catch {
+  } catch (error) {
+    console.log('Private key validation failed with error:', error);
     return false;
   }
 }

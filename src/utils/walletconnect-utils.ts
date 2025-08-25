@@ -57,10 +57,36 @@ export class WalletConnectManager {
   private proposal: WalletConnectProposal | null = null;
   private uri: string | null = null;
   private projectId: string;
+  private eventListeners: Map<string, Function[]> = new Map();
 
   constructor() {
     // Get project ID from environment or use a default for development
     this.projectId = process.env.WALLETCONNECT_PROJECT_ID || 'c4f79cc821944d9680842e34466bfbd9';
+  }
+
+  // Event emitter methods
+  on(event: string, callback: Function): void {
+    if (!this.eventListeners.has(event)) {
+      this.eventListeners.set(event, []);
+    }
+    this.eventListeners.get(event)!.push(callback);
+  }
+
+  off(event: string, callback: Function): void {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      const index = listeners.indexOf(callback);
+      if (index > -1) {
+        listeners.splice(index, 1);
+      }
+    }
+  }
+
+  private emit(event: string, data?: any): void {
+    const listeners = this.eventListeners.get(event);
+    if (listeners) {
+      listeners.forEach(callback => callback(data));
+    }
   }
 
   // Initialize WalletConnect client
@@ -70,6 +96,8 @@ export class WalletConnectManager {
     }
 
     try {
+      console.log('Initializing WalletConnect with project ID:', this.projectId);
+      
       this.client = await SignClient.init({
         projectId: this.projectId,
         metadata: {
@@ -81,11 +109,14 @@ export class WalletConnectManager {
         relayUrl: 'wss://relay.walletconnect.com'
       });
 
+      console.log('WalletConnect client initialized successfully');
+      
       // Set up event listeners
       this.setupEventListeners();
 
       return this.client;
     } catch (error) {
+      console.error('WalletConnect initialization failed:', error);
       throw new Error(`Failed to initialize WalletConnect: ${error}`);
     }
   }
@@ -99,21 +130,16 @@ export class WalletConnectManager {
       console.log('Session proposal received:', proposal);
       this.proposal = proposal;
       
-      // Auto-approve for now (in production, show UI for user approval)
-      await this.approveSession(proposal);
+      // Emit event for UI to show approval dialog
+      this.emit('session_proposal', proposal);
     });
 
     // Handle session requests
     this.client.on('session_request', async (requestEvent) => {
       console.log('Session request received:', requestEvent);
       
-      const { topic, request } = requestEvent;
-      const response = await this.handleSessionRequest(request);
-      
-      await this.client!.respond({
-        topic,
-        response
-      });
+      // Emit event for UI to show request approval dialog
+      this.emit('session_request', requestEvent);
     });
 
     // Handle session events
@@ -137,8 +163,10 @@ export class WalletConnectManager {
   // Connect to WalletConnect (initiate connection)
   async connect(): Promise<{ uri: string; session?: WalletConnectSession }> {
     try {
+      console.log('Starting WalletConnect connection...');
       const client = await this.initialize();
       
+      console.log('Creating connection proposal...');
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           eip155: {
@@ -174,26 +202,34 @@ export class WalletConnectManager {
         }
       });
 
+      console.log('Connection URI generated:', uri);
       this.uri = uri;
       
-      // Wait for session approval
+      console.log('Waiting for session approval...');
       const session = await approval();
+      console.log('Session approved:', session);
       this.session = session;
+      
+      const formattedSession = this.formatSession(session);
+      console.log('Formatted session:', formattedSession);
       
       return {
         uri,
-        session: this.formatSession(session)
+        session: formattedSession
       };
     } catch (error) {
+      console.error('WalletConnect connection failed:', error);
       throw new Error(`WalletConnect connection failed: ${error}`);
     }
   }
 
   // Approve session proposal
-  private async approveSession(proposal: WalletConnectProposal): Promise<void> {
+  async approveSession(proposal: WalletConnectProposal): Promise<void> {
     if (!this.client) return;
 
     try {
+      console.log('Approving session proposal:', proposal.id);
+      
       const { topic } = await this.client.approve({
         id: proposal.id,
         namespaces: {
@@ -214,13 +250,22 @@ export class WalletConnectManager {
   }
 
   // Reject session proposal
-  private async rejectSession(proposalId: number): Promise<void> {
+  async rejectSession(proposal: WalletConnectProposal): Promise<void> {
     if (!this.client) return;
 
-    await this.client.reject({
-      id: proposalId,
-      reason: getSdkError('USER_REJECTED')
-    });
+    try {
+      console.log('Rejecting session proposal:', proposal.id);
+      
+      await this.client.reject({
+        id: proposal.id,
+        reason: getSdkError('USER_REJECTED')
+      });
+      
+      console.log('Session rejected');
+    } catch (error) {
+      console.error('Failed to reject session:', error);
+      throw error;
+    }
   }
 
   // Get accounts for specified chains
@@ -259,6 +304,53 @@ export class WalletConnectManager {
       10: 'optimism'
     };
     return networkMap[chainId] || 'ethereum';
+  }
+
+  // Approve request
+  async approveRequest(request: WalletConnectRequest): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      console.log('Approving request:', request.id);
+      
+      const response = await this.handleSessionRequest(request);
+      
+      await this.client.respond({
+        topic: this.session?.topic || '',
+        response
+      });
+      
+      console.log('Request approved');
+    } catch (error) {
+      console.error('Failed to approve request:', error);
+      throw error;
+    }
+  }
+
+  // Reject request
+  async rejectRequest(request: WalletConnectRequest): Promise<void> {
+    if (!this.client) return;
+
+    try {
+      console.log('Rejecting request:', request.id);
+      
+      await this.client.respond({
+        topic: this.session?.topic || '',
+        response: {
+          id: request.id,
+          jsonrpc: '2.0',
+          error: {
+            code: 4001,
+            message: 'User rejected request'
+          }
+        }
+      });
+      
+      console.log('Request rejected');
+    } catch (error) {
+      console.error('Failed to reject request:', error);
+      throw error;
+    }
   }
 
   // Handle session requests

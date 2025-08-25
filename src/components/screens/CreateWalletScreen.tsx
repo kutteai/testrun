@@ -147,7 +147,8 @@ const CreateWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       transition={{ delay: index * 0.05 }}
                       className="px-3 py-2 text-sm rounded-lg border border-white/20 bg-white/5"
                     >
-                      <span className="text-xs text-slate-400">{index + 1}.</span> {word}
+                      <span className="text-xs text-slate-400">{index + 1}.</span> 
+                      {showSeedPhrase ? word : '••••••••'}
                     </motion.div>
                   ))}
                 </div>

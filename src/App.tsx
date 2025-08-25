@@ -21,6 +21,7 @@ import NetworksScreen from './components/screens/NetworksScreen';
 import NFTScreen from './components/screens/NFTScreen';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
+import TransactionHistoryScreen from './components/screens/TransactionHistoryScreen';
 
 import type { ScreenId } from './types/index';
 
@@ -146,6 +147,8 @@ const App: React.FC = () => {
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':
         return <TransactionsScreen onNavigate={handleNavigate} />;
+      case 'transaction-history':
+        return <TransactionHistoryScreen onNavigate={handleNavigate} />;
       default:
         return (
           <WelcomeScreen 

@@ -1,8 +1,8 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { getRealBalance } from '../utils/web3-utils';
-import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, hashPassword, verifyPassword } from '../utils/crypto-utils';
-import { deriveWalletFromSeed } from '../utils/key-derivation';
+import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validatePrivateKey, hashPassword, verifyPassword } from '../utils/crypto-utils';
+import { deriveWalletFromSeed, importWalletFromPrivateKey as importFromPrivateKey } from '../utils/key-derivation';
 import { 
   WalletData, 
   WalletState, 
@@ -336,6 +336,87 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       dispatch({ type: 'SET_WALLET', payload: wallet });
       dispatch({ type: 'SET_WALLET_CREATED', payload: true });
       dispatch({ type: 'SET_HAS_WALLET', payload: true });
+      
+      // Set the current network
+      const networkData = {
+        id: network,
+        name: network.charAt(0).toUpperCase() + network.slice(1),
+        symbol: network === 'ethereum' ? 'ETH' : network.toUpperCase(),
+        rpcUrl: `https://${network}.infura.io/v3/your-project-id`,
+        explorerUrl: `https://${network === 'ethereum' ? 'etherscan.io' : network + 'scan.io'}`,
+        chainId: network === 'ethereum' ? '1' : '56',
+        isCustom: false,
+        isEnabled: true
+      };
+      dispatch({ type: 'SET_CURRENT_NETWORK', payload: networkData });
+      
+      toast.success('Wallet imported successfully');
+    } catch (error) {
+      toast.error('Failed to import wallet');
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to import wallet' });
+    } finally {
+      dispatch({ type: 'SET_LOADING', payload: false });
+    }
+  };
+
+  // Import wallet from private key
+  const importWalletFromPrivateKey = async (privateKey: string, network: string): Promise<void> => {
+    try {
+      dispatch({ type: 'SET_LOADING', payload: true });
+
+      // Validate private key
+      if (!validatePrivateKey(privateKey)) {
+        throw new Error('Invalid private key');
+      }
+
+      // Import wallet from private key
+      const walletData = importFromPrivateKey(privateKey, network);
+      
+      // Debug logging
+      console.log('Private key import debug:', {
+        privateKey: privateKey.substring(0, 10) + '...' + privateKey.substring(privateKey.length - 10),
+        network: network,
+        derivedAddress: walletData.address,
+        derivedPublicKey: walletData.publicKey.substring(0, 20) + '...',
+        derivationPath: walletData.derivationPath
+      });
+      
+      const wallet: WalletData = {
+        id: Date.now().toString(),
+        name: 'Imported Wallet',
+        address: walletData.address,
+        privateKey: walletData.privateKey,
+        publicKey: walletData.publicKey,
+        encryptedSeedPhrase: '', // Not available when importing from private key
+        accounts: [walletData.address],
+        networks: [network],
+        currentNetwork: network,
+        derivationPath: walletData.derivationPath,
+        balance: '0',
+        createdAt: Date.now(),
+        lastUsed: Date.now()
+      };
+
+      // Store wallet securely
+      await storeWallet(wallet);
+      
+      dispatch({ type: 'SET_WALLET', payload: wallet });
+      dispatch({ type: 'SET_WALLET_CREATED', payload: true });
+      dispatch({ type: 'SET_HAS_WALLET', payload: true });
+      
+      // Set the current network
+      const networkData = {
+        id: network,
+        name: network.charAt(0).toUpperCase() + network.slice(1),
+        symbol: network === 'ethereum' ? 'ETH' : network.toUpperCase(),
+        rpcUrl: `https://${network}.infura.io/v3/your-project-id`,
+        explorerUrl: `https://${network === 'ethereum' ? 'etherscan.io' : network + 'scan.io'}`,
+        chainId: network === 'ethereum' ? '1' : '56',
+        isCustom: false,
+        isEnabled: true
+      };
+      dispatch({ type: 'SET_CURRENT_NETWORK', payload: networkData });
+      
       toast.success('Wallet imported successfully');
     } catch (error) {
       toast.error('Failed to import wallet');
@@ -596,6 +677,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     ...state,
     createWallet,
     importWallet,
+    importWalletFromPrivateKey,
     unlockWallet,
     lockWallet,
     switchNetwork,

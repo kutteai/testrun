@@ -111,6 +111,11 @@ class PayCioWalletInjected {
     return new Promise((resolve, reject) => {
       const messageId = Date.now() + Math.random();
       
+      console.log('PayCio Wallet: Sending message to content script:', {
+        id: messageId,
+        message: message
+      });
+      
       // Store the callback
       this.pendingRequests.set(messageId, { resolve, reject });
       
@@ -124,6 +129,7 @@ class PayCioWalletInjected {
       // Timeout after 30 seconds
       setTimeout(() => {
         if (this.pendingRequests.has(messageId)) {
+          console.log('PayCio Wallet: Request timeout for message:', messageId);
           this.pendingRequests.delete(messageId);
           reject(new Error('Request timeout'));
         }
@@ -133,21 +139,30 @@ class PayCioWalletInjected {
 
   private setupMessageListener() {
     window.addEventListener('message', (event) => {
+      console.log('PayCio Wallet: Received message:', event.data);
+      
       if (event.source !== window || event.data.source !== 'paycio-wallet-content') {
+        console.log('PayCio Wallet: Ignoring message - wrong source or not from content script');
         return;
       }
 
       const { id, result, error } = event.data;
+      
+      console.log('PayCio Wallet: Processing response:', { id, result, error });
       
       if (this.pendingRequests.has(id)) {
         const { resolve, reject } = this.pendingRequests.get(id)!;
         this.pendingRequests.delete(id);
         
         if (error) {
+          console.log('PayCio Wallet: Rejecting request due to error:', error);
           reject(new Error(error));
         } else {
+          console.log('PayCio Wallet: Resolving request with result:', result);
           resolve(result);
         }
+      } else {
+        console.log('PayCio Wallet: No pending request found for id:', id);
       }
 
       // Handle wallet state updates
@@ -212,6 +227,11 @@ class PayCioWalletInjected {
         writable: false,
         configurable: false
       });
+    } else {
+      // If ethereum already exists, try to add our provider to the list
+      if ((window.ethereum as any).providers) {
+        (window.ethereum as any).providers.push(this.provider);
+      }
     }
 
     // Inject into window.web3
@@ -219,17 +239,66 @@ class PayCioWalletInjected {
       window.web3.currentProvider = this.provider;
     }
 
+    // Also inject as window.paycioWallet for direct access
+    Object.defineProperty(window, 'paycioWallet', {
+      value: this.provider,
+      writable: false,
+      configurable: false
+    });
+
     // Notify that PayCio Wallet is available
     window.dispatchEvent(new CustomEvent('paycio-wallet-ready', {
       detail: { provider: this.provider }
     }));
 
-    console.log('PayCio Wallet injected successfully');
+    // Also dispatch ethereum events for compatibility
+    window.dispatchEvent(new CustomEvent('ethereum#initialized', {
+      detail: { provider: this.provider }
+    }));
+
+    console.log('PayCio Wallet injected successfully', this.provider);
   }
 }
 
 // Initialize the injected wallet
 new PayCioWalletInjected();
+
+// Add global test function for debugging
+(window as any).testPayCioWallet = async () => {
+  console.log('=== Testing PayCio Wallet ===');
+  
+  if (!window.ethereum) {
+    console.log('❌ No ethereum provider found');
+    return;
+  }
+  
+  if (!(window.ethereum as any).isPayCioWallet) {
+    console.log('❌ PayCio Wallet provider not detected');
+    return;
+  }
+  
+  console.log('✅ PayCio Wallet provider detected');
+  
+  try {
+    console.log('Testing eth_accounts...');
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    console.log('✅ eth_accounts result:', accounts);
+  } catch (error) {
+    console.log('❌ eth_accounts failed:', error);
+  }
+  
+  try {
+    console.log('Testing eth_requestAccounts...');
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    console.log('✅ eth_requestAccounts result:', accounts);
+  } catch (error) {
+    console.log('❌ eth_requestAccounts failed:', error);
+  }
+  
+  console.log('=== End Test ===');
+};
+
+console.log('PayCio Wallet injected. Run testPayCioWallet() in console to test.');
 
 // Export for potential external use
 if (typeof module !== 'undefined' && module.exports) {
