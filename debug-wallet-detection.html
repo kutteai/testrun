@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug Wallet Detection</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border-color: #28a745;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border-color: #dc3545;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-color: #17a2b8;
+        }
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border-color: #ffc107;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .console-output {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Wallet Detection</h1>
+    <p>This page helps debug why the PayCio Wallet is not being detected.</p>
+
+    <div id="status"></div>
+
+    <div>
+        <button onclick="checkWalletDetection()">Check Wallet Detection</button>
+        <button onclick="checkConsoleLogs()">Check Console Logs</button>
+        <button onclick="testConnection()">Test Connection</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div class="console-output" id="console-output"></div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const consoleOutput = document.getElementById('console-output');
+
+        function addStatus(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            statusDiv.appendChild(div);
+        }
+
+        function addConsoleOutput(message) {
+            const div = document.createElement('div');
+            div.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleOutput.appendChild(div);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        function checkWalletDetection() {
+            addStatus('🔍 Checking wallet detection...', 'info');
+            addConsoleOutput('Starting wallet detection check...');
+
+            // Check if ethereum exists
+            if (typeof window.ethereum !== 'undefined') {
+                addStatus('✅ window.ethereum found', 'success');
+                addConsoleOutput('window.ethereum exists');
+
+                if (window.ethereum.isPayCioWallet) {
+                    addStatus('✅ PayCio Wallet detected!', 'success');
+                    addConsoleOutput('PayCio Wallet provider detected');
+                } else {
+                    addStatus('⚠️ Ethereum provider found, but not PayCio Wallet', 'warning');
+                    addConsoleOutput('Ethereum provider exists but isPayCioWallet is false');
+                }
+
+                // Check provider properties
+                addConsoleOutput(`Provider properties: ${JSON.stringify({
+                    isPayCioWallet: window.ethereum.isPayCioWallet,
+                    chainId: window.ethereum.chainId,
+                    networkVersion: window.ethereum.networkVersion,
+                    selectedAddress: window.ethereum.selectedAddress,
+                    isConnected: typeof window.ethereum.isConnected === 'function' ? window.ethereum.isConnected() : window.ethereum.isConnected
+                })}`);
+            } else {
+                addStatus('❌ window.ethereum not found', 'error');
+                addConsoleOutput('window.ethereum is undefined');
+            }
+
+            // Check content script
+            if (window.paycioWalletContentScript) {
+                addStatus('✅ Content script found', 'success');
+                addConsoleOutput('window.paycioWalletContentScript exists');
+                addConsoleOutput(`Content script: ${JSON.stringify(window.paycioWalletContentScript)}`);
+            } else {
+                addStatus('❌ Content script not found', 'error');
+                addConsoleOutput('window.paycioWalletContentScript is undefined');
+            }
+
+            // Check direct wallet access
+            if (window.paycioWallet) {
+                addStatus('✅ Direct wallet access found', 'success');
+                addConsoleOutput('window.paycioWallet exists');
+            } else {
+                addStatus('❌ Direct wallet access not found', 'error');
+                addConsoleOutput('window.paycioWallet is undefined');
+            }
+
+            // Check connector
+            if (window.paycioConnector) {
+                addStatus('✅ Connector found', 'success');
+                addConsoleOutput('window.paycioConnector exists');
+            } else {
+                addStatus('❌ Connector not found', 'error');
+                addConsoleOutput('window.paycioConnector is undefined');
+            }
+
+            // Check for visual indicators
+            const indicator = document.getElementById('paycio-content-script-indicator');
+            if (indicator) {
+                addStatus('✅ Visual indicator found', 'success');
+                addConsoleOutput('Content script indicator found on page');
+            } else {
+                addStatus('❌ Visual indicator not found', 'error');
+                addConsoleOutput('Content script indicator not found on page');
+            }
+
+            // Check Chrome API
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                addStatus('✅ Chrome API available', 'success');
+                addConsoleOutput('Chrome extension API is available');
+            } else {
+                addStatus('❌ Chrome API not available', 'error');
+                addConsoleOutput('Chrome extension API is not available');
+            }
+        }
+
+        function checkConsoleLogs() {
+            addStatus('🔍 Checking for console logs...', 'info');
+            addConsoleOutput('Look for these console messages:');
+            addConsoleOutput('- "🔍 PayCio: Injecting into page context..."');
+            addConsoleOutput('- "✅ PayCio: window.paycioWalletContentScript set up"');
+            addConsoleOutput('- "✅ PayCio: Ethereum provider injected"');
+            addConsoleOutput('- "✅ PayCio: Page context injection completed"');
+            addConsoleOutput('Check the browser console (F12) for these messages');
+        }
+
+        async function testConnection() {
+            addStatus('🔗 Testing wallet connection...', 'info');
+            addConsoleOutput('Testing wallet connection...');
+
+            try {
+                if (typeof window.ethereum !== 'undefined') {
+                    addConsoleOutput('Attempting to request accounts...');
+                    const accounts = await window.ethereum.request({
+                        method: 'eth_requestAccounts'
+                    });
+                    addStatus(`✅ Connection successful! Accounts: ${JSON.stringify(accounts)}`, 'success');
+                    addConsoleOutput(`Connection successful: ${JSON.stringify(accounts)}`);
+                } else {
+                    addStatus('❌ No Ethereum provider available', 'error');
+                    addConsoleOutput('No Ethereum provider available for connection test');
+                }
+            } catch (error) {
+                addStatus(`❌ Connection failed: ${error.message}`, 'error');
+                addConsoleOutput(`Connection failed: ${error.message}`);
+            }
+        }
+
+        function clearResults() {
+            statusDiv.innerHTML = '';
+            consoleOutput.innerHTML = '';
+        }
+
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            addStatus('🚀 Page loaded, checking wallet...', 'info');
+            setTimeout(checkWalletDetection, 2000);
+        });
+
+        // Listen for wallet events
+        window.addEventListener('paycio-wallet-ready', (event) => {
+            addStatus('🎉 PayCio Wallet ready event received!', 'success');
+            addConsoleOutput('PayCio Wallet ready event received');
+        });
+
+        window.addEventListener('ethereum#initialized', (event) => {
+            addStatus('🎉 Ethereum initialized event received!', 'success');
+            addConsoleOutput('Ethereum initialized event received');
+        });
+
+        window.addEventListener('paycio-connector-ready', (event) => {
+            addStatus('🎉 PayCio Connector ready event received!', 'success');
+            addConsoleOutput('PayCio Connector ready event received');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compare Extensions</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 1000px; 
+            margin: 0 auto; 
+        }
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .extension-test {
+            border: 2px solid #ddd;
+            border-radius: 10px;
+            padding: 20px;
+        }
+        .simple { border-color: #28a745; }
+        .main { border-color: #007bff; }
+        .result { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border-radius: 5px; 
+            border-left: 4px solid;
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border-color: #28a745;
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border-color: #dc3545;
+        }
+        .info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border-color: #17a2b8;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .clear-btn {
+            background: #6c757d;
+        }
+        .clear-btn:hover {
+            background: #545b62;
+        }
+    </style>
+</head>
+<body>
+    <h1>Extension Comparison Test</h1>
+    <p>This page compares the Simple PayCio extension vs the Main PayCio extension.</p>
+
+    <div class="comparison">
+        <div class="extension-test simple">
+            <h2>Simple PayCio Extension</h2>
+            <div id="simple-results"></div>
+            <button onclick="testSimpleExtension()">Test Simple Extension</button>
+            <button onclick="clearResults('simple')" class="clear-btn">Clear</button>
+        </div>
+
+        <div class="extension-test main">
+            <h2>Main PayCio Extension</h2>
+            <div id="main-results"></div>
+            <button onclick="testMainExtension()">Test Main Extension</button>
+            <button onclick="clearResults('main')" class="clear-btn">Clear</button>
+        </div>
+    </div>
+
+    <div style="margin-top: 20px;">
+        <h3>Instructions:</h3>
+        <ol>
+            <li><strong>Test Simple Extension:</strong> This should work if you have the simple-paycio extension loaded</li>
+            <li><strong>Test Main Extension:</strong> This should work if you have the main PayCio Wallet extension loaded from dist/chrome</li>
+            <li><strong>Load Main Extension:</strong> Go to chrome://extensions/, enable Developer mode, click "Load unpacked", select the dist/chrome folder</li>
+        </ol>
+    </div>
+
+    <script>
+        function addResult(extension, message, type = 'info') {
+            const resultsDiv = document.getElementById(`${extension}-results`);
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            resultsDiv.appendChild(div);
+        }
+
+        function testSimpleExtension() {
+            addResult('simple', '🔍 Testing Simple PayCio Extension...', 'info');
+            
+            // Check content script
+            if (window.paycioWalletContentScript) {
+                addResult('simple', '✅ Content script found', 'success');
+                addResult('simple', `Running: ${window.paycioWalletContentScript.isRunning}`, 'info');
+            } else {
+                addResult('simple', '❌ Content script not found', 'error');
+            }
+
+            // Check ethereum provider
+            if (window.ethereum) {
+                addResult('simple', '✅ Ethereum provider found', 'success');
+                if (window.ethereum.isPayCioWallet) {
+                    addResult('simple', '✅ PayCio Wallet detected', 'success');
+                } else {
+                    addResult('simple', '⚠️ Ethereum provider found, but not PayCio', 'info');
+                }
+            } else {
+                addResult('simple', '❌ Ethereum provider not found', 'error');
+            }
+
+            // Check visual indicators
+            const indicator = document.getElementById('paycio-content-script-indicator');
+            if (indicator) {
+                addResult('simple', '✅ Visual indicator found', 'success');
+            } else {
+                addResult('simple', '❌ Visual indicator not found', 'error');
+            }
+        }
+
+        function testMainExtension() {
+            addResult('main', '🔍 Testing Main PayCio Extension...', 'info');
+            
+            // Check if extension is loaded
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                addResult('main', '✅ Chrome API available', 'success');
+                
+                try {
+                    const manifest = chrome.runtime.getManifest();
+                    addResult('main', `Extension: ${manifest.name} v${manifest.version}`, 'success');
+                } catch (error) {
+                    addResult('main', '❌ Extension not loaded or error getting manifest', 'error');
+                }
+            } else {
+                addResult('main', '❌ Chrome API not available', 'error');
+            }
+
+            // Check content script
+            if (window.paycioWalletContentScript) {
+                addResult('main', '✅ Content script found', 'success');
+                addResult('main', `Running: ${window.paycioWalletContentScript.isRunning}`, 'info');
+            } else {
+                addResult('main', '❌ Content script not found', 'error');
+            }
+
+            // Check ethereum provider
+            if (window.ethereum) {
+                addResult('main', '✅ Ethereum provider found', 'success');
+                if (window.ethereum.isPayCioWallet) {
+                    addResult('main', '✅ PayCio Wallet detected', 'success');
+                } else {
+                    addResult('main', '⚠️ Ethereum provider found, but not PayCio', 'info');
+                }
+            } else {
+                addResult('main', '❌ Ethereum provider not found', 'error');
+            }
+
+            // Check debug div
+            const debugDiv = document.getElementById('paycio-wallet-debug');
+            if (debugDiv) {
+                addResult('main', '✅ Debug div found', 'success');
+            } else {
+                addResult('main', '❌ Debug div not found', 'error');
+            }
+
+            // Check test function
+            if (typeof window.testPayCioWalletInjection === 'function') {
+                addResult('main', '✅ Test function found', 'success');
+                try {
+                    const result = window.testPayCioWalletInjection();
+                    addResult('main', `Test result: ${result}`, result ? 'success' : 'error');
+                } catch (error) {
+                    addResult('main', `❌ Test function error: ${error.message}`, 'error');
+                }
+            } else {
+                addResult('main', '❌ Test function not found', 'error');
+            }
+        }
+
+        function clearResults(extension) {
+            const resultsDiv = document.getElementById(`${extension}-results`);
+            resultsDiv.innerHTML = '';
+        }
+
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            addResult('simple', '🚀 Page loaded, testing extensions...', 'info');
+            setTimeout(() => {
+                testSimpleExtension();
+                testMainExtension();
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

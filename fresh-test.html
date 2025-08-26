@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Test</title>
+    <title>Fresh Extension Test</title>
     <style>
         body { font-family: Arial, sans-serif; padding: 20px; }
         .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
@@ -13,11 +13,12 @@
     </style>
 </head>
 <body>
-    <h1>Simple Extension Test</h1>
+    <h1>Fresh Extension Test</h1>
     
     <div id="results"></div>
     
     <button onclick="checkExtension()">Check Extension</button>
+    <button onclick="checkImmediately()">Check Immediately</button>
     <button onclick="clearResults()">Clear</button>
     
     <script>
@@ -60,6 +61,11 @@
             addResult('Check browser console for content script messages', 'info');
         }
         
+        function checkImmediately() {
+            addResult('Checking immediately...', 'info');
+            checkExtension();
+        }
+        
         function clearResults() {
             resultsDiv.innerHTML = '';
         }
@@ -72,4 +78,3 @@
     </script>
 </body>
 </html>
-

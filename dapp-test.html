@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>dApp Test - PayCio Wallet</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px; 
+            max-width: 800px; 
+            margin: 0 auto; 
+        }
+        .result { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border-radius: 5px; 
+            border-left: 4px solid;
+        }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            border-color: #28a745;
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            border-color: #dc3545;
+        }
+        .info { 
+            background: #d1ecf1; 
+            color: #0c5460; 
+            border-color: #17a2b8;
+        }
+        .warning { 
+            background: #fff3cd; 
+            color: #856404; 
+            border-color: #ffc107;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .wallet-info {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>dApp Test - PayCio Wallet</h1>
+    <p>This page simulates how a real dApp would detect and connect to the PayCio Wallet.</p>
+
+    <div id="results"></div>
+
+    <div class="wallet-info">
+        <h3>Wallet Actions</h3>
+        <button onclick="detectWallet()">Detect Wallet</button>
+        <button onclick="requestAccounts()">Request Accounts</button>
+        <button onclick="getChainId()">Get Chain ID</button>
+        <button onclick="getBalance()">Get Balance</button>
+        <button onclick="testAllMethods()">Test All Methods</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <script>
+        const resultsDiv = document.getElementById('results');
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            resultsDiv.appendChild(div);
+        }
+
+        async function detectWallet() {
+            addResult('🔍 Detecting PayCio Wallet...', 'info');
+            
+            // Check if ethereum provider exists
+            if (typeof window.ethereum !== 'undefined') {
+                addResult('✅ Ethereum provider detected', 'success');
+                
+                // Check if it's PayCio Wallet
+                if (window.ethereum.isPayCioWallet) {
+                    addResult('✅ PayCio Wallet detected!', 'success');
+                    addResult(`Chain ID: ${window.ethereum.chainId}`, 'info');
+                    addResult(`Network Version: ${window.ethereum.networkVersion}`, 'info');
+                } else {
+                    addResult('⚠️ Ethereum provider found, but not PayCio Wallet', 'warning');
+                }
+            } else {
+                addResult('❌ No Ethereum provider detected', 'error');
+            }
+
+            // Check for content script object
+            if (window.paycioWalletContentScript) {
+                addResult('✅ PayCio content script detected', 'success');
+                addResult(`Message: ${window.paycioWalletContentScript.message}`, 'info');
+            } else {
+                addResult('❌ PayCio content script not detected', 'error');
+            }
+        }
+
+        async function requestAccounts() {
+            addResult('🔍 Requesting accounts...', 'info');
+            
+            try {
+                if (typeof window.ethereum !== 'undefined') {
+                    const accounts = await window.ethereum.request({
+                        method: 'eth_requestAccounts'
+                    });
+                    addResult(`✅ Accounts: ${JSON.stringify(accounts)}`, 'success');
+                } else {
+                    addResult('❌ No Ethereum provider available', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error requesting accounts: ${error.message}`, 'error');
+            }
+        }
+
+        async function getChainId() {
+            addResult('🔍 Getting chain ID...', 'info');
+            
+            try {
+                if (typeof window.ethereum !== 'undefined') {
+                    const chainId = await window.ethereum.request({
+                        method: 'eth_chainId'
+                    });
+                    addResult(`✅ Chain ID: ${chainId}`, 'success');
+                } else {
+                    addResult('❌ No Ethereum provider available', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error getting chain ID: ${error.message}`, 'error');
+            }
+        }
+
+        async function getBalance() {
+            addResult('🔍 Getting balance...', 'info');
+            
+            try {
+                if (typeof window.ethereum !== 'undefined') {
+                    const balance = await window.ethereum.request({
+                        method: 'eth_getBalance',
+                        params: ['0x0000000000000000000000000000000000000000', 'latest']
+                    });
+                    addResult(`✅ Balance: ${balance}`, 'success');
+                } else {
+                    addResult('❌ No Ethereum provider available', 'error');
+                }
+            } catch (error) {
+                addResult(`❌ Error getting balance: ${error.message}`, 'error');
+            }
+        }
+
+        async function testAllMethods() {
+            addResult('🧪 Testing all wallet methods...', 'info');
+            
+            const methods = [
+                'eth_accounts',
+                'eth_requestAccounts', 
+                'eth_chainId',
+                'eth_getBalance',
+                'net_version'
+            ];
+
+            for (const method of methods) {
+                try {
+                    const result = await window.ethereum.request({
+                        method: method,
+                        params: method === 'eth_getBalance' ? ['0x0000000000000000000000000000000000000000', 'latest'] : []
+                    });
+                    addResult(`✅ ${method}: ${JSON.stringify(result)}`, 'success');
+                } catch (error) {
+                    addResult(`❌ ${method}: ${error.message}`, 'error');
+                }
+            }
+        }
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+
+        // Auto-detect on page load
+        window.addEventListener('load', () => {
+            addResult('🚀 Page loaded, auto-detecting wallet...', 'info');
+            setTimeout(detectWallet, 1000);
+        });
+    </script>
+</body>
+</html>
