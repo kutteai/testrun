@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple PayCio Wallet Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Simple PayCio Wallet Test</h1>
+    
+    <div id="status"></div>
+    
+    <button onclick="checkExtension()">Check Extension</button>
+    <button onclick="checkConsole()">Check Console</button>
+    <button onclick="reloadPage()">Reload Page</button>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        
+        function addStatus(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            statusDiv.appendChild(div);
+        }
+        
+        function checkExtension() {
+            addStatus('Checking extension...', 'info');
+            
+            // Check if extension is loaded
+            const hasExtension = typeof chrome !== 'undefined' && chrome.runtime;
+            addStatus(`Chrome extension API available: ${hasExtension}`, hasExtension ? 'success' : 'error');
+            
+            // Check if content script is running
+            const contentScriptRunning = window.paycioWalletContentScript?.isRunning;
+            addStatus(`Content script running: ${contentScriptRunning}`, contentScriptRunning ? 'success' : 'error');
+            
+            // Check if ethereum provider exists
+            const ethereumExists = !!window.ethereum;
+            addStatus(`Ethereum provider exists: ${ethereumExists}`, ethereumExists ? 'success' : 'error');
+            
+            // Check if it's PayCio Wallet
+            const isPayCioWallet = window.ethereum?.isPayCioWallet;
+            addStatus(`Is PayCio Wallet: ${isPayCioWallet}`, isPayCioWallet ? 'success' : 'error');
+            
+            // Check if paycioWallet exists
+            const paycioWalletExists = !!window.paycioWallet;
+            addStatus(`PayCio Wallet direct access: ${paycioWalletExists}`, paycioWalletExists ? 'success' : 'error');
+            
+            // Check if test function exists
+            const testFunctionExists = typeof window.testPayCioWalletInjection === 'function';
+            addStatus(`Test function exists: ${testFunctionExists}`, testFunctionExists ? 'success' : 'error');
+            
+            // Check if debug div exists
+            const debugDiv = document.getElementById('paycio-wallet-debug');
+            const debugDivExists = !!debugDiv;
+            addStatus(`Debug div exists: ${debugDivExists}`, debugDivExists ? 'success' : 'error');
+            
+            // Summary
+            const tests = [hasExtension, contentScriptRunning, ethereumExists, isPayCioWallet, paycioWalletExists, testFunctionExists, debugDivExists];
+            const passed = tests.filter(t => t).length;
+            const total = tests.length;
+            
+            addStatus(`Tests passed: ${passed}/${total}`, passed === total ? 'success' : 'warning');
+            
+            if (passed === 0) {
+                addStatus('❌ Extension is not working at all. Check installation.', 'error');
+            } else if (passed === total) {
+                addStatus('✅ Extension is working perfectly!', 'success');
+            } else {
+                addStatus('⚠️ Extension is partially working.', 'warning');
+            }
+        }
+        
+        function checkConsole() {
+            addStatus('Checking console for PayCio Wallet messages...', 'info');
+            
+            // Look for console messages
+            const originalLog = console.log;
+            let foundMessages = [];
+            
+            console.log = function(...args) {
+                const message = args.join(' ');
+                if (message.includes('PayCio Wallet')) {
+                    foundMessages.push(message);
+                }
+                originalLog.apply(console, args);
+            };
+            
+            // Wait a bit and check
+            setTimeout(() => {
+                console.log = originalLog;
+                if (foundMessages.length > 0) {
+                    addStatus(`Found ${foundMessages.length} PayCio Wallet console messages`, 'success');
+                    foundMessages.forEach(msg => addStatus(`Console: ${msg}`, 'info'));
+                } else {
+                    addStatus('No PayCio Wallet console messages found', 'error');
+                }
+            }, 1000);
+        }
+        
+        function reloadPage() {
+            addStatus('Reloading page...', 'info');
+            location.reload();
+        }
+        
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            addStatus('Page loaded, checking extension...', 'info');
+            setTimeout(checkExtension, 1000);
+        });
+        
+        // Check every 10 seconds
+        setInterval(() => {
+            if (!window.paycioWalletContentScript?.isRunning && !window.ethereum?.isPayCioWallet) {
+                addStatus('⚠️ Extension not detected - check if loaded in chrome://extensions/', 'warning');
+            }
+        }, 10000);
+    </script>
+</body>
+</html>
+

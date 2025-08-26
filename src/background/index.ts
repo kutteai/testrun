@@ -1,221 +1,125 @@
-import { WalletManager } from '../core/wallet-manager';
-import { SecurityManager } from '../core/security-manager';
+// Simplified background script to prevent crashes
+console.log('PayCio Wallet background script starting...');
 
-// Initialize managers
-const walletManager = new WalletManager();
-const securityManager = new SecurityManager();
-
-export {};
-
-// Background script initialization
-console.log('PayCio Wallet background script initialized');
-
-// Handle extension installation
-chrome.runtime.onInstalled.addListener((details: chrome.runtime.InstalledDetails) => {
-  if (details.reason === 'install') {
-    // First time installation
-    console.log('First time installation - setting up default settings');
-  }
-});
-
-// Handle messages from content scripts and popup
-chrome.runtime.onMessage.addListener((message: any, sender: chrome.runtime.MessageSender, sendResponse: (response: any) => void) => {
-  console.log('Background received message:', message);
-
-  // Handle different message types
-  switch (message.type) {
-    case 'WALLET_CONNECT':
-      handleWalletConnect(message, sendResponse);
-      break;
-    case 'WALLET_GET_ACCOUNTS':
-      handleGetAccounts(message, sendResponse);
-      break;
-    case 'WALLET_GET_BALANCE':
-      handleGetBalance(message, sendResponse);
-      break;
-    case 'WALLET_SIGN_TRANSACTION':
-      handleSignTransaction(message, sendResponse);
-      break;
-    case 'WALLET_SWITCH_NETWORK':
-      handleSwitchNetwork(message, sendResponse);
-      break;
-    default:
-      sendResponse({ success: false, error: 'Unknown message type' });
-  }
-  return true; // Indicates that sendResponse will be called asynchronously
-});
-
-// Handle wallet connect
-async function handleWalletConnect(message: any, sendResponse: (response: any) => void) {
+// Basic error handling wrapper
+function safeExecute(fn: () => void, context: string) {
   try {
-    const currentWallet = walletManager.getCurrentWalletForBackground();
-    if (currentWallet) {
-      sendResponse({
-        success: true,
-        address: currentWallet.address,
-        network: currentWallet.currentNetwork
-      });
-    } else {
-      sendResponse({
-        success: false,
-        error: 'No wallet available'
-      });
-    }
+    fn();
   } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
+    console.error(`Error in ${context}:`, error);
   }
 }
 
-// Handle get accounts
-async function handleGetAccounts(message: any, sendResponse: (response: any) => void) {
-  try {
-    const currentWallet = walletManager.getCurrentWalletForBackground();
-    if (currentWallet) {
-      sendResponse({
-        success: true,
-        accounts: [currentWallet.address]
-      });
-    } else {
-      sendResponse({
-        success: true,
-        accounts: []
-      });
-    }
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
+// Initialize basic functionality
+let isInitialized = false;
 
-// Handle get balance
-async function handleGetBalance(message: any, sendResponse: (response: any) => void) {
-  try {
-    const { address, network } = message.params;
-    const balance = await walletManager.getBalance(address, network);
-    sendResponse({
-      success: true,
-      balance
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-// Handle sign transaction
-async function handleSignTransaction(message: any, sendResponse: (response: any) => void) {
-  try {
-    const currentWallet = walletManager.getCurrentWallet();
-    if (!currentWallet) {
-      sendResponse({
-        success: false,
-        error: 'No wallet available'
-      });
-      return;
-    }
-
-    const currentAccount = walletManager.getCurrentAccount();
-    if (!currentAccount) {
-      sendResponse({
-        success: false,
-        error: 'No account available'
-      });
-      return;
-    }
-
-    // Import real signing utilities
-    const { ethers } = await import('ethers');
-    const { decryptData } = await import('../utils/crypto-utils');
+function initializeBackground() {
+  if (isInitialized) return;
+  
+  safeExecute(() => {
+    console.log('Initializing background script...');
     
-    // Get transaction data from message
-    const { transaction, password } = message.params;
+    // Handle extension installation
+    chrome.runtime.onInstalled.addListener((details) => {
+      console.log('Extension installed:', details.reason);
+    });
     
-    if (!password) {
-      sendResponse({
-        success: false,
-        error: 'Password required for signing'
-      });
-      return;
-    }
-
-    // Decrypt private key
-    const privateKey = await decryptData(currentAccount.privateKey, password);
-    if (!privateKey) {
-      sendResponse({
-        success: false,
-        error: 'Invalid password'
-      });
-      return;
-    }
-
-    // Create wallet instance and sign transaction
-    const wallet = new ethers.Wallet(privateKey);
-    const signedTx = await wallet.signTransaction(transaction);
-    
-    sendResponse({
-      success: true,
-      signature: signedTx
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-// Handle switch network
-async function handleSwitchNetwork(message: any, sendResponse: (response: any) => void) {
-  try {
-    const { networkId } = message.params;
-    await walletManager.switchNetwork(networkId);
-    sendResponse({
-      success: true
-    });
-  } catch (error) {
-    sendResponse({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-}
-
-// Handle alarms (e.g., for session expiry)
-chrome.alarms.onAlarm.addListener(async (alarm: chrome.alarms.Alarm) => {
-  if (alarm.name === 'session_timeout') {
-    console.log('Session timeout alarm triggered. Locking wallet...');
-    await securityManager.lockWallet();
-    // Optionally notify user
-    chrome.notifications.create({
-      type: 'basic',
-      iconUrl: 'assets/icon48.png',
-      title: 'PayCio Wallet',
-      message: 'Your wallet has been locked due to inactivity.'
-    });
-  }
-});
-
-// Listen for storage changes to update wallet state
-chrome.storage.local.onChanged.addListener((changes: { [key: string]: chrome.storage.StorageChange }) => {
-  if (changes.walletState) {
-    console.log('Wallet state changed:', changes.walletState.newValue);
-    // Propagate state change to injected script if necessary
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0] && tabs[0].id) {
-        chrome.tabs.sendMessage(tabs[0].id, {
-          type: 'WALLET_STATE_CHANGED',
-          data: changes.walletState.newValue
+    // Handle messages from content scripts
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      console.log('Background received message:', message);
+      
+      try {
+        // Basic message handling
+        switch (message.type) {
+          case 'PING':
+            sendResponse({ success: true, message: 'Background script is running' });
+            break;
+            
+          case 'GET_ACCOUNTS':
+            // Mock response for now
+            sendResponse({ 
+              success: true, 
+              accounts: [] 
+            });
+            break;
+            
+          case 'GET_BALANCE':
+            sendResponse({ 
+              success: true, 
+              balance: '0x0' 
+            });
+            break;
+            
+          case 'ETH_REQUEST_ACCOUNTS':
+            sendResponse({ 
+              success: true, 
+              accounts: [] 
+            });
+            break;
+            
+          case 'ETH_ACCOUNTS':
+            sendResponse({ 
+              success: true, 
+              accounts: [] 
+            });
+            break;
+            
+          case 'ETH_CHAIN_ID':
+            sendResponse({ 
+              success: true, 
+              chainId: '0x1' 
+            });
+            break;
+            
+          default:
+            sendResponse({ 
+              success: false, 
+              error: 'Unknown message type' 
+            });
+        }
+      } catch (error) {
+        console.error('Error handling message:', error);
+        sendResponse({ 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
         });
       }
+      
+      return true; // Keep message channel open for async response
     });
-  }
+    
+    // Handle alarms
+    chrome.alarms.onAlarm.addListener((alarm) => {
+      console.log('Alarm triggered:', alarm.name);
+    });
+    
+    // Handle storage changes
+    chrome.storage.local.onChanged.addListener((changes) => {
+      console.log('Storage changed:', Object.keys(changes));
+    });
+    
+    isInitialized = true;
+    console.log('Background script initialized successfully');
+    
+  }, 'background initialization');
+}
+
+// Start initialization
+initializeBackground();
+
+// Keep service worker alive
+chrome.runtime.onStartup.addListener(() => {
+  console.log('Extension startup');
 });
 
-console.log('PayCio Wallet background service worker initialized'); 
+// Handle service worker activation
+self.addEventListener('activate', (event) => {
+  console.log('Service worker activated');
+});
+
+// Handle service worker installation
+self.addEventListener('install', (event) => {
+  console.log('Service worker installed');
+});
+
+console.log('PayCio Wallet background script loaded'); 

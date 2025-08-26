@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Debug Test</title>
+</head>
+<body>
+    <h1>Extension Debug Test</h1>
+    <p>This page will help us debug the extension loading issue.</p>
+    
+    <div id="debug-info"></div>
+    
+    <script>
+        const debugInfo = document.getElementById('debug-info');
+        
+        function addDebugInfo(message, type = 'info') {
+            const div = document.createElement('div');
+            div.style.cssText = `
+                margin: 10px 0;
+                padding: 10px;
+                border-radius: 5px;
+                font-family: monospace;
+                font-size: 12px;
+            `;
+            
+            if (type === 'error') {
+                div.style.background = '#f8d7da';
+                div.style.color = '#721c24';
+                div.style.border = '1px solid #f5c6cb';
+            } else if (type === 'success') {
+                div.style.background = '#d4edda';
+                div.style.color = '#155724';
+                div.style.border = '1px solid #c3e6cb';
+            } else {
+                div.style.background = '#fff3cd';
+                div.style.color = '#856404';
+                div.style.border = '1px solid #ffeaa7';
+            }
+            
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            debugInfo.appendChild(div);
+        }
+        
+        // Test 1: Check if page loaded
+        addDebugInfo('Page loaded successfully');
+        
+        // Test 2: Check if content script is running
+        setTimeout(() => {
+            const contentScriptRunning = window.paycioWalletContentScript?.isRunning;
+            addDebugInfo(`Content script running: ${contentScriptRunning}`, contentScriptRunning ? 'success' : 'error');
+            
+            // Test 3: Check if ethereum provider exists
+            const ethereumExists = !!window.ethereum;
+            addDebugInfo(`Ethereum provider exists: ${ethereumExists}`, ethereumExists ? 'success' : 'error');
+            
+            // Test 4: Check if it's PayCio Wallet
+            const isPayCioWallet = window.ethereum?.isPayCioWallet;
+            addDebugInfo(`isPayCioWallet: ${isPayCioWallet}`, isPayCioWallet ? 'success' : 'error');
+            
+            // Test 5: Check if debug div exists
+            const debugDiv = document.getElementById('paycio-wallet-debug');
+            const debugDivExists = !!debugDiv;
+            addDebugInfo(`Debug div exists: ${debugDivExists}`, debugDivExists ? 'success' : 'error');
+            
+            // Test 6: Check if test function exists
+            const testFunctionExists = typeof window.testPayCioWalletInjection === 'function';
+            addDebugInfo(`Test function exists: ${testFunctionExists}`, testFunctionExists ? 'success' : 'error');
+            
+            // Summary
+            if (!contentScriptRunning) {
+                addDebugInfo('❌ Extension content script is NOT running. Check if extension is loaded in chrome://extensions/', 'error');
+            } else {
+                addDebugInfo('✅ Extension content script is running!', 'success');
+            }
+        }, 2000);
+        
+        // Check every 5 seconds
+        setInterval(() => {
+            if (!window.paycioWalletContentScript?.isRunning) {
+                addDebugInfo('⚠️ Extension still not detected - check chrome://extensions/', 'error');
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
+

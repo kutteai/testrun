@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayCio Wallet Extension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .status { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+    </style>
+</head>
+<body>
+    <h1>PayCio Wallet Extension Test</h1>
+    
+    <div id="status"></div>
+    
+    <h2>Manual Tests</h2>
+    <button onclick="testExtension()">Test Extension</button>
+    <button onclick="createManualProvider()">Create Manual Provider</button>
+    <button onclick="clearProvider()">Clear Provider</button>
+    
+    <script>
+        const statusDiv = document.getElementById('status');
+        
+        function addStatus(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+            statusDiv.appendChild(div);
+        }
+        
+        function testExtension() {
+            addStatus('Testing extension...', 'info');
+            
+            // Test 1: Check if content script is running
+            const contentScriptRunning = window.paycioWalletContentScript?.isRunning;
+            addStatus(`Content script running: ${contentScriptRunning}`, contentScriptRunning ? 'success' : 'error');
+            
+            // Test 2: Check if ethereum provider exists
+            const ethereumExists = !!window.ethereum;
+            addStatus(`Ethereum provider exists: ${ethereumExists}`, ethereumExists ? 'success' : 'error');
+            
+            // Test 3: Check if it's PayCio Wallet
+            const isPayCioWallet = window.ethereum?.isPayCioWallet;
+            addStatus(`isPayCioWallet: ${isPayCioWallet}`, isPayCioWallet ? 'success' : 'error');
+            
+            // Test 4: Check if test function exists
+            const testFunctionExists = typeof window.testPayCioWalletInjection === 'function';
+            addStatus(`Test function exists: ${testFunctionExists}`, testFunctionExists ? 'success' : 'error');
+            
+            // Test 5: Check if debug div exists
+            const debugDiv = document.getElementById('paycio-wallet-debug');
+            const debugDivExists = !!debugDiv;
+            addStatus(`Debug div exists: ${debugDivExists}`, debugDivExists ? 'success' : 'error');
+            
+            console.log('=== Extension Test Results ===');
+            console.log('Content script running:', contentScriptRunning);
+            console.log('Ethereum provider:', window.ethereum);
+            console.log('isPayCioWallet:', isPayCioWallet);
+            console.log('Test function exists:', testFunctionExists);
+            console.log('Debug div exists:', debugDivExists);
+            console.log('=============================');
+        }
+        
+        function createManualProvider() {
+            addStatus('Creating manual provider...', 'info');
+            
+            window.ethereum = {
+                isPayCioWallet: true,
+                isConnected: () => true,
+                request: async (args) => {
+                    console.log('Manual provider request:', args);
+                    if (args.method === 'eth_accounts') {
+                        return ['0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'];
+                    }
+                    if (args.method === 'eth_requestAccounts') {
+                        return ['0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'];
+                    }
+                    throw new Error('Method not implemented');
+                }
+            };
+            
+            window.dispatchEvent(new Event('ethereum#initialized'));
+            addStatus('Manual provider created successfully', 'success');
+        }
+        
+        function clearProvider() {
+            addStatus('Clearing provider...', 'info');
+            delete window.ethereum;
+            addStatus('Provider cleared', 'success');
+        }
+        
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            addStatus('Page loaded, testing extension...', 'info');
+            setTimeout(testExtension, 1000);
+        });
+        
+        // Check every 5 seconds
+        setInterval(() => {
+            if (!window.ethereum && !window.paycioWalletContentScript?.isRunning) {
+                addStatus('Extension not detected - check if loaded in chrome://extensions/', 'warning');
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

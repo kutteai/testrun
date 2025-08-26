@@ -6,9 +6,9 @@ interface WalletProvider {
   request: (args: { method: string; params?: any[] }) => Promise<any>;
   on: (eventName: string, handler: (data: any) => void) => void;
   removeListener: (eventName: string, handler: (data: any) => void) => void;
-  selectedAddress?: string;
-  isConnected?: boolean;
-  chainId?: string;
+  selectedAddress?: string | null;
+  isConnected?: boolean | (() => boolean);
+  chainId?: string | null;
 }
 
 interface PayCioWalletProvider extends WalletProvider {
@@ -19,6 +19,16 @@ interface PayCioWalletProvider extends WalletProvider {
   sendAsync: (payload: any, callback: (error: any, response: any) => void) => void;
   enable: () => Promise<string[]>;
   autoRefreshOnNetworkChange: boolean;
+  // EIP-1193 standard properties
+  isConnected: () => boolean;
+  selectedAddress: string | null;
+  chainId: string | null;
+  // Additional standard methods
+  requestPermissions?: (permissions: any) => Promise<any>;
+  getPermissions?: () => Promise<any>;
+  watchAsset?: (asset: any) => Promise<boolean>;
+  addEthereumChain?: (chain: any) => Promise<void>;
+  switchEthereumChain?: (chain: any) => Promise<void>;
 }
 
 class PayCioWalletInjected {
@@ -41,9 +51,9 @@ class PayCioWalletInjected {
       version: '1.0.0',
       networkVersion: '1',
       autoRefreshOnNetworkChange: false,
-      selectedAddress: undefined,
-      isConnected: false,
-      chainId: undefined,
+      selectedAddress: null,
+      isConnected: () => this.isConnected,
+      chainId: null,
 
       request: async (args: { method: string; params?: any[] }) => {
         return this.handleRequest(args);
@@ -67,7 +77,28 @@ class PayCioWalletInjected {
       },
 
       removeListener: (eventName: string, handler: (data: any) => void) => {
-        this.removeEventListener(eventName, handler);
+        this.removeEventListener(eventName, handler)
+      },
+
+      // EIP-1193 standard methods
+      requestPermissions: async (permissions: any) => {
+        return this.handleRequest({ method: 'wallet_requestPermissions', params: [permissions] });
+      },
+
+      getPermissions: async () => {
+        return this.handleRequest({ method: 'wallet_getPermissions', params: [] });
+      },
+
+      watchAsset: async (asset: any) => {
+        return this.handleRequest({ method: 'wallet_watchAsset', params: [asset] });
+      },
+
+      addEthereumChain: async (chain: any) => {
+        return this.handleRequest({ method: 'wallet_addEthereumChain', params: [chain] });
+      },
+
+      switchEthereumChain: async (chain: any) => {
+        return this.handleRequest({ method: 'wallet_switchEthereumChain', params: [chain] });
       }
     };
 
@@ -246,6 +277,9 @@ class PayCioWalletInjected {
       configurable: false
     });
 
+    // Announce provider for EIP-6963 compatibility
+    this.announceProvider();
+
     // Notify that PayCio Wallet is available
     window.dispatchEvent(new CustomEvent('paycio-wallet-ready', {
       detail: { provider: this.provider }
@@ -257,6 +291,34 @@ class PayCioWalletInjected {
     }));
 
     console.log('PayCio Wallet injected successfully', this.provider);
+  }
+
+  private announceProvider() {
+    // EIP-6963 provider announcement
+    const providerInfo = {
+      uuid: 'paycio-wallet-' + Date.now(),
+      name: 'PayCio Wallet',
+      icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
+      rdns: 'com.paycio.wallet'
+    };
+
+    // Announce provider
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: {
+        info: providerInfo,
+        provider: this.provider
+      }
+    }));
+
+    // Listen for provider requests
+    window.addEventListener('eip6963:requestProvider', () => {
+      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+        detail: {
+          info: providerInfo,
+          provider: this.provider
+        }
+      }));
+    });
   }
 }
 

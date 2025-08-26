@@ -10,20 +10,17 @@ const networkManager = new NetworkManager();
 const transactionManager = new TransactionManager();
 const defiManager = new DeFiManager();
 
-console.log('PayCio Wallet content script initialized');
+// Add debug logging at the very beginning
+console.log('PayCio Wallet content script starting...');
 
 // Add a global indicator that content script is running
 (window as any).paycioWalletContentScript = {
   isRunning: true,
   timestamp: Date.now(),
-  test: () => {
-    console.log('PayCio Wallet content script is running!');
-    return true;
-  }
+  test: () => true
 };
 
-// Add visible debugging to main page console
-console.log('PayCio Wallet content script loaded at:', new Date().toISOString());
+console.log('PayCio Wallet content script initialized successfully');
 
 // Create a visible indicator in the page
 const debugDiv = document.createElement('div');
@@ -99,9 +96,273 @@ async function getWalletFromStorage() {
 // Initialize wallet check
 checkWalletAvailability();
 
-// Test wallet injection
-setTimeout(() => {
-  console.log('=== PayCio Wallet Injection Test ===');
+// Create and inject the PayCio Wallet provider
+function createPayCioProvider() {
+  console.log('Creating PayCio Wallet provider...');
+  
+  const provider = {
+    isPayCioWallet: true,
+    isMetaMask: false,
+    isConnected: () => true,
+    selectedAddress: null,
+    chainId: '0x1', // Ethereum mainnet
+    networkVersion: '1',
+    autoRefreshOnNetworkChange: false,
+    
+    // EIP-1193 methods
+    request: async (args: { method: string; params?: any[] }) => {
+      console.log('PayCio Wallet request:', args);
+      
+      try {
+        const response = await sendMessageToExtension({
+          type: 'WALLET_REQUEST',
+          method: args.method,
+          params: args.params || []
+        });
+        
+        if (response.error) {
+          throw new Error(response.error);
+        }
+        
+        return response.result;
+      } catch (error) {
+        console.error('PayCio Wallet request failed:', error);
+        throw error;
+      }
+    },
+    
+    // Legacy methods
+    send: (payload: any, callback?: (error: any, response: any) => void) => {
+      provider.request(payload)
+        .then((result) => {
+          if (callback) {
+            callback(null, { id: payload.id, jsonrpc: '2.0', result });
+          }
+        })
+        .catch((error) => {
+          if (callback) {
+            callback(error, { id: payload.id, jsonrpc: '2.0', error: { message: error.message } });
+          }
+        });
+    },
+    
+    sendAsync: (payload: any, callback: (error: any, response: any) => void) => {
+      provider.send(payload, callback);
+    },
+    
+    enable: async () => {
+      return provider.request({ method: 'eth_requestAccounts' });
+    },
+    
+    // Event listeners
+    on: (eventName: string, handler: (data: any) => void) => {
+      console.log('PayCio Wallet event listener added:', eventName);
+      // Store event listeners for later use
+      if (!(provider as any)._listeners) {
+        (provider as any)._listeners = new Map();
+      }
+      if (!(provider as any)._listeners.has(eventName)) {
+        (provider as any)._listeners.set(eventName, new Set());
+      }
+      (provider as any)._listeners.get(eventName).add(handler);
+    },
+    
+    removeListener: (eventName: string, handler: (data: any) => void) => {
+      console.log('PayCio Wallet event listener removed:', eventName);
+      const listeners = (provider as any)._listeners?.get(eventName);
+      if (listeners) {
+        listeners.delete(handler);
+      }
+    },
+    
+    // EIP-1193 standard methods
+    requestPermissions: async (permissions: any) => {
+      return provider.request({ method: 'wallet_requestPermissions', params: [permissions] });
+    },
+    
+    getPermissions: async () => {
+      return provider.request({ method: 'wallet_getPermissions', params: [] });
+    },
+    
+    watchAsset: async (asset: any) => {
+      return provider.request({ method: 'wallet_watchAsset', params: [asset] });
+    },
+    
+    addEthereumChain: async (chain: any) => {
+      return provider.request({ method: 'wallet_addEthereumChain', params: [chain] });
+    },
+    
+    switchEthereumChain: async (chain: any) => {
+      return provider.request({ method: 'wallet_switchEthereumChain', params: [chain] });
+    }
+  };
+  
+  return provider;
+}
+
+// Send message to extension
+function sendMessageToExtension(message: any): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const messageId = Date.now() + Math.random();
+    
+    console.log('PayCio Wallet: Sending message to extension:', {
+      id: messageId,
+      message: message
+    });
+    
+    // Store the callback
+    if (!(window as any)._pendingRequests) {
+      (window as any)._pendingRequests = new Map();
+    }
+    (window as any)._pendingRequests.set(messageId, { resolve, reject });
+    
+    // Send message to extension
+    chrome.runtime.sendMessage({
+      id: messageId,
+      ...message
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Chrome runtime error:', chrome.runtime.lastError);
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
+      if (response && response.error) {
+        reject(new Error(response.error));
+      } else {
+        resolve(response);
+      }
+    });
+
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      if ((window as any)._pendingRequests.has(messageId)) {
+        console.log('PayCio Wallet: Request timeout for message:', messageId);
+        (window as any)._pendingRequests.delete(messageId);
+        reject(new Error('Request timeout'));
+      }
+    }, 30000);
+  });
+}
+
+// Inject the provider with improved timing and error handling
+function injectProvider() {
+  console.log('Injecting PayCio Wallet provider...');
+  
+  const provider = createPayCioProvider();
+  
+  // Function to actually inject the provider
+  const doInjection = () => {
+    try {
+      // Inject into window.ethereum
+      if (!window.ethereum) {
+        Object.defineProperty(window, 'ethereum', {
+          value: provider,
+          writable: false,
+          configurable: false
+        });
+        console.log('✅ PayCio Wallet injected as window.ethereum');
+      } else {
+        // If ethereum already exists, add our provider to the list
+        if ((window.ethereum as any).providers) {
+          (window.ethereum as any).providers.push(provider);
+          console.log('✅ PayCio Wallet added to existing providers');
+        } else {
+          // Create providers array
+          (window.ethereum as any).providers = [provider];
+          console.log('✅ PayCio Wallet created providers array');
+        }
+      }
+
+      // Also inject as window.paycioWallet for direct access
+      Object.defineProperty(window, 'paycioWallet', {
+        value: provider,
+        writable: false,
+        configurable: false
+      });
+      console.log('✅ PayCio Wallet injected as window.paycioWallet');
+
+      // Announce provider for EIP-6963 compatibility
+      announceProvider(provider);
+
+      // Dispatch ethereum events for compatibility
+      window.dispatchEvent(new CustomEvent('ethereum#initialized', {
+        detail: { provider: provider }
+      }));
+      
+      console.log('✅ PayCio Wallet provider injection complete');
+      
+      return provider;
+    } catch (error) {
+      console.error('❌ Error injecting PayCio Wallet provider:', error);
+      return null;
+    }
+  };
+
+  // Try to inject immediately
+  let injectedProvider = doInjection();
+  
+  // If injection failed, try again after DOM is ready
+  if (!injectedProvider && document.readyState !== 'complete') {
+    document.addEventListener('DOMContentLoaded', () => {
+      console.log('DOM loaded, retrying provider injection...');
+      injectedProvider = doInjection();
+    });
+  }
+  
+  // Also try on window load as a fallback
+  window.addEventListener('load', () => {
+    if (!window.ethereum || !(window.ethereum as any).isPayCioWallet) {
+      console.log('Window loaded, retrying provider injection...');
+      injectedProvider = doInjection();
+    }
+  });
+  
+  return injectedProvider;
+}
+
+// Announce provider for EIP-6963
+function announceProvider(provider: any) {
+  console.log('Announcing PayCio Wallet provider for EIP-6963...');
+  
+  const providerInfo = {
+    uuid: 'paycio-wallet-' + Date.now(),
+    name: 'PayCio Wallet',
+    icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
+    rdns: 'com.paycio.wallet'
+  };
+
+  // Announce provider
+  window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+    detail: {
+      info: providerInfo,
+      provider: provider
+    }
+  }));
+  
+  console.log('✅ EIP-6963 provider announced');
+
+  // Listen for provider requests
+  window.addEventListener('eip6963:requestProvider', () => {
+    console.log('EIP-6963 provider request received, re-announcing...');
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: {
+        info: providerInfo,
+        provider: provider
+      }
+    }));
+  });
+}
+
+// Inject the provider immediately
+const paycioProvider = injectProvider();
+
+// Test wallet injection with retries
+let injectionTestAttempts = 0;
+const maxInjectionTestAttempts = 10;
+
+function testWalletInjection() {
+  console.log('=== PayCio Wallet Injection Test (Attempt ' + (injectionTestAttempts + 1) + ') ===');
   console.log('window.ethereum:', window.ethereum);
   console.log('window.paycioWallet:', (window as any).paycioWallet);
   console.log('window.web3:', (window as any).web3);
@@ -111,6 +372,7 @@ setTimeout(() => {
     console.log('✅ Ethereum provider detected');
     if ((window.ethereum as any).isPayCioWallet) {
       console.log('✅ PayCio Wallet provider detected');
+      return true;
     } else {
       console.log('❌ PayCio Wallet provider not detected');
     }
@@ -119,24 +381,23 @@ setTimeout(() => {
   }
   
   console.log('=== End Test ===');
-}, 2000);
+  return false;
+}
 
-// Inject the wallet provider script with better error handling
-console.log('Attempting to inject PayCio Wallet script...');
-const scriptUrl = chrome.runtime.getURL('injected.js');
-console.log('Script URL:', scriptUrl);
+// Test injection immediately
+testWalletInjection();
 
-const script = document.createElement('script');
-script.src = scriptUrl;
-script.onload = () => {
-  console.log('✅ PayCio Wallet script loaded successfully');
-  script.remove();
-};
-script.onerror = (error) => {
-  console.error('❌ Failed to load PayCio Wallet script:', error);
-  console.error('Script URL was:', scriptUrl);
-};
-(document.head || document.documentElement).appendChild(script);
+// Retry injection test if needed
+const injectionTestInterval = setInterval(() => {
+  injectionTestAttempts++;
+  
+  if (testWalletInjection() || injectionTestAttempts >= maxInjectionTestAttempts) {
+    clearInterval(injectionTestInterval);
+    if (injectionTestAttempts >= maxInjectionTestAttempts) {
+      console.warn('⚠️ PayCio Wallet injection test failed after maximum attempts');
+    }
+  }
+}, 1000);
 
 // Listen for messages from injected script
 window.addEventListener('message', async (event) => {

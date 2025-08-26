@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=<device-width>, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+   
+    <script>
+      // Enhanced provider with EIP-6963 support
+const paycioProvider = {
+  isPayCioWallet: true,
+  isMetaMask: false,
+  isConnected: () => true,
+  selectedAddress: '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6',
+  chainId: '0x1',
+  networkVersion: '1',
+  autoRefreshOnNetworkChange: false,
+  
+  request: async (args) => {
+    console.log('PayCio Wallet request:', args);
+    switch (args.method) {
+      case 'eth_accounts':
+        return ['0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'];
+      case 'eth_requestAccounts':
+        return ['0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6'];
+      case 'eth_chainId':
+        return '0x1';
+      case 'eth_getBalance':
+        return '0x0';
+      default:
+        throw new Error(`Method ${args.method} not implemented`);
+    }
+  },
+  
+  on: (event, handler) => {
+    console.log('PayCio Wallet event listener added:', event);
+  },
+  
+  removeListener: (event, handler) => {
+    console.log('PayCio Wallet event listener removed:', event);
+  }
+};
+
+// Set the provider
+window.ethereum = paycioProvider;
+
+// EIP-6963 announcement
+const providerInfo = {
+  uuid: 'paycio-wallet-' + Date.now(),
+  name: 'PayCio Wallet',
+  icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
+  rdns: 'com.paycio.wallet'
+};
+
+// Announce the provider
+window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+  detail: {
+    info: providerInfo,
+    provider: paycioProvider
+  }
+}));
+
+// Also dispatch the ethereum#initialized event
+window.dispatchEvent(new Event('ethereum#initialized'));
+
+console.log('Enhanced PayCio Wallet provider created with EIP-6963 support');
+    </script>
+</body>
+</html>

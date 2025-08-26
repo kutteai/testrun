@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Basic Extension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .warning { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <h1>Basic Extension Test</h1>
+    
+    <div id="results"></div>
+    
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            div.textContent = message;
+            resultsDiv.appendChild(div);
+        }
+        
+        // Test 1: Check if Chrome extension API is available
+        addResult('Testing Chrome extension API...');
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+            addResult('✅ Chrome extension API is available', 'success');
+        } else {
+            addResult('❌ Chrome extension API is NOT available', 'error');
+        }
+        
+        // Test 2: Check if content script is running
+        addResult('Testing content script...');
+        if (window.paycioWalletContentScript && window.paycioWalletContentScript.isRunning) {
+            addResult('✅ Content script is running', 'success');
+        } else {
+            addResult('❌ Content script is NOT running', 'error');
+        }
+        
+        // Test 3: Check if ethereum provider exists
+        addResult('Testing ethereum provider...');
+        if (window.ethereum) {
+            addResult('✅ Ethereum provider exists', 'success');
+            
+            // Test 4: Check if it's PayCio Wallet
+            if (window.ethereum.isPayCioWallet) {
+                addResult('✅ It is PayCio Wallet', 'success');
+            } else {
+                addResult('⚠️ Ethereum provider exists but is not PayCio Wallet', 'warning');
+            }
+        } else {
+            addResult('❌ Ethereum provider does NOT exist', 'error');
+        }
+        
+        // Test 5: Check if paycioWallet exists
+        addResult('Testing direct paycioWallet access...');
+        if (window.paycioWallet) {
+            addResult('✅ PayCio Wallet direct access works', 'success');
+        } else {
+            addResult('❌ PayCio Wallet direct access does NOT work', 'error');
+        }
+        
+        // Test 6: Check if test function exists
+        addResult('Testing test function...');
+        if (typeof window.testPayCioWalletInjection === 'function') {
+            addResult('✅ Test function exists', 'success');
+        } else {
+            addResult('❌ Test function does NOT exist', 'error');
+        }
+        
+        // Test 7: Check if debug div exists
+        addResult('Testing debug div...');
+        const debugDiv = document.getElementById('paycio-wallet-debug');
+        if (debugDiv) {
+            addResult('✅ Debug div exists', 'success');
+        } else {
+            addResult('❌ Debug div does NOT exist', 'error');
+        }
+        
+        // Summary
+        addResult('--- SUMMARY ---');
+        const tests = [
+            typeof chrome !== 'undefined' && chrome.runtime,
+            window.paycioWalletContentScript && window.paycioWalletContentScript.isRunning,
+            !!window.ethereum,
+            window.ethereum && window.ethereum.isPayCioWallet,
+            !!window.paycioWallet,
+            typeof window.testPayCioWalletInjection === 'function',
+            !!document.getElementById('paycio-wallet-debug')
+        ];
+        
+        const passed = tests.filter(t => t).length;
+        const total = tests.length;
+        
+        addResult(`Tests passed: ${passed}/${total}`);
+        
+        if (passed === 0) {
+            addResult('❌ Extension is not working at all', 'error');
+        } else if (passed === total) {
+            addResult('✅ Extension is working perfectly!', 'success');
+        } else {
+            addResult('⚠️ Extension is partially working', 'warning');
+        }
+        
+        // Check every 5 seconds
+        setInterval(() => {
+            if (!window.paycioWalletContentScript || !window.paycioWalletContentScript.isRunning) {
+                addResult('⚠️ Content script still not running after 5 seconds', 'warning');
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

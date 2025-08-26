@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extension Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 5px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Extension Test</h1>
+    
+    <div id="results"></div>
+    
+    <div class="test">
+        <h3>Quick Tests</h3>
+        <button onclick="testExtension()">Test Extension</button>
+        <button onclick="testBackgroundScript()">Test Background Script</button>
+        <button onclick="testContentScript()">Test Content Script</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+    
+    <script>
+        const resultsDiv = document.getElementById('results');
+        
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `test ${type}`;
+            div.innerHTML = `<strong>${new Date().toLocaleTimeString()}:</strong> ${message}`;
+            resultsDiv.appendChild(div);
+        }
+        
+        function testExtension() {
+            addResult('Testing extension...', 'info');
+            
+            // Test 1: Chrome API
+            if (typeof chrome === 'undefined' || !chrome.runtime) {
+                addResult('❌ Chrome extension API not available', 'error');
+                return;
+            }
+            addResult('✅ Chrome extension API available', 'success');
+            
+            // Test 2: Extension ID
+            try {
+                const id = chrome.runtime.id;
+                addResult(`✅ Extension ID: ${id}`, 'success');
+            } catch (error) {
+                addResult('❌ Could not get extension ID', 'error');
+            }
+            
+            // Test 3: Manifest
+            try {
+                const manifest = chrome.runtime.getManifest();
+                addResult(`✅ Extension loaded: ${manifest.name} v${manifest.version}`, 'success');
+            } catch (error) {
+                addResult(`❌ Could not get manifest: ${error.message}`, 'error');
+            }
+        }
+        
+        function testBackgroundScript() {
+            addResult('Testing background script...', 'info');
+            
+            if (typeof chrome === 'undefined' || !chrome.runtime) {
+                addResult('❌ Chrome extension API not available', 'error');
+                return;
+            }
+            
+            // Function to test background script
+            function testBackground() {
+                if (window.paycioWalletContentScript) {
+                    addResult('✅ Content script is available, testing communication...', 'info');
+                    
+                    // Try to send a message through the content script
+                    try {
+                        chrome.runtime.sendMessage({ type: 'PING' }, (response) => {
+                            if (chrome.runtime.lastError) {
+                                addResult(`❌ Background script error: ${chrome.runtime.lastError.message}`, 'error');
+                            } else if (response && response.success) {
+                                addResult(`✅ Background script responding: ${response.message}`, 'success');
+                            } else {
+                                addResult('❌ Background script not responding properly', 'error');
+                            }
+                        });
+                    } catch (error) {
+                        addResult(`❌ Error testing background script: ${error.message}`, 'error');
+                    }
+                } else {
+                    addResult('❌ Content script not available for testing background script', 'error');
+                }
+            }
+            
+            // Test immediately
+            testBackground();
+            
+            // If content script not found, try again after a delay
+            if (!window.paycioWalletContentScript) {
+                addResult('Content script not found, trying again in 2 seconds...', 'info');
+                setTimeout(testBackground, 2000);
+            }
+        }
+        
+        function testContentScript() {
+            addResult('Testing content script...', 'info');
+            
+            // Function to check content script
+            function checkContentScript() {
+                const contentScriptRunning = window.paycioWalletContentScript?.isRunning;
+                const contentScriptObject = window.paycioWalletContentScript;
+                const ethereumProvider = !!window.ethereum;
+                const paycioWallet = window.ethereum?.isPayCioWallet;
+                
+                addResult(`Content script running: ${contentScriptRunning ? '✅' : '❌'}`, contentScriptRunning ? 'success' : 'error');
+                addResult(`Content script object: ${contentScriptObject ? '✅' : '❌'}`, contentScriptObject ? 'success' : 'error');
+                addResult(`Ethereum provider: ${ethereumProvider ? '✅' : '❌'}`, ethereumProvider ? 'success' : 'error');
+                addResult(`PayCio Wallet: ${paycioWallet ? '✅' : '❌'}`, paycioWallet ? 'success' : 'error');
+                
+                if (contentScriptObject) {
+                    addResult(`Content script timestamp: ${contentScriptObject.timestamp}`, 'info');
+                    addResult(`Content script message: ${contentScriptObject.message}`, 'info');
+                }
+            }
+            
+            // Check immediately
+            checkContentScript();
+            
+            // If not found, check again after a delay
+            if (!window.paycioWalletContentScript) {
+                addResult('Content script not found, checking again in 2 seconds...', 'info');
+                setTimeout(checkContentScript, 2000);
+            }
+        }
+        
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+        }
+        
+        // Auto-run basic test on page load
+        window.addEventListener('load', () => {
+            addResult('Page loaded, running initial test...', 'info');
+            setTimeout(testExtension, 1000);
+        });
+    </script>
+</body>
+</html>
+
