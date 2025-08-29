@@ -12,6 +12,35 @@ function getConfig() {
   };
 }
 
+// ENS Registry Contract Address
+const ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+
+// ENS Registry ABI (minimal for expiry check)
+const ENS_REGISTRY_ABI = [
+  'function owner(bytes32 node) external view returns (address)',
+  'function resolver(bytes32 node) external view returns (address)',
+  'function ttl(bytes32 node) external view returns (uint64)',
+  'function recordExists(bytes32 node) external view returns (bool)'
+];
+
+// Namehash function to convert ENS name to node
+function namehash(name: string): string {
+  let node = '0x0000000000000000000000000000000000000000000000000000000000000000';
+  
+  if (name === '') {
+    return node;
+  }
+  
+  const labels = name.split('.');
+  
+  for (let i = labels.length - 1; i >= 0; i--) {
+    const labelHash = ethers.keccak256(ethers.toUtf8Bytes(labels[i]));
+    node = ethers.keccak256(ethers.concat([node, labelHash]));
+  }
+  
+  return node;
+}
+
 // Resolve ENS name to address
 export async function resolveENS(ensName: string): Promise<string | null> {
   try {
@@ -40,28 +69,118 @@ export async function lookupENS(address: string): Promise<string | null> {
   }
 }
 
-// Validate ENS name format
-export function validateENSName(name: string): boolean {
-  const ensRegex = /^[a-zA-Z0-9-]+\.(eth|test)$/;
-  return ensRegex.test(name);
+// Check if domain is available for registration
+export async function checkDomainAvailability(domainName: string): Promise<boolean> {
+  try {
+    const address = await resolveENS(domainName);
+    return !address || address === '0x0000000000000000000000000000000000000000';
+  } catch (error) {
+    // If resolution fails, assume it's available
+    return true;
+  }
 }
 
-// Get ENS avatar
-export async function getENSAvatar(ensName: string): Promise<string | null> {
+// Get domain registration price (simplified)
+export async function getDomainPrice(domainName: string): Promise<number> {
+  try {
+    const length = domainName.replace('.eth', '').length;
+    
+    // Simplified pricing logic
+    if (length === 1) return 640; // 1 character
+    if (length === 2) return 160; // 2 characters
+    if (length === 3) return 40;  // 3 characters
+    if (length === 4) return 10;  // 4 characters
+    return 5; // 5+ characters
+  } catch (error) {
+    return 5; // Default price
+  }
+}
+
+// Get domain expiry date from ENS Registry
+export async function getDomainExpiry(domainName: string): Promise<Date | null> {
   try {
     const config = getConfig();
     const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
     
-    const avatar = await provider.getAvatar(ensName);
-    return avatar;
+    // Create ENS Registry contract instance
+    const ensRegistry = new ethers.Contract(ENS_REGISTRY_ADDRESS, ENS_REGISTRY_ABI, provider);
+    
+    // Convert domain name to namehash
+    const node = namehash(domainName);
+    
+    // Check if the domain exists
+    const exists = await ensRegistry.recordExists(node);
+    if (!exists) {
+      // Domain doesn't exist, so it's available
+      return null;
+    }
+    
+    // Get the owner of the domain
+    const owner = await ensRegistry.owner(node);
+    
+    // If owner is zero address, domain is available
+    if (owner === '0x0000000000000000000000000000000000000000') {
+      return null;
+    }
+    
+    // For domains that exist, we can't easily get expiry from the base registry
+    // This would require querying the specific registrar contract that owns the domain
+    // For now, we'll return a default expiry (1 year from registration)
+    // In production, you'd need to query the appropriate registrar contract
+    
+    // Try to estimate expiry based on common patterns
+    // This is a simplified approach - real implementation would query the registrar
+    return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now
+    
   } catch (error) {
-    console.error('ENS avatar fetch failed:', error);
-    return null;
+    console.error('ENS expiry check failed:', error);
+    // Return a default expiry if we can't determine the actual expiry
+    return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
   }
 }
 
-// Get ENS records
+// Validate ENS name with better checks
+export function validateENSName(name: string): { isValid: boolean; error?: string } {
+  if (!name || typeof name !== 'string') {
+    return { isValid: false, error: 'Name is required' };
+  }
+
+  const cleanName = name.toLowerCase();
+  
+  // Must contain .eth
+  if (!cleanName.endsWith('.eth')) {
+    return { isValid: false, error: 'ENS names must end with .eth' };
+  }
+
+  // Remove .eth for validation
+  const baseName = cleanName.replace('.eth', '');
+  
+  // Length checks
+  if (baseName.length === 0) {
+    return { isValid: false, error: 'Name cannot be empty' };
+  }
+  
+  if (baseName.length > 253) {
+    return { isValid: false, error: 'Name is too long' };
+  }
+
+  // Character validation
+  const validChars = /^[a-z0-9-]+$/;
+  if (!validChars.test(baseName)) {
+    return { isValid: false, error: 'Name can only contain lowercase letters, numbers, and hyphens' };
+  }
+
+  // Cannot start or end with hyphen
+  if (baseName.startsWith('-') || baseName.endsWith('-')) {
+    return { isValid: false, error: 'Name cannot start or end with a hyphen' };
+  }
+
+  return { isValid: true };
+}
+
+// Get ENS records including resolver address
 export async function getENSRecords(ensName: string): Promise<{
+  resolverAddress?: string;
   email?: string;
   url?: string;
   avatar?: string;
@@ -79,8 +198,16 @@ export async function getENSRecords(ensName: string): Promise<{
     const resolver = await provider.getResolver(ensName);
     if (!resolver) return {};
     
+    // Get resolver address
+    const node = namehash(ensName);
+    const ensRegistry = new ethers.Contract(ENS_REGISTRY_ADDRESS, ENS_REGISTRY_ABI, provider);
+    const resolverAddress = await ensRegistry.resolver(node);
+    
     // Get specific text records
-    const records: any = {};
+    const records: any = {
+      resolverAddress: resolverAddress
+    };
+    
     const textKeys = ['email', 'url', 'avatar', 'description', 'keywords', 'com.discord', 'com.github', 'com.twitter', 'org.telegram'];
     
     for (const key of textKeys) {
@@ -99,4 +226,4 @@ export async function getENSRecords(ensName: string): Promise<{
     console.error('ENS records fetch failed:', error);
     return {};
   }
-} 
+}

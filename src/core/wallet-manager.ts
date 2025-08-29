@@ -367,7 +367,7 @@ export class WalletManager {
 
   // Change wallet password
   async changePassword(walletId: string, oldPassword: string, newPassword: string): Promise<void> {
-    const wallet = this.getInternalWallet(walletId);
+    const wallet = await this.getInternalWallet(walletId);
     if (!wallet) {
       throw new Error('Wallet not found');
     }
@@ -421,7 +421,7 @@ export class WalletManager {
 
   // Validate wallet password
   async validatePassword(walletId: string, password: string): Promise<boolean> {
-    const wallet = this.getInternalWallet(walletId);
+    const wallet = await this.getInternalWallet(walletId);
     if (!wallet) {
       return false;
     }
@@ -444,7 +444,7 @@ export class WalletManager {
 
   // Backup wallet data
   async backupWallet(walletId: string, password: string): Promise<string> {
-    const wallet = this.getInternalWallet(walletId);
+    const wallet = await this.getInternalWallet(walletId);
     if (!wallet) {
       throw new Error('Wallet not found');
     }
@@ -519,11 +519,10 @@ export class WalletManager {
       return null;
     }
     
-    // Find the account object for the current address
-    const wallet = this.getInternalWallet(currentWallet.id);
-    if (!wallet) return null;
-    
-    return wallet.accounts.find(acc => acc.address === currentWallet.address) || null;
+    // Find the account object for the current address using in-memory state
+    const internal = this.wallets.find(w => w.id === currentWallet.id);
+    if (!internal) return null;
+    return internal.accounts.find(acc => acc.address === currentWallet.address) || null;
   }
 
   // Get balance for an account
@@ -555,7 +554,7 @@ export class WalletManager {
       throw new Error('No wallet available');
     }
 
-    const wallet = this.getInternalWallet(currentWallet.id);
+    const wallet = await this.getInternalWallet(currentWallet.id);
     if (!wallet) {
       throw new Error('Wallet not found');
     }
@@ -574,7 +573,7 @@ export class WalletManager {
 
   // Switch network for specific wallet
   async switchWalletNetwork(walletId: string, networkId: string): Promise<void> {
-    const wallet = this.getInternalWallet(walletId);
+    const wallet = await this.getInternalWallet(walletId);
     if (!wallet) {
       throw new Error('Wallet not found');
     }
@@ -615,12 +614,9 @@ export class WalletManager {
 
   // Get current account for a wallet
   getCurrentAccountForWallet(walletId: string): WalletAccount | null {
-    const wallet = this.getInternalWallet(walletId);
-    if (!wallet) {
-      return null;
-    }
-
-    // Find the account that matches the wallet's current address
+    // Read from in-memory wallets to avoid async in a sync method
+    const wallet = this.wallets.find(w => w.id === walletId);
+    if (!wallet) return null;
     return wallet.accounts.find(acc => acc.address === wallet.address) || null;
   }
 
@@ -668,7 +664,7 @@ export class WalletManager {
 
   // Remove an account from a wallet
   async removeAccountFromWallet(walletId: string, accountId: string): Promise<void> {
-    const wallet = this.getInternalWallet(walletId);
+    const wallet = await this.getInternalWallet(walletId);
     if (!wallet) {
       throw new Error('Wallet not found');
     }

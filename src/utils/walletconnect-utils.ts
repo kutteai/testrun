@@ -391,7 +391,14 @@ export class WalletConnectManager {
 
         case 'eth_sendTransaction':
           const [transaction] = params;
-          const txHash = await this.sendTransaction(transaction);
+          // Forward to background WALLET_REQUEST so it uses the same signer flow
+          const txHash = await new Promise<string>((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'eth_sendTransaction', params: [transaction] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result);
+              reject(new Error(response?.error || 'eth_sendTransaction failed'));
+            });
+          });
           return {
             id: request.id,
             jsonrpc: '2.0',

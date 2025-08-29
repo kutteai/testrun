@@ -764,23 +764,67 @@ try {
             );
           });
           
-        case 'eth_chainId':
-          return '0x1';
+        case 'eth_chainId': {
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'eth_chainId', params: [] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result);
+              reject(new Error(response?.error || 'eth_chainId failed'));
+            });
+          });
+        }
           
-        case 'eth_getBalance':
-          return '0x0';
+        case 'eth_getBalance': {
+          const address = (request.params && request.params[0]) || provider.selectedAddress;
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'eth_getBalance', params: [address, 'latest'] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result);
+              reject(new Error(response?.error || 'eth_getBalance failed'));
+            });
+          });
+        }
           
-        case 'net_version':
-          return '1';
+        case 'net_version': {
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'net_version', params: [] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result);
+              reject(new Error(response?.error || 'net_version failed'));
+            });
+          });
+        }
           
-        case 'wallet_switchEthereumChain':
-          return null;
+        case 'wallet_switchEthereumChain': {
+          // Forward to background; background will update storage/network state
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'wallet_switchEthereumChain', params: request.params || [] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result ?? null);
+              reject(new Error(response?.error || 'wallet_switchEthereumChain failed'));
+            });
+          });
+        }
           
-        case 'wallet_addEthereumChain':
-          return null;
+        case 'wallet_addEthereumChain': {
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'wallet_addEthereumChain', params: request.params || [] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result ?? null);
+              reject(new Error(response?.error || 'wallet_addEthereumChain failed'));
+            });
+          });
+        }
           
         default:
-          throw new Error('Method ' + request.method + ' not supported');
+          // Forward unknown/tx methods to background
+          return new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: request.method, params: request.params || [] }, (response) => {
+              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+              if (response?.success) return resolve(response.result);
+              reject(new Error(response?.error || ('Method ' + request.method + ' failed')));
+            });
+          });
       }
     },
     

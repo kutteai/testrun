@@ -351,9 +351,12 @@ export class BitcoinAPI {
   private baseUrl: string;
 
   constructor(network: 'mainnet' | 'testnet' = 'mainnet') {
-    this.baseUrl = network === 'mainnet' 
-      ? 'https://blockstream.info/api'
-      : 'https://blockstream.info/testnet/api';
+    const envUrl = (process as any)?.env?.ESPLORA_API_URL;
+    if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
+      this.baseUrl = envUrl.replace(/\/$/, '');
+    } else {
+      throw new Error('ESPLORA_API_URL is required but not set');
+    }
   }
 
   // Get address balance
@@ -439,6 +442,92 @@ export class BitcoinAPI {
       return { success: false, error: 'Network error' };
     }
   }
+}
+
+// Live transaction creation using bitcoinjs-lib
+import * as bitcoin from 'bitcoinjs-lib';
+import ECPairFactory from 'ecpair';
+import * as tinysecp from 'tiny-secp256k1';
+
+const ECPair = ECPairFactory(tinysecp);
+
+export async function createAndSignP2WPKHTransaction(params: {
+  fromAddress: string;
+  toAddress: string;
+  amountSats: number;
+  feeRate?: number; // sat/vB
+  wif?: string; // preferred
+  privateKeyHex?: string; // fallback
+  networkType?: 'mainnet' | 'testnet';
+}): Promise<string> {
+  const { fromAddress, toAddress, amountSats, feeRate = 5, wif, privateKeyHex, networkType = 'mainnet' } = params;
+
+  const api = new BitcoinAPI(networkType);
+  const network = ((): bitcoin.networks.Network => {
+    // Infer network by ESPLORA_API_URL when possible
+    const url = (process as any)?.env?.ESPLORA_API_URL || '';
+    if (/testnet/i.test(url)) return bitcoin.networks.testnet;
+    return bitcoin.networks.bitcoin;
+  })();
+
+  // 1) Fetch UTXOs
+  const utxoRes = await fetch(`${(api as any).baseUrl}/address/${fromAddress}/utxo`);
+  if (!utxoRes.ok) throw new Error(`Failed to fetch UTXOs: ${utxoRes.status}`);
+  const utxos: Array<{ txid: string; vout: number; value: number }> = await utxoRes.json();
+
+  // 2) Select UTXOs
+  let selected: Array<{ txid: string; vout: number; value: number }> = [];
+  let total = 0;
+  for (const u of utxos) {
+    selected.push(u);
+    total += u.value;
+    if (total >= amountSats) break;
+  }
+  if (total < amountSats) throw new Error('Insufficient balance');
+
+  // 3) Rough fee estimate: assume 2 outputs (to + change)
+  const inputCount = selected.length;
+  const outputCount = 2;
+  const vbytes = 10 + inputCount * 68 + outputCount * 31; // p2wpkh rough
+  const fee = Math.ceil(vbytes * feeRate);
+
+  const change = total - amountSats - fee;
+  if (change < 0) throw new Error('Insufficient funds for fee');
+
+  // 4) Key pair
+  const keyPair = wif
+    ? ECPair.fromWIF(wif, network)
+    : (() => {
+        if (!privateKeyHex) throw new Error('Missing WIF or privateKeyHex');
+        return ECPair.fromPrivateKey(Buffer.from(privateKeyHex, 'hex'));
+      })();
+
+  const psbt = new bitcoin.Psbt({ network });
+
+  // 5) Add inputs
+  for (const u of selected) {
+    // Fetch prev tx to obtain non-witness utxo for signing reliability
+    const prevTxRes = await fetch(`${(api as any).baseUrl}/tx/${u.txid}/hex`);
+    const prevTxHex = await prevTxRes.text();
+    psbt.addInput({
+      hash: u.txid,
+      index: u.vout,
+      witnessUtxo: undefined,
+      nonWitnessUtxo: Buffer.from(prevTxHex, 'hex')
+    });
+  }
+
+  // 6) Add outputs
+  psbt.addOutput({ address: toAddress, value: amountSats });
+  if (change > 0) {
+    psbt.addOutput({ address: fromAddress, value: change });
+  }
+
+  // 7) Sign
+  psbt.signAllInputs(keyPair);
+  psbt.finalizeAllInputs();
+  const txHex = psbt.extractTransaction().toHex();
+  return txHex;
 }
 
 // Export main utilities

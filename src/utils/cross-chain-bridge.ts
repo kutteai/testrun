@@ -327,7 +327,7 @@ export class CrossChainBridge {
   // Get real bridge configuration
   private getBridgeConfig(fromChain: string, toChain: string, token: string): BridgeConfig | null {
     // Real bridge configurations for major bridges
-    const bridgeConfigs: Record<string, BridgeConfig> = {
+    const bridgeConfigs: Record<string, any> = {
       'ethereum-polygon-usdc': {
         name: 'Polygon Bridge',
         url: 'https://wallet.polygon.technology/bridge',
@@ -337,7 +337,11 @@ export class CrossChainBridge {
         maxAmount: '1000000',
         fees: '0.1%',
         estimatedTime: 15 * 60 * 1000, // 15 minutes
-        supportedNetworks: ['ethereum', 'polygon']
+        supportedNetworks: ['ethereum', 'polygon'],
+        // runtime fields required by implementations
+        rpcUrl: process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com',
+        tokenAddress: process.env.POLYGON_USDC_ADDRESS || '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
+        privateKey: process.env.BRIDGE_SENDER_PRIVATE_KEY || ''
       },
       'ethereum-bsc-usdt': {
         name: 'Multichain Bridge',
@@ -348,7 +352,10 @@ export class CrossChainBridge {
         maxAmount: '1000000',
         fees: '0.1%',
         estimatedTime: 10 * 60 * 1000, // 10 minutes
-        supportedNetworks: ['ethereum', 'bsc']
+        supportedNetworks: ['ethereum', 'bsc'],
+        rpcUrl: process.env.BSC_RPC_URL || 'https://bsc-dataseed1.binance.org',
+        tokenAddress: process.env.BSC_USDT_ADDRESS || '0x55d398326f99059ff775485246999027b3197955',
+        privateKey: process.env.BRIDGE_SENDER_PRIVATE_KEY || ''
       },
       'ethereum-arbitrum-eth': {
         name: 'Arbitrum Bridge',
@@ -359,12 +366,15 @@ export class CrossChainBridge {
         maxAmount: '1000',
         fees: '0.05%',
         estimatedTime: 5 * 60 * 1000, // 5 minutes
-        supportedNetworks: ['ethereum', 'arbitrum']
+        supportedNetworks: ['ethereum', 'arbitrum'],
+        rpcUrl: process.env.ETHEREUM_RPC_URL || 'https://mainnet.infura.io/v3/',
+        tokenAddress: process.env.L1_ETH_ADDRESS || '0x0000000000000000000000000000000000000000',
+        privateKey: process.env.BRIDGE_SENDER_PRIVATE_KEY || ''
       }
     };
     
     const key = `${fromChain}-${toChain}-${token}`;
-    return bridgeConfigs[key] || null;
+    return (bridgeConfigs[key] as BridgeConfig) || null;
   }
 }
 

@@ -11,6 +11,18 @@ interface DashboardScreenProps {
   onNavigate?: (screen: ScreenId) => void;
 }
 
+
+interface FeatureItem {
+  id?: string;
+  title: string;
+  description: string;
+  icon: any;
+  color: string;
+  onClick?: () => void;
+  action?: () => void;
+}
+
+
 const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
   console.log('DashboardScreen rendered, onNavigate:', !!onNavigate); // Debug log
   const { wallet, balances, address, isWalletUnlocked, updateAllBalances } = useWallet();
@@ -162,6 +174,14 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
             icon: Globe,
             color: 'bg-indigo-600',
             onClick: () => onNavigate?.('ens')
+          },
+          {
+            id: 'address-book',
+            title: 'Address Book',
+            description: 'Manage your contacts with ENS names',
+            icon: Users,
+            color: 'bg-green-600',
+            onClick: () => onNavigate?.('address-book')
           },
           {
             id: 'hardware',
@@ -363,8 +383,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
           style={{ position: 'relative', zIndex: 100 }}
         >
           <h3 className="text-lg font-semibold text-white">Advanced Features</h3>
-            <div className="grid grid-cols-2 gap-4">
-
+          <div className="grid grid-cols-2 gap-4">
             {advancedFeatures.map((feature) => (
               <button
                 key={feature.id}
@@ -376,7 +395,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
               >
                 <div className={`${feature.color} w-10 h-10 rounded-lg flex items-center justify-center mb-3`}>
                   <feature.icon className="w-5 h-5 text-white" />
-              </div>
+                </div>
                 <h4 className="font-semibold text-white mb-1">{feature.title}</h4>
                 <p className="text-xs text-gray-400">{feature.description}</p>
               </button>

@@ -17,6 +17,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "downlevelIteration": true,
+    "allowImportingTsExtensions": false,
     "paths": {
       "@/*": ["src/*"],
       "@components/*": ["src/components/*"],
@@ -42,4 +43,4 @@
     "dist",
     "build"
   ]
-} 
+}

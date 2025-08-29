@@ -36,6 +36,26 @@ export async function executeBridgeTransfer(params: BridgeTransferParams): Promi
   }
 }
 
+// Internal helper: ensure ERC-20 allowance is sufficient
+async function ensureAllowance(
+  signer: any,
+  tokenAddress: string,
+  owner: string,
+  spender: string,
+  requiredAmountWei: bigint
+): Promise<void> {
+  const { ethers } = await import('ethers');
+  const erc20Abi = [
+    'function allowance(address owner, address spender) view returns (uint256)',
+    'function approve(address spender, uint256 amount) returns (bool)'
+  ];
+  const token = new ethers.Contract(tokenAddress, erc20Abi, signer);
+  const current: bigint = await token.allowance(owner, spender);
+  if (current >= requiredAmountWei) return;
+  const tx = await token.approve(spender, requiredAmountWei);
+  await tx.wait();
+}
+
 // Polygon Bridge implementation
 async function executePolygonBridge(params: BridgeTransferParams): Promise<BridgeTransferResult> {
   try {
@@ -58,11 +78,18 @@ async function executePolygonBridge(params: BridgeTransferParams): Promise<Bridg
       signer
     );
     
+    const amountWei = ethers.parseEther(params.amount);
+    // Approve token if non-native token is being bridged
+    if (params.bridgeConfig.tokenAddress && params.bridgeConfig.tokenAddress !== '0x0000000000000000000000000000000000000000') {
+      const owner = await signer.getAddress();
+      await ensureAllowance(signer, params.bridgeConfig.tokenAddress, owner, params.bridgeConfig.contractAddress, amountWei);
+    }
+    
     // Execute bridge transfer
     const tx = await bridgeContract.bridgeAsset(
       1, // destination network (Polygon)
       params.recipient,
-      ethers.parseEther(params.amount),
+      amountWei,
       params.bridgeConfig.tokenAddress,
       false, // forceUpdateGlobalExitRoot
       '0x' // permitData
@@ -117,19 +144,25 @@ async function executeMultichainBridge(params: BridgeTransferParams): Promise<Br
     
     // Execute bridge transfer
     let tx;
-    if (params.token.toLowerCase() === 'eth' || params.token.toLowerCase() === 'bnb') {
+    const isNative = params.token.toLowerCase() === 'eth' || params.token.toLowerCase() === 'bnb';
+    const amountWei = ethers.parseEther(params.amount);
+    if (!isNative && params.bridgeConfig.tokenAddress) {
+      const owner = await signer.getAddress();
+      await ensureAllowance(signer, params.bridgeConfig.tokenAddress, owner, params.bridgeConfig.contractAddress, amountWei);
+    }
+    if (isNative) {
       // Native token transfer
       tx = await bridgeContract.anySwapOutNative(
         params.recipient,
         toChainID,
-        { value: ethers.parseEther(params.amount) }
+        { value: amountWei }
       );
     } else {
       // Token transfer
       tx = await bridgeContract.anySwapOut(
         params.bridgeConfig.tokenAddress,
         params.recipient,
-        ethers.parseEther(params.amount),
+        amountWei,
         toChainID
       );
     }
@@ -170,11 +203,18 @@ async function executeArbitrumBridge(params: BridgeTransferParams): Promise<Brid
       signer
     );
     
+    const amountWei = ethers.parseEther(params.amount);
+    // Approve token if non-native
+    if (params.bridgeConfig.tokenAddress && params.bridgeConfig.tokenAddress !== '0x0000000000000000000000000000000000000000') {
+      const owner = await signer.getAddress();
+      await ensureAllowance(signer, params.bridgeConfig.tokenAddress, owner, params.bridgeConfig.contractAddress, amountWei);
+    }
+    
     // Execute bridge transfer
     const tx = await bridgeContract.outboundTransfer(
       params.bridgeConfig.tokenAddress,
       params.recipient,
-      ethers.parseEther(params.amount),
+      amountWei,
       '0x', // extraData
       { value: ethers.parseEther('0.001') } // L1 gas fee
     );

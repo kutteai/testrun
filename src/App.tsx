@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 
 // Import screens
 import WelcomeScreen from './components/screens/WelcomeScreen';
+import AddressBookScreen from './components/screens/AddressBookScreen';
 import CreateWalletScreen from './components/screens/CreateWalletScreen';
 import ImportWalletScreen from './components/screens/ImportWalletScreen';
 import VerifySeedScreen from './components/screens/VerifySeedScreen';
@@ -92,8 +93,9 @@ const App: React.FC = () => {
   const handleNavigate = (screen: ScreenId) => {
     // Prevent navigation to protected screens if wallet is locked
     const protectedScreens: ScreenId[] = [
-      'dashboard', 'send', 'receive', 'settings', 
-      'security', 'networks', 'nfts', 'portfolio', 'transactions'
+     'dashboard', 'send', 'receive', 'settings', 
+  'security', 'networks', 'nfts', 'portfolio', 'transactions',
+  'address-book', 'ens', 'accounts', 'tokens' 
     ];
     
     if (protectedScreens.includes(screen) && !isWalletUnlocked) {
@@ -152,6 +154,8 @@ const App: React.FC = () => {
         return <TokensScreen onNavigate={handleNavigate} />;
       case 'ens':
         return <ENSScreen onNavigate={handleNavigate} />;
+      case 'address-book':
+          return <AddressBookScreen onNavigate={handleNavigate} />;
       case 'hardware':
         return <HardwareWalletScreen onNavigate={handleNavigate} />;
       case 'gas':

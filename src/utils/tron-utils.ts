@@ -6,14 +6,14 @@ export const TRON_NETWORKS = {
   mainnet: {
     name: 'TRON Mainnet',
     symbol: 'TRX',
-    endpoint: 'https://api.trongrid.io',
+    endpoint: (process as any)?.env?.TRON_FULLNODE_URL || 'https://api.trongrid.io',
     explorer: 'https://tronscan.org',
     chainId: '0x2b6653dc'
   },
   testnet: {
     name: 'TRON Testnet',
     symbol: 'TRX',
-    endpoint: 'https://api.shasta.trongrid.io',
+    endpoint: (process as any)?.env?.TRON_FULLNODE_URL || 'https://api.shasta.trongrid.io',
     explorer: 'https://shasta.tronscan.org',
     chainId: '0xcd8690dc'
   }
@@ -196,14 +196,21 @@ export class TronWalletGenerator {
     amount: number
   ): Promise<{ success: boolean; txID?: string; error?: string }> {
     try {
-      // In a real implementation, you'd use TronWeb to sign and broadcast
-      // For now, we'll return a placeholder
-      console.log(`Sending ${amount} TRX from ${wallet.address} to ${toAddress}`);
-      
-      return { 
-        success: true, 
-        txID: createHash('sha256').update(`${Date.now()}-${Math.random()}`).digest('hex') 
-      };
+      const TronWebModule = await import('tronweb');
+      const TronWebCtor: any = (TronWebModule as any).default || (TronWebModule as any);
+      const fullNode = (process as any)?.env?.TRON_FULLNODE_URL || this.network.endpoint;
+      const solidityNode = (process as any)?.env?.TRON_SOLIDITYNODE_URL || fullNode;
+      const eventServer = (process as any)?.env?.TRON_EVENTSERVER_URL || fullNode;
+      const tronWeb = new TronWebCtor({ fullHost: fullNode, fullNode, solidityNode, eventServer, privateKey: wallet.privateKey });
+
+      const amountSun = Math.round(amount * 1_000_000);
+      const unsigned = await tronWeb.transactionBuilder.sendTrx(toAddress, amountSun, wallet.address);
+      const signed = await tronWeb.trx.sign(unsigned, wallet.privateKey);
+      const receipt = await tronWeb.trx.sendRawTransaction(signed);
+      if (receipt?.result && receipt?.txid) {
+        return { success: true, txID: receipt.txid };
+      }
+      return { success: false, error: 'Broadcast failed' };
     } catch (error) {
       console.error('Error sending TRX:', error);
       return { success: false, error: error.message };
@@ -218,13 +225,21 @@ export class TronWalletGenerator {
     amount: number
   ): Promise<{ success: boolean; txID?: string; error?: string }> {
     try {
-      // In a real implementation, you'd use TronWeb to call the transfer function
-      console.log(`Sending ${amount} tokens from ${wallet.address} to ${toAddress}`);
-      
-      return { 
-        success: true, 
-        txID: createHash('sha256').update(`${Date.now()}-${Math.random()}`).digest('hex') 
-      };
+      const TronWebModule = await import('tronweb');
+      const TronWebCtor: any = (TronWebModule as any).default || (TronWebModule as any);
+      const fullNode = (process as any)?.env?.TRON_FULLNODE_URL || this.network.endpoint;
+      const solidityNode = (process as any)?.env?.TRON_SOLIDITYNODE_URL || fullNode;
+      const eventServer = (process as any)?.env?.TRON_EVENTSERVER_URL || fullNode;
+      const tronWeb = new TronWebCtor({ fullHost: fullNode, fullNode, solidityNode, eventServer, privateKey: wallet.privateKey });
+
+      const contract = await tronWeb.contract().at(contractAddress);
+      const decimals = 6; // Many TRC20 use 6, ideally query contract decimals()
+      const scaled = BigInt(Math.round(amount * Math.pow(10, decimals))).toString();
+      const tx = await contract.transfer(toAddress, scaled).send({ from: wallet.address });
+      if (typeof tx === 'string') {
+        return { success: true, txID: tx };
+      }
+      return { success: false, error: 'Token transfer failed' };
     } catch (error) {
       console.error('Error sending TRC20 token:', error);
       return { success: false, error: error.message };

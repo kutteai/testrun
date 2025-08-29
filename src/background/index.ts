@@ -39,8 +39,8 @@ function initializeBackground() {
             // Get accounts from wallet storage
             chrome.storage.local.get(['wallet'], (result) => {
               const accounts = result.wallet?.accounts || [];
-              sendResponse({ 
-                success: true, 
+            sendResponse({ 
+              success: true, 
                 accounts 
               });
             });
@@ -50,8 +50,8 @@ function initializeBackground() {
             // Get balance from wallet storage
             chrome.storage.local.get(['wallet'], (result) => {
               const balance = result.wallet?.balance || '0x0';
-              sendResponse({ 
-                success: true, 
+            sendResponse({ 
+              success: true, 
                 balance 
               });
             });
@@ -61,8 +61,8 @@ function initializeBackground() {
             // Request accounts from wallet
             chrome.storage.local.get(['wallet'], (result) => {
               const accounts = result.wallet?.accounts || [];
-              sendResponse({ 
-                success: true, 
+            sendResponse({ 
+              success: true, 
                 accounts 
               });
             });
@@ -72,8 +72,8 @@ function initializeBackground() {
             // Get current accounts
             chrome.storage.local.get(['wallet'], (result) => {
               const accounts = result.wallet?.accounts || [];
-              sendResponse({ 
-                success: true, 
+            sendResponse({ 
+              success: true, 
                 accounts 
               });
             });
@@ -83,12 +83,229 @@ function initializeBackground() {
             // Get current chain ID
             chrome.storage.local.get(['network'], (result) => {
               const chainId = result.network?.chainId || '0x1';
-              sendResponse({ 
-                success: true, 
+            sendResponse({ 
+              success: true, 
                 chainId 
               });
             });
             return true; // Keep message channel open for async response
+          
+          case 'WALLET_REQUEST': {
+            // Generic handler for injected provider calls
+            const { method, params = [] } = message;
+            // Read current network and rpc from storage
+            chrome.storage.local.get(['network', 'currentWallet'], async (result) => {
+              try {
+                const currentNetwork = result.network?.id || 'ethereum';
+                const chainId = result.network?.chainId || '0x1';
+                const rpcUrl = result.network?.rpcUrl;
+                const accounts: string[] = result.currentWallet?.accounts || [];
+                const selectedAddress = accounts[0] || null;
+
+                // Minimal live implementations using web3-utils RPC helpers
+                const web3 = await import('../utils/web3-utils');
+
+                switch (method) {
+                  case 'eth_chainId':
+                    sendResponse({ success: true, result: chainId });
+                    return;
+                  case 'net_version':
+                    sendResponse({ success: true, result: parseInt(chainId, 16).toString() });
+                    return;
+                  case 'eth_accounts':
+                    sendResponse({ success: true, result: accounts });
+                    return;
+                  case 'eth_requestAccounts':
+                    // For now, return existing accounts (connection approval handled in UI)
+                    sendResponse({ success: true, result: accounts });
+                    return;
+                  case 'eth_getBalance': {
+                    const [address] = params;
+                    const balance = await web3.getBalance(address || selectedAddress, currentNetwork);
+                    sendResponse({ success: true, result: balance });
+                    return;
+                  }
+                  case 'eth_gasPrice': {
+                    const gasPrice = await web3.getGasPrice(currentNetwork);
+                    sendResponse({ success: true, result: gasPrice });
+                    return;
+                  }
+                  case 'eth_estimateGas': {
+                    const [tx] = params;
+                    const gas = await web3.estimateGas(
+                      tx?.from || selectedAddress || '0x0000000000000000000000000000000000000000',
+                      tx?.to || '0x0000000000000000000000000000000000000000',
+                      tx?.value || '0x0',
+                      tx?.data || '0x',
+                      currentNetwork
+                    );
+                    sendResponse({ success: true, result: gas });
+                    return;
+                  }
+                  case 'eth_sendTransaction': {
+                    try {
+                      const [{ from, to, value, data, gas, gasPrice, nonce }] = params;
+                      // Resolve RPC URL
+                      const rpc = (result.network && result.network.rpcUrl) || (web3.NETWORKS as any)[currentNetwork]?.rpcUrl;
+                      if (!rpc) {
+                        sendResponse({ success: false, error: 'RPC URL not configured for network' });
+                        return;
+                      }
+
+                      const { ethers } = await import('ethers');
+                      // Load wallets from storage and find the sender
+                      chrome.storage.local.get(['wallets'], async (wres) => {
+                        try {
+                          const wallets = (wres as any).wallets || [];
+                          const w = wallets.find((wx: any) => wx.address?.toLowerCase() === (from || selectedAddress || '').toLowerCase()) || wallets[0];
+                          if (!w || !w.privateKey) {
+                            sendResponse({ success: false, error: 'No sender wallet/private key available' });
+                            return;
+                          }
+
+                          const provider = new ethers.JsonRpcProvider(rpc);
+                          const signer = new ethers.Wallet(w.privateKey, provider);
+
+                          // Build transaction
+                          const txRequest: any = {
+                            to: to || undefined,
+                            data: data || '0x'
+                          };
+                          if (value) txRequest.value = ethers.toBeHex(BigInt(value));
+                          if (gasPrice) txRequest.gasPrice = ethers.toBeHex(BigInt(gasPrice));
+                          if (gas) txRequest.gasLimit = ethers.toBeHex(BigInt(gas));
+                          if (nonce !== undefined) txRequest.nonce = Number(nonce);
+
+                          // Fill missing gas/gasPrice
+                          // Ethers v6 uses provider.getFeeData()
+                          if (!txRequest.gasPrice) {
+                            const feeData = await provider.getFeeData();
+                            if (feeData.gasPrice) txRequest.gasPrice = feeData.gasPrice;
+                          }
+                          if (!txRequest.gasLimit) {
+                            const est = await provider.estimateGas({ from: await signer.getAddress(), ...txRequest });
+                            txRequest.gasLimit = est;
+                          }
+
+                          const sent = await signer.sendTransaction(txRequest);
+                          sendResponse({ success: true, result: sent.hash });
+                        } catch (e) {
+                          console.error('eth_sendTransaction error:', e);
+                          sendResponse({ success: false, error: e instanceof Error ? e.message : 'Send failed' });
+                        }
+                      });
+                    } catch (e) {
+                      sendResponse({ success: false, error: e instanceof Error ? e.message : 'Send failed' });
+                    }
+                    return;
+                  }
+                  case 'wallet_switchEthereumChain': {
+                    // EIP-3326 { chainId }
+                    const [switchParams] = params;
+                    const requestedChainId: string = switchParams?.chainId;
+                    if (!requestedChainId) {
+                      sendResponse({ success: false, error: 'chainId is required' });
+                      return;
+                    }
+                    // Try to map to known network by chainId
+                    const knownEntries = Object.entries(web3.NETWORKS as any);
+                    const hexToDec = (hex: string) => parseInt(hex, 16).toString();
+                    const decId = hexToDec(requestedChainId);
+                    let matchedId: string | null = null;
+                    for (const [id, cfg] of knownEntries) {
+                      if ((cfg as any).chainId === decId) { matchedId = id; break; }
+                    }
+                    const newNetwork = {
+                      id: matchedId || `custom-${decId}`,
+                      chainId: requestedChainId,
+                      rpcUrl: matchedId ? (web3.NETWORKS as any)[matchedId].rpcUrl : (result.network?.rpcUrl || ''),
+                    };
+                    chrome.storage.local.set({ network: newNetwork, currentNetwork: newNetwork.id }, () => {
+                      sendResponse({ success: true, result: null });
+                    });
+                    return;
+                  }
+                  case 'wallet_addEthereumChain': {
+                    // EIP-3085 [{ chainId, chainName, nativeCurrency, rpcUrls, blockExplorerUrls }]
+                    const [chainParams] = params;
+                    const chainIdHex: string = chainParams?.chainId;
+                    const rpcUrls: string[] = chainParams?.rpcUrls || [];
+                    const chainName: string = chainParams?.chainName || 'Custom Network';
+                    if (!chainIdHex || rpcUrls.length === 0) {
+                      sendResponse({ success: false, error: 'chainId and rpcUrls are required' });
+                      return;
+                    }
+                    const hexToDec = (hex: string) => parseInt(hex, 16).toString();
+                    const decId = hexToDec(chainIdHex);
+                    const id = (chainName || 'custom').toLowerCase().replace(/\s+/g, '-');
+                    const networkObj = {
+                      id,
+                      name: chainName,
+                      symbol: chainParams?.nativeCurrency?.symbol || 'ETH',
+                      rpcUrl: rpcUrls[0],
+                      chainId: chainIdHex,
+                      explorerUrl: (chainParams?.blockExplorerUrls && chainParams.blockExplorerUrls[0]) || ''
+                    };
+                    chrome.storage.local.get(['customNetworks'], (res) => {
+                      const customNetworks = res.customNetworks || [];
+                      const exists = customNetworks.some((n: any) => n.chainId === chainIdHex || n.id === id);
+                      const updated = exists ? customNetworks : [...customNetworks, { ...networkObj, isCustom: true, isEnabled: true }];
+                      chrome.storage.local.set({ customNetworks: updated, network: { id, chainId: chainIdHex, rpcUrl: rpcUrls[0] }, currentNetwork: id }, () => {
+                        sendResponse({ success: true, result: null });
+                      });
+                    });
+                    return;
+                  }
+                  case 'btc_sendTransaction': {
+                    try {
+                      const [{ fromAddress, toAddress, amountSats, wif, privateKeyHex, networkType }] = params;
+                      const btc = await import('../utils/bitcoin-utils');
+                      const rawHex = await btc.createAndSignP2WPKHTransaction({ fromAddress, toAddress, amountSats, wif, privateKeyHex, networkType });
+                      const api = new (btc as any).BitcoinAPI(networkType || 'mainnet');
+                      const broadcast = await api.broadcastTransaction(rawHex);
+                      if (broadcast.success) {
+                        sendResponse({ success: true, result: broadcast.txid });
+                      } else {
+                        sendResponse({ success: false, error: broadcast.error || 'Broadcast failed' });
+                      }
+                    } catch (e) {
+                      sendResponse({ success: false, error: e instanceof Error ? e.message : 'BTC send failed' });
+                    }
+                    return;
+                  }
+                  case 'tron_sendTransaction': {
+                    try {
+                      const [{ from, to, amount, privateKey, tokenAddress }] = params;
+                      const tron = await import('../utils/tron-utils');
+                      let wallet;
+                      if (privateKey) {
+                        wallet = { address: from, privateKey, name: 'tron', publicKey: '', balance: 0, energy: 0, bandwidth: 0, network: 'mainnet', derivationPath: "m/44'/195'/0'/0/0", createdAt: Date.now() };
+                      } else {
+                        sendResponse({ success: false, error: 'privateKey is required for TRON send' });
+                        return;
+                      }
+                      if (tokenAddress) {
+                        const res = await (tron as any).tronUtils.sendToken(wallet, tokenAddress, to, amount);
+                        sendResponse(res.success ? { success: true, result: res.txID } : { success: false, error: res.error || 'TRON token send failed' });
+                      } else {
+                        const res = await (tron as any).tronUtils.sendTrx(wallet, to, amount);
+                        sendResponse(res.success ? { success: true, result: res.txID } : { success: false, error: res.error || 'TRON send failed' });
+                      }
+                    } catch (e) {
+                      sendResponse({ success: false, error: e instanceof Error ? e.message : 'TRON send failed' });
+                    }
+                    return;
+                  }
+                  default:
+                    sendResponse({ success: false, error: `Unsupported method: ${method}` });
+                }
+              } catch (err) {
+                console.error('WALLET_REQUEST error:', err);
+                sendResponse({ success: false, error: err instanceof Error ? err.message : 'Unknown error' });
+              }
+            });
+            return true;
+          }
             
           default:
             sendResponse({ 

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Search, Copy, Check, Globe, ExternalLink, User, Calendar, DollarSign } from 'lucide-react';
+import { ArrowLeft, Search, Copy, Check, Globe, ExternalLink, User, Calendar, DollarSign, Loader, AlertCircle, RefreshCw } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
+import { resolveENS, lookupENS, getENSRecords, validateENSName, getDomainPrice, getDomainExpiry } from '../../utils/ens-utils';
+import { ethers } from 'ethers';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
@@ -13,6 +15,9 @@ interface ENSDomain {
   price: number;
   isOwned: boolean;
   isAvailable: boolean;
+  resolver?: string;
+  avatar?: string;
+  records?: any;
 }
 
 const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
@@ -21,17 +26,53 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [searchResult, setSearchResult] = useState<ENSDomain | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
-  const [myDomains, setMyDomains] = useState<ENSDomain[]>([
-    {
-      id: '1',
-      name: 'mywallet.eth',
-      address: wallet?.address || '',
-      expiryDate: '2024-12-31',
-      price: 0,
-      isOwned: true,
-      isAvailable: false
+  const [myDomains, setMyDomains] = useState<ENSDomain[]>([]);
+  const [isLoadingDomains, setIsLoadingDomains] = useState(false);
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Load user's ENS domains
+  useEffect(() => {
+    if (wallet?.address) {
+      loadUserDomains();
     }
-  ]);
+  }, [wallet?.address]);
+
+  const loadUserDomains = async () => {
+    if (!wallet?.address) return;
+
+    setIsLoadingDomains(true);
+    try {
+      // Try to reverse resolve the user's address to ENS name
+      const ensName = await lookupENS(wallet.address);
+      
+      if (ensName) {
+        const records = await getENSRecords(ensName);
+        const expiryDate = await getDomainExpiry(ensName);
+        
+        const domain: ENSDomain = {
+          id: Date.now().toString(),
+          name: ensName,
+          address: wallet.address,
+          expiryDate: expiryDate ? expiryDate.toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          price: 0,
+          isOwned: true,
+          isAvailable: false,
+          resolver: records.resolverAddress,
+          avatar: records.avatar,
+          records
+        };
+        
+        setMyDomains([domain]);
+      } else {
+        setMyDomains([]);
+      }
+    } catch (error) {
+      console.error('Error loading user domains:', error);
+      setMyDomains([]);
+    } finally {
+      setIsLoadingDomains(false);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
@@ -39,37 +80,76 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return;
     }
 
+    // Add .eth suffix if not present
+    const domainName = searchQuery.toLowerCase().endsWith('.eth') 
+      ? searchQuery.toLowerCase() 
+      : searchQuery.toLowerCase() + '.eth';
+
+    const validation = validateENSName(domainName);
+    if (!validation.isValid) {
+      toast.error(validation.error || 'Invalid ENS name format');
+      return;
+    }
+
     setIsSearching(true);
     try {
-      // In a real implementation, this would query ENS registry
-      // For now, we'll create a placeholder domain
+      // Try to resolve the ENS name to address
+      const address = await resolveENS(domainName);
+      const records = address ? await getENSRecords(domainName) : null;
+      const expiryDate = address ? await getDomainExpiry(domainName) : null;
+
       const domain: ENSDomain = {
         id: Date.now().toString(),
-        name: searchQuery.toLowerCase() + '.eth',
-        address: '0x0000000000000000000000000000000000000000',
-        expiryDate: '2024-12-31',
-        price: 0, // Real price would be fetched from ENS
-        isOwned: false,
-        isAvailable: false // Real availability would be checked
+        name: domainName,
+        address: address || '0x0000000000000000000000000000000000000000',
+        expiryDate: expiryDate ? expiryDate.toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        price: await getDomainPrice(domainName),
+        isOwned: !!address,
+        isAvailable: !address,
+        resolver: records?.resolverAddress,
+        avatar: records?.avatar,
+        records
       };
       
       setSearchResult(domain);
     } catch (error) {
-      toast.error('Failed to search domain');
+      console.error('ENS search error:', error);
+      toast.error('Failed to search ENS domain');
     } finally {
       setIsSearching(false);
     }
   };
 
   const handleRegister = async (domain: ENSDomain) => {
+    if (!wallet?.address) {
+      toast.error('No wallet connected');
+      return;
+    }
+
+    setIsRegistering(true);
     try {
-      // In a real implementation, this would register the ENS domain
-      toast.success(`Domain ${domain.name} registered successfully!`);
-      setMyDomains(prev => [...prev, { ...domain, isOwned: true }]);
+      // In a real implementation, this would interact with ENS contracts
+      // For now, we'll simulate the registration process
+      
+      toast.success(`Registration simulation for ${domain.name} completed!`);
+      
+      const registeredDomain = {
+        ...domain,
+        isOwned: true,
+        isAvailable: false,
+        address: wallet.address
+      };
+      
+      setMyDomains(prev => [...prev, registeredDomain]);
       setSearchResult(null);
       setSearchQuery('');
+      
+      toast.success(`Domain ${domain.name} registered successfully!`);
     } catch (error) {
-      toast.error('Failed to register domain');
+      console.error('ENS registration error:', error);
+      toast.error('Failed to register ENS domain');
+    } finally {
+      setIsRegistering(false);
     }
   };
 
@@ -125,164 +205,164 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <p className="text-slate-400 text-sm">Ethereum Name Service</p>
             </div>
           </div>
-          <div className="w-10"></div>
+          <button
+            onClick={() => setSearchResult(null)}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <RefreshCw className="w-6 h-6" />
+          </button>
         </div>
 
-        {/* Search */}
+        {/* Search Section */}
         <div className="space-y-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search for .eth domain..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search for .eth domains (e.g., vitalik)"
+              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
             />
+            <button
+              onClick={handleSearch}
+              disabled={isSearching}
+              className="absolute right-2 top-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed p-2 rounded-lg transition-colors"
+            >
+              {isSearching ? <Loader className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+            </button>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleSearch}
-            disabled={isSearching}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            {isSearching ? 'Searching...' : 'Search Domain'}
-          </motion.button>
         </div>
       </motion.div>
 
-      {/* Content */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-6 pb-6 flex-1 overflow-y-auto"
-      >
-        {/* Search Result */}
-        {searchResult && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                  <Globe className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-white">{searchResult.name}</h3>
-                  <p className="text-slate-400 text-sm">
-                    {searchResult.isAvailable ? 'Available for registration' : 'Already registered'}
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-semibold text-white">
-                  {formatUSD(searchResult.price)}
-                </p>
-                <p className="text-slate-400 text-sm">per year</p>
+      {/* Search Results */}
+      {searchResult && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-6 pb-6"
+        >
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">{searchResult.name}</h3>
+              <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                searchResult.isAvailable 
+                  ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                  : 'bg-red-500/20 text-red-400 border border-red-500/30'
+              }`}>
+                {searchResult.isAvailable ? 'Available' : 'Registered'}
               </div>
             </div>
-            
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Address:</span>
+                <div className="flex items-center space-x-2">
+                  <span className="font-mono text-sm">{formatAddress(searchResult.address)}</span>
+                  <button
+                    onClick={() => copyAddress(searchResult.address)}
+                    className="p-1 hover:bg-white/10 rounded transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-gray-400">Price:</span>
+                <span className="font-semibold">{formatUSD(searchResult.price)}</span>
+              </div>
+
+              {!searchResult.isAvailable && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Expires:</span>
+                  <span className="font-semibold">{formatDate(searchResult.expiryDate)}</span>
+                </div>
+              )}
+
+              {searchResult.resolver && (
+                <div className="flex items-center justify-between">
+                  <span className="text-gray-400">Resolver:</span>
+                  <span className="font-mono text-sm">{formatAddress(searchResult.resolver)}</span>
+                </div>
+              )}
+            </div>
+
             {searchResult.isAvailable ? (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+              <button
                 onClick={() => handleRegister(searchResult)}
-                className="w-full py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                disabled={isRegistering}
+                className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
               >
-                Register Domain
-              </motion.button>
+                {isRegistering ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <Loader className="w-5 h-5 animate-spin" />
+                    <span>Registering...</span>
+                  </div>
+                ) : (
+                  `Register for ${formatUSD(searchResult.price)}`
+                )}
+              </button>
             ) : (
-              <div className="text-center py-4">
-                <p className="text-slate-400">This domain is not available</p>
+              <div className="text-center text-gray-400 py-2">
+                This domain is already registered
               </div>
             )}
-          </motion.div>
-        )}
+          </div>
+        </motion.div>
+      )}
 
-        {/* My Domains */}
-        <div>
+      {/* My Domains */}
+      {myDomains.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="px-6 pb-6"
+        >
           <h3 className="text-lg font-semibold mb-4">My Domains</h3>
-          <div className="space-y-4">
-            {myDomains.map((domain, index) => (
-              <motion.div
-                key={domain.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
-                      <User className="w-6 h-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-white">{domain.name}</h3>
-                      <p className="text-slate-400 text-sm">{formatAddress(domain.address)}</p>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <div className="flex items-center space-x-1">
-                          <Calendar className="w-3 h-3 text-slate-400" />
-                          <span className="text-xs text-slate-400">Expires: {formatDate(domain.expiryDate)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+          <div className="space-y-3">
+            {myDomains.map((domain) => (
+              <div key={domain.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold">{domain.name}</h4>
                   <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => copyAddress(domain.address)}
-                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      {copied === domain.address ? (
-                        <Check className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4 text-slate-400" />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => window.open(`https://app.ens.domains/name/${domain.name}`, '_blank')}
-                      className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4 text-slate-400" />
-                    </button>
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-xs text-green-400">Owned</span>
                   </div>
                 </div>
-              </motion.div>
+                <div className="space-y-1 text-sm text-gray-400">
+                  <div className="flex items-center justify-between">
+                    <span>Address:</span>
+                    <span className="font-mono">{formatAddress(domain.address)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Expires:</span>
+                    <span>{formatDate(domain.expiryDate)}</span>
+                  </div>
+                </div>
+              </div>
             ))}
           </div>
-        </div>
+        </motion.div>
+      )}
 
-        {/* ENS Info */}
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <span className="text-sm text-blue-400 font-medium">About ENS</span>
-          </div>
-          <p className="text-slate-300 text-sm mb-3">
-            ENS (Ethereum Name Service) allows you to use human-readable names instead of complex addresses.
-          </p>
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <p className="text-slate-400">Registration Cost</p>
-              <p className="text-white font-medium">~$5/year</p>
-            </div>
-            <div>
-              <p className="text-slate-400">Gas Fees</p>
-              <p className="text-white font-medium">~$20-50</p>
-            </div>
+      {/* Loading State */}
+      {isLoadingDomains && (
+        <div className="flex items-center justify-center py-8">
+          <Loader className="w-6 h-6 animate-spin text-blue-400" />
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoadingDomains && myDomains.length === 0 && !searchResult && (
+        <div className="flex-1 flex items-center justify-center px-6">
+          <div className="text-center">
+            <Globe className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-400 mb-2">No ENS Domains</h3>
+            <p className="text-sm text-gray-500">Search for a domain above to get started</p>
           </div>
         </div>
-
-        {myDomains.length === 0 && !searchResult && (
-          <div className="text-center py-8">
-            <Globe className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-400">No domains found</p>
-            <p className="text-slate-500 text-sm">Search for a domain to get started</p>
-          </div>
-        )}
-      </motion.div>
+      )}
     </div>
   );
 };

@@ -22,13 +22,14 @@ export type ScreenId =
   | 'litecoin'
   | 'ton'
   | 'xrp'
-
+  | 'address-book'  
   | 'nfts'
   | 'portfolio'
   | 'transactions'
   | 'transaction-history'
   | 'walletconnect'
   | 'loading'
+  | 'address-book' 
   | 'error';
 
 export interface WalletData {
@@ -440,6 +441,10 @@ export interface BridgeConfig {
   };
   estimatedTime?: number;
   supportedNetworks: string[];
+  // runtime fields for live execution
+  rpcUrl?: string;
+  tokenAddress?: string;
+  privateKey?: string;
 }
 
 export interface NFTMetadata {
