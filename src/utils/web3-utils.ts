@@ -143,6 +143,110 @@ export const NETWORKS: Record<string, NetworkConfig> = {
       symbol: 'ETH',
       decimals: 18
     }
+  },
+  base: {
+    name: 'Base',
+    symbol: 'ETH',
+    chainId: '8453',
+    rpcUrl: 'https://mainnet.base.org',
+    explorerUrl: 'https://basescan.org',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  },
+  fantom: {
+    name: 'Fantom',
+    symbol: 'FTM',
+    chainId: '250',
+    rpcUrl: 'https://rpc.ftm.tools',
+    explorerUrl: 'https://ftmscan.com',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Fantom',
+      symbol: 'FTM',
+      decimals: 18
+    }
+  },
+  zksync: {
+    name: 'zkSync Era',
+    symbol: 'ETH',
+    chainId: '324',
+    rpcUrl: 'https://mainnet.era.zksync.io',
+    explorerUrl: 'https://explorer.zksync.io',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  },
+  linea: {
+    name: 'Linea',
+    symbol: 'ETH',
+    chainId: '59144',
+    rpcUrl: 'https://rpc.linea.build',
+    explorerUrl: 'https://lineascan.build',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  },
+  mantle: {
+    name: 'Mantle',
+    symbol: 'MNT',
+    chainId: '5000',
+    rpcUrl: 'https://rpc.mantle.xyz',
+    explorerUrl: 'https://explorer.mantle.xyz',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Mantle',
+      symbol: 'MNT',
+      decimals: 18
+    }
+  },
+  scroll: {
+    name: 'Scroll',
+    symbol: 'ETH',
+    chainId: '534352',
+    rpcUrl: 'https://rpc.scroll.io',
+    explorerUrl: 'https://scrollscan.com',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  },
+  'polygon-zkevm': {
+    name: 'Polygon zkEVM',
+    symbol: 'ETH',
+    chainId: '1101',
+    rpcUrl: 'https://zkevm-rpc.com',
+    explorerUrl: 'https://zkevm.polygonscan.com',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    }
+  },
+  'arbitrum-nova': {
+    name: 'Arbitrum Nova',
+    symbol: 'ETH',
+    chainId: '42170',
+    rpcUrl: 'https://nova.arbitrum.io/rpc',
+    explorerUrl: 'https://nova.arbiscan.io',
+    apiKey: '',
+    nativeCurrency: {
+      name: 'Ether',
+      symbol: 'ETH',
+      decimals: 18
+    }
   }
 };
 
@@ -514,15 +618,23 @@ export async function getTransactionReceipt(txHash: string, network: string): Pr
       throw new Error('Etherscan API key required for transaction data');
     }
 
-    // Map network to Etherscan V2 API chain ID
-    const chainIdMap: Record<string, string> = {
-      ethereum: '1',
-      bsc: '56', 
-      polygon: '137',
-      avalanche: '43114',
-      arbitrum: '42161',
-      optimism: '10'
-    };
+      // Map network to Etherscan V2 API chain ID
+  const chainIdMap: Record<string, string> = {
+    ethereum: '1',
+    bsc: '56',
+    polygon: '137',
+    avalanche: '43114',
+    arbitrum: '42161',
+    optimism: '10',
+    base: '8453',
+    fantom: '250',
+    zksync: '324',
+    linea: '59144',
+    mantle: '5000',
+    scroll: '534352',
+    'polygon-zkevm': '1101',
+    'arbitrum-nova': '42170'
+  };
 
     const chainId = chainIdMap[network];
     if (!chainId) {
@@ -660,7 +772,9 @@ export async function getTokenPrice(tokenId: string): Promise<number> {
       throw new Error('CoinGecko API key required for token pricing');
     }
 
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}`;
+    const url = apiKey ? 
+      `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}` :
+      `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`;
     
     const response = await fetch(url);
     
@@ -692,7 +806,9 @@ export async function getTokenPrices(tokenIds: string[]): Promise<Record<string,
     }
 
     const ids = tokenIds.join(',');
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}`;
+    const url = apiKey ? 
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}` :
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
     
     const response = await fetch(url);
     
@@ -731,7 +847,9 @@ export async function get24hPriceChange(tokenId: string): Promise<any> {
       throw new Error('CoinGecko API key required for price change data');
     }
 
-    const url = `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=1&x_cg_demo_api_key=${apiKey}`;
+    const url = apiKey ? 
+      `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=1&x_cg_demo_api_key=${apiKey}` :
+      `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=1`;
     
     const response = await fetch(url);
     

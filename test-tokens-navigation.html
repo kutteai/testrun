@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Tokens Navigation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .test-button {
+            background: #4f46e5;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        .test-button:hover {
+            background: #4338ca;
+        }
+        .log {
+            background: #2d2d2d;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>Test Tokens Navigation</h1>
+    
+    <button class="test-button" onclick="testNavigation()">Test Navigation to Tokens</button>
+    <button class="test-button" onclick="clearLog()">Clear Log</button>
+    
+    <div id="log" class="log"></div>
+
+    <script>
+        function log(message) {
+            const logDiv = document.getElementById('log');
+            logDiv.textContent += new Date().toLocaleTimeString() + ': ' + message + '\n';
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('log').textContent = '';
+        }
+
+        function testNavigation() {
+            log('Testing navigation to tokens...');
+            
+            // Simulate the navigation flow
+            log('1. Button clicked');
+            log('2. onNavigate function called');
+            log('3. handleNavigate called with screen: tokens');
+            log('4. setCurrentScreen called with: tokens');
+            log('5. renderScreen called with currentScreen: tokens');
+            log('6. TokensScreen should be rendered');
+            
+            // Check if we can access the extension
+            if (typeof chrome !== 'undefined' && chrome.runtime) {
+                log('✅ Chrome extension API available');
+            } else {
+                log('❌ Chrome extension API not available');
+            }
+        }
+
+        // Log when page loads
+        log('Test page loaded');
+    </script>
+</body>
+</html>

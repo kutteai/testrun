@@ -4,7 +4,9 @@ import {
   Home, 
   Send, 
   Download, 
-  Settings
+  User,
+  Settings,
+  Wallet
 } from 'lucide-react';
 import { useTransaction } from '../../store/TransactionContext';
 import type { ScreenId } from '../../types/index';
@@ -37,9 +39,9 @@ const Navigation: React.FC<NavigationProps> = ({ currentScreen, onNavigate }) =>
       badge: null
     },
     {
-      id: 'nfts' as ScreenId,
-      label: 'NFTs',
-      icon: Home,
+      id: 'accounts' as ScreenId,
+      label: 'Accounts',
+      icon: User,
       badge: null
     },
     {
@@ -54,7 +56,7 @@ const Navigation: React.FC<NavigationProps> = ({ currentScreen, onNavigate }) =>
     <motion.nav
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
-      className="px-4 py-2 bg-white border-t border-gray-200"
+      className="px-4 py-3 bg-slate-800/50 backdrop-blur-xl border-t border-white/10"
     >
       <div className="flex justify-around items-center">
         {navigationItems.map((item) => {
@@ -67,14 +69,14 @@ const Navigation: React.FC<NavigationProps> = ({ currentScreen, onNavigate }) =>
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.9 }}
               onClick={() => onNavigate(item.id)}
-              className={`flex flex-col items-center space-y-1 p-2 rounded-lg transition-colors ${
+              className={`flex flex-col items-center space-y-1 p-2 rounded-xl transition-all ${
                 isActive 
-                  ? 'text-blue-600 bg-blue-50' 
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  ? 'text-blue-400 bg-blue-500/20 border border-blue-500/30' 
+                  : 'text-slate-400 hover:text-white hover:bg-white/10'
               }`}
             >
               <div className="relative">
-                <Icon className="w-6 h-6" />
+                <Icon className="w-5 h-5" />
                 {item.badge && (
                   <motion.span
                     initial={{ scale: 0 }}

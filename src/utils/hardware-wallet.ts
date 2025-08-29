@@ -27,19 +27,13 @@ export interface HardwareWalletManager {
 export class HardwareWalletManager {
   private connectedWallets: Map<string, HardwareWallet> = new Map();
 
-  // Connect to hardware wallet (simplified implementation)
+  // Connect to hardware wallet
   async connectToDevice(type: 'ledger' | 'trezor'): Promise<HardwareWallet> {
     try {
-      // For now, return a mock wallet for testing
-      const mockWallet: HardwareWallet = {
-        type,
-        address: '0x' + '0'.repeat(40), // Placeholder address
-        derivationPath: "m/44'/60'/0'/0/0",
-        connected: true
-      };
-
-      this.connectedWallets.set(type, mockWallet);
-      return mockWallet;
+      // This would implement real hardware wallet connection
+      // For Ledger: Use @ledgerhq/hw-transport-webusb
+      // For Trezor: Use @trezor/connect
+      throw new Error(`Hardware wallet ${type} connection not yet implemented. Please use software wallet for now.`);
     } catch (error) {
       throw new Error(`Failed to connect to ${type}: ${error}`);
     }
@@ -55,31 +49,28 @@ export class HardwareWalletManager {
     return Array.from(this.connectedWallets.values());
   }
 
-  // Sign transaction (simplified)
+  // Sign transaction
   async signTransaction(transaction: any, type: 'ledger' | 'trezor'): Promise<string> {
-    // For now, return a mock signature
-    return '0x' + '0'.repeat(130);
+    throw new Error(`Hardware wallet ${type} signing not yet implemented. Please use software wallet for now.`);
   }
 
-  // Sign message (simplified)
+  // Sign message
   async signMessage(message: string, type: 'ledger' | 'trezor'): Promise<string> {
-    // For now, return a mock signature
-    return '0x' + '0'.repeat(130);
+    throw new Error(`Hardware wallet ${type} signing not yet implemented. Please use software wallet for now.`);
   }
 
   // Get hardware wallet addresses
   async getHardwareWalletAddresses(derivationPath: string): Promise<string[]> {
-    // For now, return mock addresses
-    return ['0x' + '0'.repeat(40)];
+    throw new Error('Hardware wallet address derivation not yet implemented. Please use software wallet for now.');
   }
 
   // Export public key (Ledger)
   async exportPublicKeyLedger(): Promise<string> {
-    return '0x' + '0'.repeat(128);
+    throw new Error('Ledger public key export not yet implemented. Please use software wallet for now.');
   }
 
   // Export public key (Trezor)
   async exportPublicKeyTrezor(): Promise<string> {
-    return '0x' + '0'.repeat(128);
+    throw new Error('Trezor public key export not yet implemented. Please use software wallet for now.');
   }
 } 

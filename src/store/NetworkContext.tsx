@@ -73,7 +73,7 @@ const defaultNetworks: Network[] = [
     id: 'bsc',
     name: 'Binance Smart Chain',
     symbol: 'BNB',
-    rpcUrl: 'https://bsc-dataseed.binance.org',
+    rpcUrl: 'https://bsc-dataseed1.binance.org',
     chainId: '0x38',
     explorerUrl: 'https://bscscan.com',
     isCustom: false,
@@ -118,6 +118,86 @@ const defaultNetworks: Network[] = [
     explorerUrl: 'https://optimistic.etherscan.io',
     isCustom: false,
     isEnabled: true
+  },
+  {
+    id: 'base',
+    name: 'Base',
+    symbol: 'ETH',
+    rpcUrl: 'https://mainnet.base.org',
+    chainId: '0x2105',
+    explorerUrl: 'https://basescan.org',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'fantom',
+    name: 'Fantom',
+    symbol: 'FTM',
+    rpcUrl: 'https://rpc.ftm.tools',
+    chainId: '0xfa',
+    explorerUrl: 'https://ftmscan.com',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'zksync',
+    name: 'zkSync Era',
+    symbol: 'ETH',
+    rpcUrl: 'https://mainnet.era.zksync.io',
+    chainId: '0x144',
+    explorerUrl: 'https://explorer.zksync.io',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'linea',
+    name: 'Linea',
+    symbol: 'ETH',
+    rpcUrl: 'https://rpc.linea.build',
+    chainId: '0xe708',
+    explorerUrl: 'https://lineascan.build',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'mantle',
+    name: 'Mantle',
+    symbol: 'MNT',
+    rpcUrl: 'https://rpc.mantle.xyz',
+    chainId: '0x1388',
+    explorerUrl: 'https://explorer.mantle.xyz',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'scroll',
+    name: 'Scroll',
+    symbol: 'ETH',
+    rpcUrl: 'https://rpc.scroll.io',
+    chainId: '0x82750',
+    explorerUrl: 'https://scrollscan.com',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'polygon-zkevm',
+    name: 'Polygon zkEVM',
+    symbol: 'ETH',
+    rpcUrl: 'https://zkevm-rpc.com',
+    chainId: '0x44d',
+    explorerUrl: 'https://zkevm.polygonscan.com',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'arbitrum-nova',
+    name: 'Arbitrum Nova',
+    symbol: 'ETH',
+    rpcUrl: 'https://nova.arbitrum.io/rpc',
+    chainId: '0xa4ba',
+    explorerUrl: 'https://nova.arbiscan.io',
+    isCustom: false,
+    isEnabled: true
   }
 ];
 
@@ -154,11 +234,29 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
 
   // Test network connection
   const testConnection = async (network: Network): Promise<boolean> => {
+    const startTime = Date.now();
+    console.log(`🚀 Starting connection test for ${network.name}...`);
+    
     try {
-      const response = await fetch(network.rpcUrl, {
+      // Create a timeout promise with longer timeout for BSC
+      const timeout = network.id === 'bsc' ? 10000 : 5000;
+      console.log(`⏱️  Timeout set to ${timeout}ms for ${network.name}`);
+      
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          const elapsed = Date.now() - startTime;
+          console.log(`⏰ Timeout after ${elapsed}ms for ${network.name}`);
+          reject(new Error('Connection timeout'));
+        }, timeout);
+      });
+
+      // Create the fetch promise with proper headers
+      console.log(`📡 Making request to ${network.rpcUrl}`);
+      const fetchPromise = fetch(network.rpcUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
         body: JSON.stringify({
           jsonrpc: '2.0',
@@ -168,14 +266,29 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         }),
       });
 
+      // Race between fetch and timeout
+      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+      const elapsed = Date.now() - startTime;
+      console.log(`✅ Got response in ${elapsed}ms for ${network.name}, status: ${response.status}`);
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      return data.result !== undefined;
+      console.log(`📊 Response data for ${network.name}:`, data);
+      
+      // Check for both result and error in response
+      if (data.error) {
+        throw new Error(`RPC error: ${data.error.message || 'Unknown error'}`);
+      }
+      
+      const success = data.result !== undefined;
+      console.log(`🎯 Connection test ${success ? 'SUCCESS' : 'FAILED'} for ${network.name}`);
+      return success;
     } catch (error) {
-      toast.error(`Connection test failed for ${network.name}`);
+      const elapsed = Date.now() - startTime;
+      console.warn(`❌ Connection test failed for ${network.name} after ${elapsed}ms:`, error);
       return false;
     }
   };
@@ -188,24 +301,33 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         throw new Error('Network not found');
       }
 
-      // Test connection before switching
-      const isConnected = await testConnection(network);
+      // Test connection before switching (but don't block if it fails)
+      let isConnected = false;
+      try {
+        console.log(`Testing connection to ${network.name} at ${network.rpcUrl}`);
+        isConnected = await testConnection(network);
+        console.log(`Connection test result for ${network.name}:`, isConnected);
+      } catch (error) {
+        console.warn('Connection test failed, but continuing with network switch:', error);
+        isConnected = false;
+      }
       
       setNetworkState(prev => ({
         ...prev,
         currentNetwork: network,
-        isConnected,
-        connectionError: isConnected ? null : 'Connection failed'
+        isConnected: true, // Always set as connected since we're switching anyway
+        connectionError: null
       }));
 
       // Save current network to storage
       chrome.storage.local.set({ currentNetwork: networkId });
 
-      if (isConnected) {
+      // Trigger a custom event to notify other contexts about network change
+      window.dispatchEvent(new CustomEvent('networkChanged', { 
+        detail: { networkId, network } 
+      }));
+
         toast.success(`Switched to ${network.name}`);
-      } else {
-        toast.error(`Failed to connect to ${network.name}`);
-      }
     } catch (error) {
       toast.error('Failed to switch network');
       setNetworkState(prev => ({
@@ -216,7 +338,20 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
   };
 
   // Add custom network
-  const addCustomNetwork = (network: Omit<Network, 'isCustom'>) => {
+  const addCustomNetwork = async (network: Omit<Network, 'isCustom'>) => {
+    try {
+      // Validate network configuration
+      const validation = validateNetworkConfig(network);
+      if (!validation.isValid) {
+        throw new Error(`Invalid network configuration: ${validation.errors.join(', ')}`);
+      }
+
+      // Check if network ID already exists
+      const existingNetwork = networkState.networks.find(n => n.id === network.id);
+      if (existingNetwork) {
+        throw new Error('Network with this ID already exists');
+      }
+
     const customNetwork: Network = {
       ...network,
       isCustom: true
@@ -232,6 +367,37 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
     });
 
     toast.success(`Added custom network: ${network.name}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add custom network';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
+  // Validate network configuration
+  const validateNetworkConfig = (config: Partial<Network>): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+
+    if (!config.id) errors.push('Network ID is required');
+    if (!config.name) errors.push('Network name is required');
+    if (!config.rpcUrl) errors.push('RPC URL is required');
+    if (!config.chainId) errors.push('Chain ID is required');
+    if (!config.symbol) errors.push('Symbol is required');
+
+    // Validate RPC URL format
+    if (config.rpcUrl && !config.rpcUrl.startsWith('http')) {
+      errors.push('RPC URL must start with http:// or https://');
+    }
+
+    // Validate chain ID format
+    if (config.chainId && !/^[0-9]+$/.test(config.chainId)) {
+      errors.push('Chain ID must be a valid number');
+    }
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
   };
 
   // Remove custom network

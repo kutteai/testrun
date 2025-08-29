@@ -398,15 +398,23 @@ export async function getTransactionReceipt(txHash, network) {
         if (!apiKey) {
             throw new Error('Etherscan API key required for transaction data');
         }
-        // Map network to Etherscan V2 API chain ID
-        const chainIdMap = {
-            ethereum: '1',
-            bsc: '56',
-            polygon: '137',
-            avalanche: '43114',
-            arbitrum: '42161',
-            optimism: '10'
-        };
+          // Map network to Etherscan V2 API chain ID
+  const chainIdMap = {
+    ethereum: '1',
+    bsc: '56',
+    polygon: '137',
+    avalanche: '43114',
+    arbitrum: '42161',
+    optimism: '10',
+    base: '8453',
+    fantom: '250',
+    zksync: '324',
+    linea: '59144',
+    mantle: '5000',
+    scroll: '534352',
+    'polygon-zkevm': '1101',
+    'arbitrum-nova': '42170'
+  };
         const chainId = chainIdMap[network];
         if (!chainId) {
             throw new Error(`Unsupported network for Etherscan V2 API: ${network}`);
@@ -516,7 +524,9 @@ export async function getTokenPrice(tokenId) {
         if (!apiKey) {
             throw new Error('CoinGecko API key required for token pricing');
         }
-        const url = `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}`;
+        const url = apiKey ? 
+    `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}` :
+    `https://api.coingecko.com/api/v3/simple/price?ids=${tokenId}&vs_currencies=usd`;
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -541,7 +551,9 @@ export async function getTokenPrices(tokenIds) {
             throw new Error('CoinGecko API key required for token pricing');
         }
         const ids = tokenIds.join(',');
-        const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}`;
+        const url = apiKey ? 
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&x_cg_demo_api_key=${apiKey}` :
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd`;
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -571,7 +583,9 @@ export async function get24hPriceChange(tokenId) {
         if (!apiKey) {
             throw new Error('CoinGecko API key required for price change data');
         }
-        const url = `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=1&x_cg_demo_api_key=${apiKey}`;
+        const url = apiKey ? 
+      `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=1&x_cg_demo_api_key=${apiKey}` :
+      `https://api.coingecko.com/api/v3/coins/${tokenId}/market_chart?vs_currency=usd&days=1`;
         const response = await fetch(url);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);

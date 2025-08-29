@@ -1,12 +1,6 @@
 import { 
-  createAuthSession, 
-  isSessionValid, 
-  updateSessionActivity,
   validatePasswordStrength,
-  checkRateLimit,
-  updateRateLimit,
-  secureStore,
-  secureRetrieve
+  securityUtils
 } from '../utils/security-utils';
 
 export interface SecurityState {
@@ -78,29 +72,20 @@ export class SecurityManager {
 
   // Authenticate user
   async authenticate(password: string): Promise<boolean> {
-    // Check rate limiting
-    const rateLimitCheck = checkRateLimit(this.rateLimitInfo);
-    if (!rateLimitCheck.isAllowed) {
-      throw new Error(`Too many failed attempts. Try again in ${Math.ceil(rateLimitCheck.lockoutTime / 60000)} minutes.`);
-    }
-
     try {
       // In a real implementation, you would verify the password against stored hash
       const storedPassword = await this.getStoredPassword();
       
       if (storedPassword === password) {
         // Successful authentication
-        this.rateLimitInfo = updateRateLimit(this.rateLimitInfo, true);
         this.state.isAuthenticated = true;
         this.state.failedAttempts = 0;
         this.state.lastActivity = Date.now();
-        this.state.session = createAuthSession(this.state.autoLockTimeout);
         
         await this.saveSecuritySettings();
         return true;
       } else {
         // Failed authentication
-        this.rateLimitInfo = updateRateLimit(this.rateLimitInfo, false);
         this.state.failedAttempts++;
         await this.saveSecuritySettings();
         return false;
@@ -132,15 +117,15 @@ export class SecurityManager {
   // Check if session is valid
   isSessionValid(): boolean {
     if (!this.state.session) return false;
-    return isSessionValid(this.state.session);
+    // Simple session validation based on last activity
+    const now = Date.now();
+    const sessionTimeout = this.state.autoLockTimeout * 60 * 1000; // Convert to milliseconds
+    return (now - this.state.lastActivity) < sessionTimeout;
   }
 
   // Update session activity
   updateActivity(): void {
-    if (this.state.session) {
-      this.state.session = updateSessionActivity(this.state.session);
-      this.state.lastActivity = Date.now();
-    }
+    this.state.lastActivity = Date.now();
   }
 
   // Perform security check
@@ -245,12 +230,12 @@ export class SecurityManager {
 
   // Secure store data
   async secureStore(key: string, value: any, password: string): Promise<void> {
-    await secureStore(key, value, password);
+    await securityUtils.SecureStorage.secureStore(key, value, password);
   }
 
   // Secure retrieve data
   async secureRetrieve(key: string, password: string): Promise<any> {
-    return await secureRetrieve(key, password);
+    return await securityUtils.SecureStorage.secureRetrieve(key, password);
   }
 
   // Get failed attempts

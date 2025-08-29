@@ -1,282 +1,389 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  Wallet, 
-  Send, 
-  Download, 
-  Settings, 
-  Shield, 
-  TrendingUp, 
-  Activity,
-  Copy,
-  Check,
-  RefreshCw,
-  Eye,
-  EyeOff
-} from 'lucide-react';
+import { Send, Download, Users, Coins, Globe, Shield, Zap, Copy, Eye, EyeOff, RefreshCw } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
-import { usePortfolio } from '../../store/PortfolioContext';
-import { useTransaction } from '../../store/TransactionContext';
 import { useNetwork } from '../../store/NetworkContext';
+import Header from '../common/Header';
 import toast from 'react-hot-toast';
-import type { ScreenProps } from '../../types/index';
+import type { ScreenId } from '../../types/index';
 
-const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
-  const { portfolioValue } = usePortfolio();
-  const { recentTransactions, pendingTransactions } = useTransaction();
-  const { networkState } = useNetwork();
-  
+interface DashboardScreenProps {
+  onNavigate?: (screen: ScreenId) => void;
+}
+
+const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
+  console.log('DashboardScreen rendered, onNavigate:', !!onNavigate); // Debug log
+  const { wallet, balances, address, isWalletUnlocked, updateAllBalances } = useWallet();
+  const { networkState, currentNetwork } = useNetwork();
   const [showBalance, setShowBalance] = useState(true);
-  const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+  // Debug logging
+  React.useEffect(() => {
+    console.log('Advanced Features section rendering');
+  }, []);
 
-  const copyAddress = async () => {
-    if (wallet?.address) {
+  // Get current network-specific data
+  const currentBalance = balances[currentNetwork?.id || 'ethereum'] || '0.00';
+  const currentNetworkData = currentNetwork || networkState.currentNetwork;
+
+  // Refresh balance when network changes
+  useEffect(() => {
+    if (currentNetworkData?.id) {
+      console.log('Network changed to:', currentNetworkData.id);
+      refreshBalance();
+    }
+  }, [currentNetworkData?.id]);
+
+  const refreshBalance = async () => {
+    if (!isRefreshing) {
+      setIsRefreshing(true);
       try {
-        await navigator.clipboard.writeText(wallet.address);
-        setCopied(true);
-        toast.success('Address copied to clipboard');
-        setTimeout(() => setCopied(false), 2000);
-      } catch {
-        toast.error('Failed to copy address');
+        await updateAllBalances();
+        toast.success('Balance updated!');
+      } catch (error) {
+        console.error('Failed to refresh balance:', error);
+        toast.error('Failed to update balance');
+      } finally {
+        setIsRefreshing(false);
       }
     }
   };
 
-  const refreshData = async () => {
-    setIsRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => setIsRefreshing(false), 1000);
+  const copyAddress = () => {
+    if (address) {
+      navigator.clipboard.writeText(address);
+      toast.success('Address copied to clipboard');
+    }
   };
 
-  const formatBalance = (balance: string) => {
-    const num = parseFloat(balance);
-    if (num === 0) return '0.00';
-    if (num < 0.01) return '< 0.01';
-    return num.toFixed(4);
+  // Get network-specific features based on current network
+  const getNetworkSpecificFeatures = () => {
+    const baseFeatures = [
+      {
+        id: 'tokens',
+        title: 'Tokens',
+        description: 'Manage tokens',
+        icon: Coins,
+        color: 'bg-yellow-600',
+        onClick: () => {
+          console.log('=== TOKENS BUTTON CLICKED ===');
+          console.log('Tokens button clicked, onNavigate:', !!onNavigate);
+          console.log('Calling onNavigate with screen: tokens');
+          onNavigate?.('tokens');
+          console.log('onNavigate call completed');
+          console.log('=== TOKENS BUTTON CLICK END ===');
+        }
+      }
+    ];
+
+    // Add network-specific features
+    switch (currentNetworkData?.id) {
+      case 'bitcoin':
+        return [
+          ...baseFeatures,
+          {
+            id: 'bitcoin',
+            title: 'Bitcoin',
+            description: 'Manage BTC transactions',
+            icon: Coins,
+            color: 'bg-orange-600',
+            onClick: () => onNavigate?.('bitcoin')
+          }
+        ];
+      case 'solana':
+        return [
+          ...baseFeatures,
+          {
+            id: 'solana',
+            title: 'Solana',
+            description: 'Manage SOL & SPL tokens',
+            icon: Coins,
+            color: 'bg-purple-600',
+            onClick: () => onNavigate?.('solana')
+          }
+        ];
+      case 'tron':
+        return [
+          ...baseFeatures,
+          {
+            id: 'tron',
+            title: 'TRON',
+            description: 'Manage TRX & TRC20 tokens',
+            icon: Coins,
+            color: 'bg-red-600',
+            onClick: () => onNavigate?.('tron')
+          }
+        ];
+      case 'litecoin':
+        return [
+          ...baseFeatures,
+          {
+            id: 'litecoin',
+            title: 'Litecoin',
+            description: 'Manage LTC transactions',
+            icon: Coins,
+            color: 'bg-gray-600',
+            onClick: () => onNavigate?.('litecoin')
+          }
+        ];
+      case 'ton':
+        return [
+          ...baseFeatures,
+          {
+            id: 'ton',
+            title: 'TON',
+            description: 'Manage TON & Jettons',
+            icon: Coins,
+            color: 'bg-blue-600',
+            onClick: () => onNavigate?.('ton')
+          }
+        ];
+      case 'xrp':
+        return [
+          ...baseFeatures,
+          {
+            id: 'xrp',
+            title: 'XRP',
+            description: 'Manage XRP & IOUs',
+            icon: Coins,
+            color: 'bg-black',
+            onClick: () => onNavigate?.('xrp')
+          }
+        ];
+      default:
+        // EVM chains
+        return [
+          ...baseFeatures,
+          {
+            id: 'ens',
+            title: 'ENS Domains',
+            description: 'Search and register ENS',
+            icon: Globe,
+            color: 'bg-indigo-600',
+            onClick: () => onNavigate?.('ens')
+          },
+          {
+            id: 'hardware',
+            title: 'Hardware Wallet',
+            description: 'Connect hardware devices',
+            icon: Shield,
+            color: 'bg-red-600',
+            onClick: () => onNavigate?.('hardware')
+          },
+          {
+            id: 'gas',
+            title: 'Gas Settings',
+            description: 'Customize gas fees',
+            icon: Zap,
+            color: 'bg-orange-600',
+            onClick: () => onNavigate?.('gas')
+          }
+        ];
+    }
   };
 
-  const formatUSD = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
+  const quickActions = [
+    {
+      id: 'send',
+      title: 'Send',
+      icon: Send,
+      color: 'bg-blue-600 hover:bg-blue-700',
+      onClick: () => onNavigate?.('send')
+    },
+    {
+      id: 'receive',
+      title: 'Receive',
+      icon: Download,
+      color: 'bg-green-600 hover:bg-green-700',
+      onClick: () => onNavigate?.('receive')
+    },
+    {
+      id: 'accounts',
+      title: 'Accounts',
+      icon: Users,
+      color: 'bg-purple-600 hover:bg-purple-700',
+      onClick: () => onNavigate?.('accounts')
+    }
+  ];
+
+  const advancedFeatures = getNetworkSpecificFeatures();
+
+  // Format address based on network
+  const formatAddress = (addr: string) => {
+    if (!addr) return 'No address';
+    
+    // Different address formats for different networks
+    switch (currentNetworkData?.id) {
+      case 'tron':
+        return `${addr.slice(0, 8)}...${addr.slice(-8)}`; // TRON addresses are longer
+      case 'bitcoin':
+      case 'litecoin':
+        return `${addr.slice(0, 6)}...${addr.slice(-6)}`; // Bitcoin-style addresses
+      case 'solana':
+        return `${addr.slice(0, 6)}...${addr.slice(-6)}`; // Solana addresses
+      case 'ton':
+        return `${addr.slice(0, 8)}...${addr.slice(-8)}`; // TON addresses
+      case 'xrp':
+        return `${addr.slice(0, 6)}...${addr.slice(-6)}`; // XRP addresses
+      default:
+        return `${addr.slice(0, 6)}...${addr.slice(-4)}`; // EVM addresses
+    }
   };
+
+  // Get network status indicator
+  const getNetworkStatus = () => {
+    const networkId = currentNetworkData?.id;
+    switch (networkId) {
+      case 'ethereum':
+        return { color: 'bg-blue-500', text: 'Ethereum' };
+      case 'bsc':
+        return { color: 'bg-yellow-500', text: 'BSC' };
+      case 'polygon':
+        return { color: 'bg-purple-500', text: 'Polygon' };
+      case 'avalanche':
+        return { color: 'bg-red-500', text: 'Avalanche' };
+      case 'arbitrum':
+        return { color: 'bg-blue-600', text: 'Arbitrum' };
+      case 'optimism':
+        return { color: 'bg-red-600', text: 'Optimism' };
+      case 'bitcoin':
+        return { color: 'bg-orange-500', text: 'Bitcoin' };
+      case 'solana':
+        return { color: 'bg-purple-600', text: 'Solana' };
+      case 'tron':
+        return { color: 'bg-red-500', text: 'TRON' };
+      case 'litecoin':
+        return { color: 'bg-gray-500', text: 'Litecoin' };
+      case 'ton':
+        return { color: 'bg-blue-500', text: 'TON' };
+      case 'xrp':
+        return { color: 'bg-black', text: 'XRP' };
+      default:
+        return { color: 'bg-green-500', text: 'Connected' };
+    }
+  };
+
+  const networkStatus = getNetworkStatus();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col h-full">
-      {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 pb-4"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Wallet className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">PayCio Wallet</h1>
-              <p className="text-slate-400 text-sm">Secure Multi-Chain</p>
-            </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setShowBalance(!showBalance)}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              {showBalance ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
-            <button
-              onClick={refreshData}
-              className={`p-2 hover:bg-white/10 rounded-lg transition-colors ${isRefreshing ? 'animate-spin' : ''}`}
-            >
-              <RefreshCw className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => onNavigate('settings')}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-            >
-              <Settings className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+      {/* Header with Network Switcher */}
+      <Header 
+        title="dashboard" 
+        canGoBack={false}
+        currentNetwork={currentNetworkData}
+      />
+      
+      {/* Dashboard Content */}
+      <div className="flex-1 p-6 space-y-6 overflow-y-auto">
         {/* Balance Card */}
         <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 mb-6 border border-white/20"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-slate-300 text-sm font-medium">Total Balance</h2>
+            <h2 className="text-lg font-semibold text-white">Total Balance</h2>
             <div className="flex items-center space-x-2">
-              <span className="text-xs text-slate-400">{networkState.currentNetwork?.symbol || 'ETH'}</span>
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              <span className="text-sm text-gray-400">{currentNetworkData?.symbol || 'ETH'}</span>
+              <div className={`w-2 h-2 ${networkStatus.color} rounded-full`}></div>
+              <span className="text-xs text-gray-400">{networkStatus.text}</span>
             </div>
           </div>
           
           <div className="mb-4">
-            <div className="text-3xl font-bold mb-1">
-              {showBalance ? formatBalance(wallet?.balance || '0') : '••••••'}
+            <div className="flex items-center space-x-3">
+              <span className="text-3xl font-bold text-white">
+                {showBalance ? currentBalance : '••••••'}
+              </span>
+              <div className="flex items-center space-x-1">
+                <button
+                  onClick={() => setShowBalance(!showBalance)}
+                  className="p-1 hover:bg-white/10 rounded transition-colors"
+                >
+                  {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+                <button
+                  onClick={refreshBalance}
+                  disabled={isRefreshing}
+                  className="p-1 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
             </div>
-            <div className="text-slate-400 text-sm">
-              {showBalance ? formatUSD(portfolioValue?.totalUSD || 0) : '••••••'}
-            </div>
+            <p className="text-sm text-gray-400 mt-1">$0.00 USD</p>
           </div>
 
-          {/* Address */}
-          <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-              <span className="text-sm font-mono">{formatAddress(wallet?.address || '')}</span>
+              <div className={`w-2 h-2 ${networkStatus.color} rounded-full`}></div>
+              <span className="text-sm text-gray-300 font-mono">
+                {address ? formatAddress(address) : 'No address'}
+              </span>
             </div>
             <button
               onClick={copyAddress}
-              className="p-1 hover:bg-white/10 rounded transition-colors"
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
             >
-              {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              <Copy className="w-4 h-4" />
             </button>
           </div>
         </motion.div>
-      </motion.div>
 
       {/* Quick Actions */}
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-6 mb-6"
+          transition={{ delay: 0.1 }}
+          className="space-y-4"
       >
-        <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
+          <h3 className="text-lg font-semibold text-white">Quick Actions</h3>
         <div className="grid grid-cols-3 gap-4">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onNavigate('send')}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 rounded-xl text-center hover:from-blue-600 hover:to-blue-700 transition-all"
-          >
-            <Send className="w-6 h-6 mx-auto mb-2" />
-            <span className="text-sm font-medium">Send</span>
-          </motion.button>
-          
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onNavigate('receive')}
-            className="bg-gradient-to-r from-green-500 to-green-600 p-4 rounded-xl text-center hover:from-green-600 hover:to-green-700 transition-all"
-          >
-            <Download className="w-6 h-6 mx-auto mb-2" />
-            <span className="text-sm font-medium">Receive</span>
-          </motion.button>
-          
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => onNavigate('security')}
-            className="bg-gradient-to-r from-purple-500 to-purple-600 p-4 rounded-xl text-center hover:from-purple-600 hover:to-purple-700 transition-all"
-          >
-            <Shield className="w-6 h-6 mx-auto mb-2" />
-            <span className="text-sm font-medium">Security</span>
-          </motion.button>
+            {quickActions.map((action) => (
+              <button
+                key={action.id}
+                onClick={action.onClick}
+                className={`${action.color} p-4 rounded-xl transition-all duration-200 transform hover:scale-105`}
+              >
+                <action.icon className="w-6 h-6 mx-auto mb-2" />
+                <span className="text-sm font-medium">{action.title}</span>
+              </button>
+            ))}
         </div>
       </motion.div>
 
-      {/* Portfolio Performance */}
-      {portfolioValue && portfolioValue.totalUSD > 0 && (
+        {/* Advanced Features */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="px-6 mb-6"
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+          style={{ position: 'relative', zIndex: 100 }}
         >
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold">Portfolio</h3>
-              <TrendingUp className="w-5 h-5 text-green-400" />
-            </div>
+          <h3 className="text-lg font-semibold text-white">Advanced Features</h3>
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-slate-400 text-sm">24h Change</p>
-                <p className={`text-lg font-semibold ${portfolioValue.totalChange24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {portfolioValue.totalChange24h >= 0 ? '+' : ''}{portfolioValue.totalChange24h.toFixed(2)}%
-                </p>
+
+            {advancedFeatures.map((feature) => (
+              <button
+                key={feature.id}
+                data-testid={`feature-${feature.id}`}
+                onClick={feature.onClick}
+                onMouseDown={() => console.log('Button mousedown:', feature.id)}
+                onMouseUp={() => console.log('Button mouseup:', feature.id)}
+                className="bg-gray-900/50 backdrop-blur-xl border border-white/10 rounded-xl p-4 text-left transition-all duration-200 hover:bg-gray-800/50 hover:border-white/20 relative z-10"
+              >
+                <div className={`${feature.color} w-10 h-10 rounded-lg flex items-center justify-center mb-3`}>
+                  <feature.icon className="w-5 h-5 text-white" />
               </div>
-              <div>
-                <p className="text-slate-400 text-sm">Total Value</p>
-                <p className="text-lg font-semibold">{formatUSD(portfolioValue.totalUSD)}</p>
-              </div>
-            </div>
+                <h4 className="font-semibold text-white mb-1">{feature.title}</h4>
+                <p className="text-xs text-gray-400">{feature.description}</p>
+              </button>
+            ))}
           </div>
         </motion.div>
-      )}
-
-      {/* Recent Transactions */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6 pb-6 flex-1 overflow-y-auto"
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold">Recent Activity</h3>
-          <button
-                            onClick={() => onNavigate('transaction-history')}
-            className="text-blue-400 text-sm hover:text-blue-300 transition-colors"
-          >
-            View All
-          </button>
         </div>
-
-        <div className="space-y-3">
-          {recentTransactions.slice(0, 3).map((tx, index) => (
-            <motion.div
-              key={tx.hash}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                    (tx as any).type === 'send' ? 'bg-red-500/20' : 'bg-green-500/20'
-                  }`}>
-                    {(tx as any).type === 'send' ? (
-                      <Send className="w-5 h-5 text-red-400" />
-                    ) : (
-                      <Download className="w-5 h-5 text-green-400" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-medium capitalize">{(tx as any).type || 'transaction'}</p>
-                    <p className="text-slate-400 text-sm">{formatAddress(tx.hash)}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className="font-semibold">{(tx as any).amount || tx.value} {(tx as any).network || 'ETH'}</p>
-                  <p className="text-slate-400 text-sm">
-                    {new Date(tx.timestamp).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-
-          {recentTransactions.length === 0 && (
-            <div className="text-center py-8 flex-1 flex flex-col justify-center">
-              <Activity className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-              <p className="text-slate-400">No transactions yet</p>
-              <p className="text-slate-500 text-sm">Your transaction history will appear here</p>
-            </div>
-          )}
-        </div>
-      </motion.div>
     </div>
   );
 };

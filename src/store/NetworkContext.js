@@ -71,16 +71,96 @@ const defaultNetworks = [
         isCustom: false,
         isEnabled: true
     },
-    {
-        id: 'optimism',
-        name: 'Optimism',
-        symbol: 'ETH',
-        rpcUrl: 'https://mainnet.optimism.io',
-        chainId: '0xa',
-        explorerUrl: 'https://optimistic.etherscan.io',
-        isCustom: false,
-        isEnabled: true
-    }
+      {
+    id: 'optimism',
+    name: 'Optimism',
+    symbol: 'ETH',
+    rpcUrl: 'https://mainnet.optimism.io',
+    chainId: '0xa',
+    explorerUrl: 'https://optimistic.etherscan.io',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'base',
+    name: 'Base',
+    symbol: 'ETH',
+    rpcUrl: 'https://mainnet.base.org',
+    chainId: '0x2105',
+    explorerUrl: 'https://basescan.org',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'fantom',
+    name: 'Fantom',
+    symbol: 'FTM',
+    rpcUrl: 'https://rpc.ftm.tools',
+    chainId: '0xfa',
+    explorerUrl: 'https://ftmscan.com',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'zksync',
+    name: 'zkSync Era',
+    symbol: 'ETH',
+    rpcUrl: 'https://mainnet.era.zksync.io',
+    chainId: '0x144',
+    explorerUrl: 'https://explorer.zksync.io',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'linea',
+    name: 'Linea',
+    symbol: 'ETH',
+    rpcUrl: 'https://rpc.linea.build',
+    chainId: '0xe708',
+    explorerUrl: 'https://lineascan.build',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'mantle',
+    name: 'Mantle',
+    symbol: 'MNT',
+    rpcUrl: 'https://rpc.mantle.xyz',
+    chainId: '0x1388',
+    explorerUrl: 'https://explorer.mantle.xyz',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'scroll',
+    name: 'Scroll',
+    symbol: 'ETH',
+    rpcUrl: 'https://rpc.scroll.io',
+    chainId: '0x82750',
+    explorerUrl: 'https://scrollscan.com',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'polygon-zkevm',
+    name: 'Polygon zkEVM',
+    symbol: 'ETH',
+    rpcUrl: 'https://zkevm-rpc.com',
+    chainId: '0x44d',
+    explorerUrl: 'https://zkevm.polygonscan.com',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'arbitrum-nova',
+    name: 'Arbitrum Nova',
+    symbol: 'ETH',
+    rpcUrl: 'https://nova.arbitrum.io/rpc',
+    chainId: '0xa4ba',
+    explorerUrl: 'https://nova.arbiscan.io',
+    isCustom: false,
+    isEnabled: true
+  }
 ];
 export const NetworkProvider = ({ children }) => {
     const [networkState, setNetworkState] = useState({

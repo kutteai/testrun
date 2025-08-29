@@ -1,147 +1,127 @@
-export interface SecuritySettings {
-  autoLockTimeout: number; // minutes
-  requirePassword: boolean;
-  biometricAuth: boolean;
-  maxFailedAttempts: number;
-  lockoutDuration: number; // minutes
+import { createHash, randomBytes, pbkdf2Sync, createCipher, createDecipher } from 'crypto-browserify';
+import { Buffer } from 'buffer';
+
+// Enhanced security utilities for wallet protection
+
+export interface EncryptedData {
+  iv: string;
+  salt: string;
+  data: string;
+  algorithm: string;
+  iterations: number;
+  authTag?: string;
 }
 
-export interface AuthSession {
-  isAuthenticated: boolean;
-  lastActivity: number;
-  sessionId: string;
-  expiresAt: number;
+export interface SecurityConfig {
+  keyDerivationIterations: number;
+  keyLength: number;
+  algorithm: string;
+  saltLength: number;
+  ivLength: number;
 }
 
-// Default security settings
-export const DEFAULT_SECURITY_SETTINGS: SecuritySettings = {
-  autoLockTimeout: 15,
-  requirePassword: true,
-  biometricAuth: false,
-  maxFailedAttempts: 5,
-  lockoutDuration: 30
+// Default security configuration
+export const DEFAULT_SECURITY_CONFIG: SecurityConfig = {
+  keyDerivationIterations: 100000, // High iteration count for security
+  keyLength: 32, // 256 bits
+  algorithm: 'aes-256-gcm',
+  saltLength: 32,
+  ivLength: 16
 };
 
-// Generate random bytes
-export function generateRandomBytes(length: number): Uint8Array {
-  const bytes = new Uint8Array(length);
-  for (let i = 0; i < length; i++) {
-    bytes[i] = Math.floor(Math.random() * 256);
-  }
-  return bytes;
-}
-
-// Generate session ID
-export function generateSessionId(): string {
-  const bytes = generateRandomBytes(32);
-  return Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
-}
-
-// Create authentication session
-export function createAuthSession(duration: number = 60): AuthSession {
-  const now = Date.now();
-  return {
-    isAuthenticated: true,
-    lastActivity: now,
-    sessionId: generateSessionId(),
-    expiresAt: now + (duration * 60 * 1000) // Convert minutes to milliseconds
-  };
-}
-
-// Check if session is valid
-export function isSessionValid(session: AuthSession): boolean {
-  const now = Date.now();
-  return session.isAuthenticated && 
-         session.expiresAt > now && 
-         (now - session.lastActivity) < (15 * 60 * 1000); // 15 minutes of inactivity
-}
-
-// Update session activity
-export function updateSessionActivity(session: AuthSession): AuthSession {
-  return {
-    ...session,
-    lastActivity: Date.now()
-  };
-}
-
-// Encrypt sensitive data
-export function encryptSensitiveData(data: string, password: string): string {
-  return encryptData(data, password);
-}
-
-// Decrypt sensitive data
-export function decryptSensitiveData(encryptedData: string, password: string): string | null {
-  return decryptData(encryptedData, password);
-}
-
-// Encrypt data with password
-export function encryptData(data: string, password: string): string {
-  // In a real implementation, use proper encryption like AES-256
-  // For now, we'll use a simple base64 encoding
-  const encoded = btoa(data + ':' + password);
-  return encoded;
-}
-
-// Decrypt data with password
-export function decryptData(encryptedData: string, password: string): string | null {
+// Enhanced encryption with proper key derivation
+export async function encryptDataSecurely(
+  data: string, 
+  password: string, 
+  config: SecurityConfig = DEFAULT_SECURITY_CONFIG
+): Promise<EncryptedData> {
   try {
-    // In a real implementation, use proper decryption
-    // For now, we'll use simple base64 decoding
-    const decoded = atob(encryptedData);
-    const parts = decoded.split(':');
-    if (parts[1] === password) {
-      return parts[0];
+    // Generate random salt and IV
+    const salt = randomBytes(config.saltLength);
+    const iv = randomBytes(config.ivLength);
+    
+    // Derive key from password using PBKDF2
+    const key = pbkdf2Sync(
+      password, 
+      salt, 
+      config.keyDerivationIterations, 
+      config.keyLength, 
+      'sha256'
+    );
+    
+    // Encrypt data
+    const cipher = createCipher(config.algorithm, key);
+    cipher.setAutoPadding(true);
+    
+    let encrypted = cipher.update(data, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    
+    // Get authentication tag for GCM mode
+    const authTag = (cipher as any).getAuthTag ? (cipher as any).getAuthTag() : null;
+    
+  return {
+      iv: iv.toString('hex'),
+      salt: salt.toString('hex'),
+      data: encrypted,
+      algorithm: config.algorithm,
+      iterations: config.keyDerivationIterations,
+      authTag: authTag ? authTag.toString('hex') : undefined
+    };
+  } catch (error) {
+    console.error('Encryption error:', error);
+    throw new Error('Failed to encrypt data securely');
+  }
+}
+
+// Enhanced decryption with proper key derivation
+export async function decryptDataSecurely(
+  encryptedData: EncryptedData, 
+  password: string
+): Promise<string> {
+  try {
+    // Reconstruct salt and IV
+    const salt = Buffer.from(encryptedData.salt, 'hex');
+    const iv = Buffer.from(encryptedData.iv, 'hex');
+    
+    // Derive key from password using same parameters
+    const key = pbkdf2Sync(
+      password, 
+      salt, 
+      encryptedData.iterations, 
+      32, 
+      'sha256'
+    );
+    
+    // Decrypt data
+    const decipher = createDecipher(encryptedData.algorithm, key);
+    decipher.setAutoPadding(true);
+    
+    // Set IV and auth tag if available
+    if (encryptedData.authTag) {
+      (decipher as any).setAuthTag(Buffer.from(encryptedData.authTag, 'hex'));
     }
-    return null;
-  } catch (error) {
-    return null;
-  }
-}
-
-// Hash password
-export async function hashPassword(password: string): Promise<string> {
-  return await hashData(password);
-}
-
-// Verify password
-export async function verifyPassword(password: string, hashedPassword: string): Promise<boolean> {
-  const hashedInput = await hashPassword(password);
-  return hashedInput === hashedPassword;
-}
-
-// Hash data (real implementation)
-export async function hashData(data: string): Promise<string> {
-  try {
-    // Use Web Crypto API for real hashing
-    const encoder = new TextEncoder();
-    const dataBuffer = encoder.encode(data);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer as BufferSource);
     
-    // Convert to hex string
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    let decrypted = decipher.update(encryptedData.data, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
     
-    return hashHex;
+    return decrypted;
   } catch (error) {
-    console.error('Error hashing data:', error);
-    throw error;
+    console.error('Decryption error:', error);
+    throw new Error('Failed to decrypt data - invalid password or corrupted data');
   }
 }
 
-// Generate strong password
-export function generateStrongPassword(length: number = 16): string {
-  const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-  let password = '';
-  
-  for (let i = 0; i < length; i++) {
-    const randomIndex = Math.floor(Math.random() * charset.length);
-    password += charset[randomIndex];
-  }
-  
-  return password;
+// Secure random number generation
+export function generateSecureRandom(length: number = 32): Buffer {
+  return randomBytes(length);
 }
 
-// Validate password strength
+// Secure hash generation
+export function generateSecureHash(data: string, algorithm: string = 'sha256'): string {
+  return createHash(algorithm).update(data).digest('hex');
+}
+
+// Password strength validation
 export function validatePasswordStrength(password: string): {
   isValid: boolean;
   score: number;
@@ -151,10 +131,13 @@ export function validatePasswordStrength(password: string): {
   let score = 0;
 
   // Length check
-  if (password.length < 8) {
-    feedback.push('Password must be at least 8 characters long');
+  if (password.length >= 12) {
+    score += 2;
+  } else if (password.length >= 8) {
+    score += 1;
+    feedback.push('Password should be at least 12 characters long');
   } else {
-    score += Math.min(password.length - 8, 4);
+    feedback.push('Password is too short');
   }
 
   // Character variety checks
@@ -163,13 +146,24 @@ export function validatePasswordStrength(password: string): {
   if (/[0-9]/.test(password)) score += 1;
   if (/[^A-Za-z0-9]/.test(password)) score += 1;
 
-  // Feedback based on missing character types
+  // Feedback for missing character types
   if (!/[a-z]/.test(password)) feedback.push('Add lowercase letters');
   if (!/[A-Z]/.test(password)) feedback.push('Add uppercase letters');
   if (!/[0-9]/.test(password)) feedback.push('Add numbers');
   if (!/[^A-Za-z0-9]/.test(password)) feedback.push('Add special characters');
 
-  const isValid = score >= 3 && password.length >= 8;
+  // Common password check
+  const commonPasswords = [
+    'password', '123456', '123456789', 'qwerty', 'abc123',
+    'password123', 'admin', 'letmein', 'welcome', 'monkey'
+  ];
+  
+  if (commonPasswords.includes(password.toLowerCase())) {
+    score = 0;
+    feedback.push('This is a commonly used password');
+  }
+  
+  const isValid = score >= 4;
 
   return {
     isValid,
@@ -178,127 +172,119 @@ export function validatePasswordStrength(password: string): {
   };
 }
 
-// Check for common passwords
-export function isCommonPassword(password: string): boolean {
-  const commonPasswords = [
-    'password', '123456', '123456789', 'qwerty', 'abc123', 'password123',
-    'admin', 'letmein', 'welcome', 'monkey', 'dragon', 'master', 'sunshine',
-    'princess', 'qwerty123', 'football', 'baseball', 'superman', 'trustno1'
-  ];
-  
-  return commonPasswords.includes(password.toLowerCase());
+// Secure key generation for wallet
+export function generateSecureWalletKey(): string {
+  const privateKey = randomBytes(32);
+  return privateKey.toString('hex');
 }
 
-// Rate limiting for failed attempts
-export interface RateLimitInfo {
-  attempts: number;
-  lastAttempt: number;
-  isLocked: boolean;
-  lockoutUntil: number;
-}
-
-export function checkRateLimit(
-  currentInfo: RateLimitInfo,
-  maxAttempts: number = 5,
-  lockoutDuration: number = 30
-): { isAllowed: boolean; remainingAttempts: number; lockoutTime: number } {
-  const now = Date.now();
+// Secure seed phrase validation
+export function validateSeedPhrase(seedPhrase: string): {
+  isValid: boolean;
+  wordCount: number;
+  feedback: string[];
+} {
+  const words = seedPhrase.trim().split(/\s+/);
+  const feedback: string[] = [];
   
-  // Check if still locked out
-  if (currentInfo.isLocked && now < currentInfo.lockoutUntil) {
-    return {
-      isAllowed: false,
-      remainingAttempts: 0,
-      lockoutTime: currentInfo.lockoutUntil - now
-    };
+  // Check word count
+  if (words.length !== 12 && words.length !== 24) {
+    feedback.push('Seed phrase must be 12 or 24 words');
+    return { isValid: false, wordCount: words.length, feedback };
   }
   
-  // Reset if lockout period has passed
-  if (currentInfo.isLocked && now >= currentInfo.lockoutUntil) {
-    return {
-      isAllowed: true,
-      remainingAttempts: maxAttempts,
-      lockoutTime: 0
-    };
+  // Check for empty words
+  if (words.some(word => word.length === 0)) {
+    feedback.push('Seed phrase contains empty words');
+    return { isValid: false, wordCount: words.length, feedback };
   }
   
-  // Check if max attempts reached
-  if (currentInfo.attempts >= maxAttempts) {
-    return {
-      isAllowed: false,
-      remainingAttempts: 0,
-      lockoutTime: lockoutDuration * 60 * 1000
-    };
+  // Check for duplicate words (basic check)
+  const uniqueWords = new Set(words);
+  if (uniqueWords.size !== words.length) {
+    feedback.push('Seed phrase contains duplicate words');
+    return { isValid: false, wordCount: words.length, feedback };
   }
   
   return {
-    isAllowed: true,
-    remainingAttempts: maxAttempts - currentInfo.attempts,
-    lockoutTime: 0
+    isValid: true,
+    wordCount: words.length,
+    feedback: []
   };
 }
 
-// Update rate limit info
-export function updateRateLimit(
-  currentInfo: RateLimitInfo,
-  success: boolean,
-  maxAttempts: number = 5,
-  lockoutDuration: number = 30
-): RateLimitInfo {
-  const now = Date.now();
-  
-  if (success) {
-    // Reset on successful attempt
-    return {
-      attempts: 0,
-      lastAttempt: now,
-      isLocked: false,
-      lockoutUntil: 0
-    };
-  } else {
-    // Increment failed attempts
-    const newAttempts = currentInfo.attempts + 1;
-    const isLocked = newAttempts >= maxAttempts;
-    const lockoutUntil = isLocked ? now + (lockoutDuration * 60 * 1000) : 0;
-    
-    return {
-      attempts: newAttempts,
-      lastAttempt: now,
-      isLocked,
-      lockoutUntil
-    };
-  }
-}
-
 // Secure storage utilities
-export function secureStore(key: string, value: any, password: string): void {
-  try {
-    const encryptedValue = encryptSensitiveData(JSON.stringify(value), password);
-    chrome.storage.local.set({ [key]: encryptedValue });
+export class SecureStorage {
+  private static instance: SecureStorage;
+  private encryptionKey: string | null = null;
+  
+  private constructor() {}
+  
+  static getInstance(): SecureStorage {
+    if (!SecureStorage.instance) {
+      SecureStorage.instance = new SecureStorage();
+    }
+    return SecureStorage.instance;
+  }
+  
+  // Set encryption key for secure storage
+  setEncryptionKey(key: string): void {
+    this.encryptionKey = key;
+  }
+  
+  // Securely store data
+  async secureStore(key: string, data: any, password: string): Promise<void> {
+    try {
+      const dataString = JSON.stringify(data);
+      const encrypted = await encryptDataSecurely(dataString, password);
+      
+      // Store in chrome.storage.local
+      await chrome.storage.local.set({
+        [key]: encrypted
+      });
   } catch (error) {
-    console.error('Error storing secure data:', error);
-    throw new Error('Failed to store secure data');
+      console.error('Secure storage error:', error);
+      throw new Error('Failed to store data securely');
+    }
+  }
+  
+  // Securely retrieve data
+  async secureRetrieve(key: string, password: string): Promise<any> {
+    try {
+      const result = await chrome.storage.local.get([key]);
+      const encrypted = result[key];
+      
+      if (!encrypted) {
+        throw new Error('No data found for key');
+      }
+      
+      const decrypted = await decryptDataSecurely(encrypted, password);
+      return JSON.parse(decrypted);
+    } catch (error) {
+      console.error('Secure retrieval error:', error);
+      throw new Error('Failed to retrieve data securely');
+    }
+  }
+  
+  // Clear secure data
+  async secureClear(key: string): Promise<void> {
+    try {
+      await chrome.storage.local.remove([key]);
+  } catch (error) {
+      console.error('Secure clear error:', error);
+      throw new Error('Failed to clear data securely');
+    }
   }
 }
 
-export function secureRetrieve(key: string, password: string): any {
-  try {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.get([key], (result) => {
-        if (result[key]) {
-          const decryptedValue = decryptSensitiveData(result[key], password);
-          if (decryptedValue) {
-            resolve(JSON.parse(decryptedValue));
-          } else {
-            reject(new Error('Failed to decrypt data'));
-          }
-        } else {
-          resolve(null);
-        }
-      });
-    });
-  } catch (error) {
-    console.error('Error retrieving secure data:', error);
-    throw new Error('Failed to retrieve secure data');
-  }
-} 
+// Export main utilities
+export const securityUtils = {
+  encryptDataSecurely,
+  decryptDataSecurely,
+  generateSecureRandom,
+  generateSecureHash,
+  validatePasswordStrength,
+  generateSecureWalletKey,
+  validateSeedPhrase,
+  SecureStorage: SecureStorage.getInstance()
+}; 

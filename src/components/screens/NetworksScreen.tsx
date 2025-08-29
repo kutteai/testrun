@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Check, Globe, Settings } from 'lucide-react';
+import { ArrowLeft, Plus, Check, Globe, Settings, Wifi, WifiOff, Bitcoin, Zap, TrendingUp } from 'lucide-react';
 import { useNetwork } from '../../store/NetworkContext';
+import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps, Network } from '../../types/index';
 
 const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { networks, currentNetwork, switchNetwork, addCustomNetwork } = useNetwork();
+  const { switchNetwork: switchWalletNetwork } = useWallet();
   const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [isTestingConnection, setIsTestingConnection] = useState<string | null>(null);
   const [customNetwork, setCustomNetwork] = useState({
     name: '',
     symbol: '',
@@ -56,15 +59,150 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       explorerUrl: 'https://snowtrace.io',
       isCustom: false,
       isEnabled: true
+    },
+    {
+      id: 'arbitrum',
+      name: 'Arbitrum',
+      symbol: 'ETH',
+      rpcUrl: 'https://arb1.arbitrum.io/rpc',
+      chainId: '42161',
+      explorerUrl: 'https://arbiscan.io',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'optimism',
+      name: 'Optimism',
+      symbol: 'ETH',
+      rpcUrl: 'https://mainnet.optimism.io',
+      chainId: '10',
+      explorerUrl: 'https://optimistic.etherscan.io',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'base',
+      name: 'Base',
+      symbol: 'ETH',
+      rpcUrl: 'https://mainnet.base.org',
+      chainId: '8453',
+      explorerUrl: 'https://basescan.org',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'fantom',
+      name: 'Fantom',
+      symbol: 'FTM',
+      rpcUrl: 'https://rpc.ftm.tools',
+      chainId: '250',
+      explorerUrl: 'https://ftmscan.com',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'zksync',
+      name: 'zkSync Era',
+      symbol: 'ETH',
+      rpcUrl: 'https://mainnet.era.zksync.io',
+      chainId: '324',
+      explorerUrl: 'https://explorer.zksync.io',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'linea',
+      name: 'Linea',
+      symbol: 'ETH',
+      rpcUrl: 'https://rpc.linea.build',
+      chainId: '59144',
+      explorerUrl: 'https://lineascan.build',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'mantle',
+      name: 'Mantle',
+      symbol: 'MNT',
+      rpcUrl: 'https://rpc.mantle.xyz',
+      chainId: '5000',
+      explorerUrl: 'https://explorer.mantle.xyz',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'scroll',
+      name: 'Scroll',
+      symbol: 'ETH',
+      rpcUrl: 'https://rpc.scroll.io',
+      chainId: '534352',
+      explorerUrl: 'https://scrollscan.com',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'polygon-zkevm',
+      name: 'Polygon zkEVM',
+      symbol: 'ETH',
+      rpcUrl: 'https://zkevm-rpc.com',
+      chainId: '1101',
+      explorerUrl: 'https://zkevm.polygonscan.com',
+      isCustom: false,
+      isEnabled: true
+    },
+    {
+      id: 'arbitrum-nova',
+      name: 'Arbitrum Nova',
+      symbol: 'ETH',
+      rpcUrl: 'https://nova.arbitrum.io/rpc',
+      chainId: '42170',
+      explorerUrl: 'https://nova.arbiscan.io',
+      isCustom: false,
+      isEnabled: true
     }
   ];
 
   const handleNetworkSwitch = async (network: Network) => {
     try {
+      // Switch network in both contexts
       await switchNetwork(network.id);
+      await switchWalletNetwork(network.id);
       toast.success(`Switched to ${network.name}`);
-    } catch {
+    } catch (error) {
       toast.error('Failed to switch network');
+    }
+  };
+
+  const testNetworkConnection = async (network: Network) => {
+    setIsTestingConnection(network.id);
+    try {
+      const response = await fetch(network.rpcUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_blockNumber',
+          params: [],
+          id: 1,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.result !== undefined) {
+        toast.success(`${network.name} connection successful`);
+      } else {
+        throw new Error('Invalid response');
+      }
+    } catch (error) {
+      toast.error(`${network.name} connection failed`);
+    } finally {
+      setIsTestingConnection(null);
     }
   };
 
@@ -106,60 +244,122 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="h-full bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
       {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-gray-200">
-        <div className="flex justify-between items-center">
+      <motion.div 
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="p-6 pb-4"
+      >
+        <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => onNavigate('dashboard')}
-            className="p-2 rounded-lg hover:bg-gray-100"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900">Networks</h1>
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+              <Globe className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">Networks</h1>
+              <p className="text-slate-400 text-sm">Select blockchain network</p>
+            </div>
+          </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setIsAddingCustom(true)}
-            className="p-2 rounded-lg hover:bg-gray-100"
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
-            <Plus className="w-5 h-5 text-gray-600" />
+            <Plus className="w-6 h-6" />
           </motion.button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Content */}
-      <div className="p-4 space-y-4">
-        {/* Default Networks */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="px-6 space-y-6 pb-6 flex-1 overflow-y-auto"
+      >
+        {/* Current Network Status */}
+        {currentNetwork && (
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-green-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-white">Current Network</h3>
+                  <p className="text-slate-400 text-sm">{currentNetwork.name} ({currentNetwork.symbol})</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-sm text-green-400">Connected</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* EVM Networks */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 mb-3">Default Networks</h2>
-          <div className="space-y-2">
+          <h2 className="text-lg font-semibold text-white mb-4">EVM Networks</h2>
+          <div className="space-y-3">
             {defaultNetworks.map((network) => (
               <motion.div
                 key={network.id}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                onClick={() => handleNetworkSwitch(network)}
-                className={`p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
+                className={`p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all ${
                   isNetworkActive(network)
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-blue-500 bg-blue-500/20'
+                    : 'border-white/20 hover:border-white/30'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Globe className="w-5 h-5 text-blue-600" />
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      isNetworkActive(network) ? 'bg-blue-500/20' : 'bg-white/10'
+                    }`}>
+                      <Globe className={`w-5 h-5 ${isNetworkActive(network) ? 'text-blue-400' : 'text-white'}`} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">{network.name}</h3>
-                      <p className="text-sm text-gray-600">{network.symbol}</p>
+                      <h3 className="font-semibold text-white">{network.name}</h3>
+                      <p className="text-slate-400 text-sm">{network.symbol} • Chain ID: {network.chainId}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     {isNetworkActive(network) && (
-                      <Check className="w-5 h-5 text-blue-600" />
+                      <Check className="w-5 h-5 text-blue-400" />
                     )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        testNetworkConnection(network);
+                      }}
+                      className="p-1 hover:bg-white/10 rounded transition-colors"
+                      disabled={isTestingConnection === network.id}
+                    >
+                      {isTestingConnection === network.id ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                      ) : (
+                        <Wifi className="w-4 h-4 text-slate-400" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleNetworkSwitch(network)}
+                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        isNetworkActive(network)
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-white/10 text-white hover:bg-white/20'
+                      }`}
+                    >
+                      {isNetworkActive(network) ? 'Active' : 'Switch'}
+                    </button>
                   </div>
                 </div>
               </motion.div>
@@ -167,37 +367,206 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           </div>
         </div>
 
+        {/* Non-EVM Networks */}
+        <div>
+          <h2 className="text-lg font-semibold text-white mb-4">Non-EVM Networks</h2>
+          <div className="space-y-3">
+            {/* Bitcoin */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              onClick={() => onNavigate('bitcoin')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-yellow-600 rounded-lg flex items-center justify-center">
+                    <Bitcoin className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Bitcoin</h3>
+                    <p className="text-slate-400 text-sm">BTC • Layer 1</p>
+                  </div>
+                </div>
+                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                  Open
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Solana */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              onClick={() => onNavigate('solana')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Solana</h3>
+                    <p className="text-slate-400 text-sm">SOL • High Performance</p>
+                  </div>
+                </div>
+                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                  Open
+                </button>
+              </div>
+            </motion.div>
+
+            {/* TRON */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              onClick={() => onNavigate('tron')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-orange-600 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">TRON</h3>
+                    <p className="text-slate-400 text-sm">TRX • Entertainment</p>
+                  </div>
+                </div>
+                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                  Open
+                </button>
+              </div>
+            </motion.div>
+
+            {/* Litecoin */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              onClick={() => onNavigate('litecoin')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-gray-500 to-slate-600 rounded-lg flex items-center justify-center">
+                    <Bitcoin className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">Litecoin</h3>
+                    <p className="text-slate-400 text-sm">LTC • Silver to Bitcoin's Gold</p>
+                  </div>
+                </div>
+                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                  Open
+                </button>
+              </div>
+            </motion.div>
+
+            {/* TON */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              onClick={() => onNavigate('ton')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-lg flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">TON</h3>
+                    <p className="text-slate-400 text-sm">The Open Network</p>
+                  </div>
+                </div>
+                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                  Open
+                </button>
+              </div>
+            </motion.div>
+
+            {/* XRP */}
+            <motion.div
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              onClick={() => onNavigate('xrp')}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-white">XRP</h3>
+                    <p className="text-slate-400 text-sm">Ripple Network</p>
+                  </div>
+                </div>
+                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                  Open
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+
         {/* Custom Networks */}
         {networks.filter(n => n.isCustom).length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Custom Networks</h2>
-            <div className="space-y-2">
+            <h2 className="text-lg font-semibold text-white mb-4">Custom Networks</h2>
+            <div className="space-y-3">
               {networks.filter(n => n.isCustom).map((network) => (
                 <motion.div
                   key={network.id}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={() => handleNetworkSwitch(network)}
-                  className={`p-4 bg-white rounded-xl border-2 cursor-pointer transition-all ${
+                  className={`p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all ${
                     isNetworkActive(network)
-                      ? 'border-green-500 bg-green-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                      ? 'border-green-500 bg-green-500/20'
+                      : 'border-white/20 hover:border-white/30'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                        <Settings className="w-5 h-5 text-green-600" />
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                        isNetworkActive(network) ? 'bg-green-500/20' : 'bg-white/10'
+                      }`}>
+                        <Settings className={`w-5 h-5 ${isNetworkActive(network) ? 'text-green-400' : 'text-white'}`} />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900">{network.name}</h3>
-                        <p className="text-sm text-gray-600">{network.symbol}</p>
+                        <h3 className="font-semibold text-white">{network.name}</h3>
+                        <p className="text-slate-400 text-sm">{network.symbol} • Chain ID: {network.chainId}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       {isNetworkActive(network) && (
-                        <Check className="w-5 h-5 text-green-600" />
+                        <Check className="w-5 h-5 text-green-400" />
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          testNetworkConnection(network);
+                        }}
+                        className="p-1 hover:bg-white/10 rounded transition-colors"
+                        disabled={isTestingConnection === network.id}
+                      >
+                        {isTestingConnection === network.id ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        ) : (
+                          <Wifi className="w-4 h-4 text-slate-400" />
+                        )}
+                      </button>
+                      <button
+                        onClick={() => handleNetworkSwitch(network)}
+                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                          isNetworkActive(network)
+                            ? 'bg-green-500 text-white'
+                            : 'bg-white/10 text-white hover:bg-white/20'
+                        }`}
+                      >
+                        {isNetworkActive(network) ? 'Active' : 'Switch'}
+                      </button>
                     </div>
                   </div>
                 </motion.div>
@@ -208,17 +577,17 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         {/* Add Custom Network Modal */}
         {isAddingCustom && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-white rounded-xl p-6 w-full max-w-md mx-4"
+              className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mx-4 border border-white/20"
             >
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Add Custom Network</h3>
+              <h3 className="text-lg font-semibold text-white mb-4">Add Custom Network</h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     Network Name
                   </label>
                   <input
@@ -226,12 +595,12 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     value={customNetwork.name}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, name: e.target.value }))}
                     placeholder="e.g., My Custom Network"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     Symbol
                   </label>
                   <input
@@ -239,12 +608,12 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     value={customNetwork.symbol}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, symbol: e.target.value }))}
                     placeholder="e.g., CUSTOM"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     RPC URL
                   </label>
                   <input
@@ -252,12 +621,12 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     value={customNetwork.rpcUrl}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, rpcUrl: e.target.value }))}
                     placeholder="https://rpc.example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     Chain ID
                   </label>
                   <input
@@ -265,12 +634,12 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     value={customNetwork.chainId}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, chainId: e.target.value }))}
                     placeholder="e.g., 1"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-300 mb-1">
                     Explorer URL (Optional)
                   </label>
                   <input
@@ -278,7 +647,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     value={customNetwork.explorerUrl}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, explorerUrl: e.target.value }))}
                     placeholder="https://explorer.example.com"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
                   />
                 </div>
               </div>
@@ -288,7 +657,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => setIsAddingCustom(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                  className="flex-1 px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700"
                 >
                   Cancel
                 </motion.button>
@@ -304,7 +673,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </motion.div>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };

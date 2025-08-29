@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Wallet, Plus, ExternalLink, Settings } from 'lucide-react';
-import { WalletConnectModal } from '../common/WalletConnectModal';
+import WalletConnectModal from '../common/WalletConnectModal';
 import { WalletConnectSessions } from '../common/WalletConnectSessions';
 import { WalletConnectApprovalModal } from '../common/WalletConnectApprovalModal';
 import { walletConnectManager, WalletConnectSession, WalletConnectProposal, WalletConnectRequest } from '../../utils/walletconnect-utils';
@@ -236,7 +236,23 @@ export const WalletConnectScreen: React.FC = () => {
       <WalletConnectModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onConnected={handleConnected}
+        onWalletSelect={(walletId, accountId) => {
+          // Handle wallet selection
+          const session: WalletConnectSession = {
+            topic: Date.now().toString(),
+            chainId: 1,
+            accounts: [accountId],
+            connected: true,
+            namespaces: {},
+            clientMeta: {
+              name: 'PayCio Wallet',
+              description: 'Multi-chain wallet',
+              url: 'https://paycio.com',
+              icons: []
+            }
+          };
+          handleConnected(session);
+        }}
       />
 
       {/* Approval Modal */}

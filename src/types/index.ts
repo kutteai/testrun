@@ -11,6 +11,18 @@ export type ScreenId =
   | 'settings'
   | 'security'
   | 'networks'
+  | 'accounts'
+  | 'tokens'
+  | 'ens'
+  | 'hardware'
+  | 'gas'
+  | 'bitcoin'
+  | 'solana'
+  | 'tron'
+  | 'litecoin'
+  | 'ton'
+  | 'xrp'
+
   | 'nfts'
   | 'portfolio'
   | 'transactions'
@@ -123,6 +135,7 @@ export interface WalletState {
   networks: Network[];
   accounts: string[];
   privateKey: string | null;
+  globalPassword: string | null;
 }
 
 export interface SecurityState {
@@ -193,6 +206,12 @@ export interface WalletContextType {
   updateAllBalances: () => Promise<void>;
   initializeWallet: () => Promise<void>;
   addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
+  switchAccount: (accountId: string) => Promise<void>;
+  addAccount: (password: string) => Promise<void>;
+  removeAccount: (accountId: string) => Promise<void>;
+  getCurrentAccount: () => Promise<any>;
+  getWalletAccounts: () => Promise<any[]>;
+  setGlobalPassword: (password: string) => void;
 }
 
 export interface SecurityContextType {

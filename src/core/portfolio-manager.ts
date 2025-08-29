@@ -175,7 +175,9 @@ export class PortfolioManager {
       const baseUrl = 'https://api.coingecko.com/api/v3';
       const ids = tokenIds.join(',');
       const url = apiKey 
-        ? `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&x_cg_demo_api_key=${apiKey}`
+        ? apiKey ? 
+          `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&x_cg_demo_api_key=${apiKey}` :
+          `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
         : `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
 
       const response = await fetch(url);

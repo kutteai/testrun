@@ -162,16 +162,20 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
         ...transactionState.pendingTransactions
       ];
 
-      // Simulate checking transaction status
-      const updatedTransactions = allTransactions.map(tx => {
+      // Check transaction status from blockchain
+      const updatedTransactions = await Promise.all(allTransactions.map(async (tx) => {
         if (tx.status === 'pending') {
-          // Simulate some transactions being confirmed
-          if (Math.random() > 0.7) {
-            return { ...tx, status: 'confirmed' as const };
+          try {
+            // In a real implementation, check transaction status from blockchain
+            // For now, keep transactions as pending until real implementation
+            return tx;
+          } catch (error) {
+            console.error('Error checking transaction status:', error);
+            return tx;
           }
         }
         return tx;
-      });
+      }));
 
       const pending = updatedTransactions.filter(tx => tx.status === 'pending');
       const recent = updatedTransactions

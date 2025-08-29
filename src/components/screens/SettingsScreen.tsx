@@ -90,6 +90,12 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       icon: Settings,
       items: [
         {
+          id: 'accounts',
+          label: 'Manage Accounts',
+          type: 'link',
+          action: () => onNavigate('accounts')
+        },
+        {
           id: 'export',
           label: 'Export Wallet',
           type: 'button',

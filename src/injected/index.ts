@@ -1,6 +1,290 @@
 // PayCio Wallet injection script - runs in page context
 console.log('🔍 PayCio: Injecting into page context...');
 
+// Global state for dApp connection handling
+let isWalletUnlocked = false;
+let pendingConnectionRequests: Array<{
+  id: string;
+  method: string;
+  params: any[];
+  resolve: (value: any) => void;
+  reject: (error: any) => void;
+}> = [];
+
+// Check wallet unlock status
+async function checkWalletUnlockStatus(): Promise<boolean> {
+  return new Promise((resolve) => {
+    chrome.storage.local.get(['walletState'], (result) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error checking wallet status:', chrome.runtime.lastError);
+        resolve(false);
+        return;
+      }
+      
+      const isUnlocked = result.walletState?.isWalletUnlocked || false;
+      isWalletUnlocked = isUnlocked;
+      resolve(isUnlocked);
+    });
+  });
+}
+
+// Show wallet unlock popup
+async function showWalletUnlockPopup(): Promise<boolean> {
+  return new Promise((resolve) => {
+    // Send message to background script to open popup
+    chrome.runtime.sendMessage({
+      type: 'SHOW_WALLET_UNLOCK_POPUP'
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error showing unlock popup:', chrome.runtime.lastError);
+        resolve(false);
+        return;
+      }
+      resolve(response?.success || false);
+    });
+  });
+}
+
+// Handle pending connection requests
+async function handlePendingConnections() {
+  if (pendingConnectionRequests.length === 0) return;
+  
+  const isUnlocked = await checkWalletUnlockStatus();
+  if (!isUnlocked) {
+    console.log('PayCio: Wallet still locked, cannot process pending connections');
+    return;
+  }
+  
+  console.log('PayCio: Processing pending connections:', pendingConnectionRequests.length);
+  
+  // Process all pending requests
+  for (const request of pendingConnectionRequests) {
+    try {
+      const result = await processWalletRequest(request.method, request.params);
+      request.resolve(result);
+    } catch (error) {
+      request.reject(error);
+    }
+  }
+  
+  // Clear pending requests
+  pendingConnectionRequests = [];
+}
+
+// Process wallet request
+async function processWalletRequest(method: string, params: any[]): Promise<any> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      type: 'WALLET_REQUEST',
+      method,
+      params
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      
+      if (response?.success) {
+        resolve(response.result);
+      } else {
+        reject(new Error(response?.error || 'Unknown error'));
+      }
+    });
+  });
+}
+
+// Intercept ethereum provider requests
+function interceptEthereumProvider() {
+  // Check if ethereum provider already exists
+  if ((window as any).ethereum) {
+    console.log('PayCio: Ethereum provider already exists, intercepting...');
+    interceptExistingProvider((window as any).ethereum);
+  } else {
+    console.log('PayCio: No ethereum provider found, setting up interception...');
+    setupProviderInterception();
+  }
+}
+
+// Intercept existing ethereum provider
+function interceptExistingProvider(provider: any) {
+  const originalRequest = provider.request;
+  
+  provider.request = async function(args: any) {
+    console.log('PayCio: Intercepted ethereum request:', args);
+    
+    // Check if this is a connection request
+    const isConnectionRequest = args.method === 'eth_requestAccounts' || 
+                               args.method === 'eth_accounts' ||
+                               args.method === 'wallet_requestPermissions';
+    
+    if (isConnectionRequest) {
+      // Check wallet unlock status
+      const isUnlocked = await checkWalletUnlockStatus();
+      
+      if (!isUnlocked) {
+        console.log('PayCio: Wallet is locked, showing unlock popup...');
+        
+        // Show unlock popup
+        const unlockSuccess = await showWalletUnlockPopup();
+        
+        if (!unlockSuccess) {
+          throw new Error('User cancelled wallet unlock');
+        }
+        
+        // Wait for wallet to be unlocked
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds timeout
+        
+        while (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          
+          const isNowUnlocked = await checkWalletUnlockStatus();
+          if (isNowUnlocked) {
+            console.log('PayCio: Wallet unlocked, proceeding with connection...');
+            break;
+          }
+          
+          attempts++;
+        }
+        
+        if (attempts >= maxAttempts) {
+          throw new Error('Wallet unlock timeout');
+        }
+      }
+    }
+    
+    // Process the request
+    try {
+      const result = await processWalletRequest(args.method, args.params || []);
+      return result;
+    } catch (error) {
+      console.error('PayCio: Error processing wallet request:', error);
+      throw error;
+    }
+  };
+  
+  // Also intercept send method for older dApps
+  if (provider.send) {
+    const originalSend = provider.send;
+    
+    provider.send = async function(payload: any, callback: any) {
+      console.log('PayCio: Intercepted ethereum send:', payload);
+      
+      // Check if this is a connection request
+      const isConnectionRequest = payload.method === 'eth_requestAccounts' || 
+                                 payload.method === 'eth_accounts' ||
+                                 payload.method === 'wallet_requestPermissions';
+      
+      if (isConnectionRequest) {
+        // Check wallet unlock status
+        const isUnlocked = await checkWalletUnlockStatus();
+        
+        if (!isUnlocked) {
+          console.log('PayCio: Wallet is locked, showing unlock popup...');
+          
+          // Show unlock popup
+          const unlockSuccess = await showWalletUnlockPopup();
+          
+          if (!unlockSuccess) {
+            const error = { code: 4001, message: 'User rejected request' };
+            callback(error, null);
+            return;
+          }
+          
+          // Wait for wallet to be unlocked
+          let attempts = 0;
+          const maxAttempts = 30; // 30 seconds timeout
+          
+          while (attempts < maxAttempts) {
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            
+            const isNowUnlocked = await checkWalletUnlockStatus();
+            if (isNowUnlocked) {
+              console.log('PayCio: Wallet unlocked, proceeding with connection...');
+              break;
+            }
+            
+            attempts++;
+          }
+          
+          if (attempts >= maxAttempts) {
+            const error = { code: 4001, message: 'Wallet unlock timeout' };
+            callback(error, null);
+            return;
+          }
+        }
+      }
+      
+      // Process the request
+      try {
+        const result = await processWalletRequest(payload.method, payload.params || []);
+        callback(null, { result });
+      } catch (error) {
+        console.error('PayCio: Error processing wallet request:', error);
+        callback(error, null);
+      }
+    };
+  }
+}
+
+// Setup provider interception for when ethereum provider is added later
+function setupProviderInterception() {
+  // Watch for ethereum provider being added
+  const originalDefineProperty = Object.defineProperty;
+  
+  Object.defineProperty = function(obj: any, prop: string, descriptor: any) {
+    if (obj === window && prop === 'ethereum') {
+      console.log('PayCio: Ethereum provider being defined, intercepting...');
+      
+      // Intercept the provider after it's set
+      setTimeout(() => {
+        if ((window as any).ethereum) {
+          interceptExistingProvider((window as any).ethereum);
+        }
+      }, 100);
+    }
+    
+    return originalDefineProperty.call(this, obj, prop, descriptor);
+  };
+  
+  // Also watch for direct assignment
+  const originalSet = Object.getOwnPropertyDescriptor(window, 'ethereum')?.set;
+  if (originalSet) {
+    Object.defineProperty(window, 'ethereum', {
+      set: function(value: any) {
+        console.log('PayCio: Ethereum provider being set, intercepting...');
+        originalSet.call(this, value);
+        
+        // Intercept the provider after it's set
+        setTimeout(() => {
+          if ((window as any).ethereum) {
+            interceptExistingProvider((window as any).ethereum);
+          }
+        }, 100);
+      },
+      get: Object.getOwnPropertyDescriptor(window, 'ethereum')?.get,
+      configurable: true
+    });
+  }
+}
+
+// Listen for wallet unlock status changes
+chrome.storage.onChanged.addListener((changes, namespace) => {
+  if (namespace === 'local' && changes.walletState) {
+    const newUnlockStatus = changes.walletState.newValue?.isWalletUnlocked || false;
+    const oldUnlockStatus = changes.walletState.oldValue?.isWalletUnlocked || false;
+    
+    if (newUnlockStatus && !oldUnlockStatus) {
+      console.log('PayCio: Wallet unlocked, processing pending connections...');
+      isWalletUnlocked = true;
+      handlePendingConnections();
+    } else if (!newUnlockStatus && oldUnlockStatus) {
+      console.log('PayCio: Wallet locked');
+      isWalletUnlocked = false;
+    }
+  }
+});
+
 try {
   // IMMEDIATE error suppression - run this first
   (() => {
@@ -177,7 +461,7 @@ try {
   // It will:
   // 1. Get the actual address from your wallet's Chrome storage
   // 2. Use that address for dApp connections
-  // 3. Fall back to demo address only if no real wallet is found
+      // 3. No fallback - require real wallet
   console.log('🔍 PayCio: Looking for real wallet address in Chrome storage...');
   
   // Create MetaMask-style confirmation popup
@@ -374,6 +658,13 @@ try {
   const provider = {
     isPayCioWallet: true,
     isMetaMask: false,
+    isCoinbaseWallet: false,
+    isTrust: false,
+    isImToken: false,
+    isTokenPocket: false,
+    isBitKeep: false,
+    isRainbow: false,
+    isWalletConnect: false,
     chainId: '0x1',
     networkVersion: '1',
     selectedAddress: null, // Will be set when user connects
@@ -462,12 +753,8 @@ try {
                   console.log('✅ PayCio: Connected with real address:', realAddress);
                   resolve([realAddress]);
                 } else {
-                  console.log('⚠️ PayCio: No real wallet found, using demo address');
-                  // Fallback to demo address if no real wallet
-                  const demoAccount = '0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6';
-                  provider.selectedAddress = demoAccount;
-                  provider._state.accounts = [demoAccount];
-                  resolve([demoAccount]);
+                  console.log('⚠️ PayCio: No real wallet found');
+                  reject(new Error('No wallet available. Please create or import a wallet first.'));
                 }
               },
               () => {
@@ -529,6 +816,54 @@ try {
       if (provider._events[eventName]) {
         provider._events[eventName].forEach((callback: any) => callback(data));
       }
+    },
+
+    // Additional compatibility methods that dApps expect
+    enable: async () => {
+      console.log('PayCio: enable() called');
+      return await provider.request({ method: 'eth_requestAccounts' });
+    },
+
+    send: async (method: string, params?: any[]) => {
+      console.log('PayCio: send() called with method:', method);
+      return await provider.request({ method, params });
+    },
+
+    sendAsync: (request: any, callback: any) => {
+      console.log('PayCio: sendAsync() called');
+      provider.request(request).then(result => {
+        callback(null, { result });
+      }).catch(error => {
+        callback(error);
+      });
+    },
+
+    // Web3 compatibility
+    isWeb3: false,
+    autoRefreshOnNetworkChange: true,
+    
+    // Methods that some dApps call
+    requestAccounts: async () => {
+      return await provider.request({ method: 'eth_requestAccounts' });
+    },
+    
+    getAccounts: async () => {
+      return await provider.request({ method: 'eth_accounts' });
+    },
+    
+    getNetwork: async () => {
+      return { chainId: 1, name: 'Ethereum' };
+    },
+    
+    getProvider: () => provider,
+    
+    // Event emitter compatibility
+    addEventListener: (eventName: string, callback: any) => {
+      provider.on(eventName, callback);
+    },
+    
+    removeEventListener: (eventName: string, callback: any) => {
+      provider.removeListener(eventName, callback);
     }
   };
   

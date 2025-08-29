@@ -20,21 +20,29 @@ interface PortfolioProviderProps {
   children: ReactNode;
 }
 
-// Token IDs for CoinGecko API
-const TOKEN_IDS: Record<string, string> = {
-  ethereum: 'ethereum',
-  bsc: 'binancecoin',
-  polygon: 'matic-network',
-  avalanche: 'avalanche-2',
-  arbitrum: 'ethereum', // Arbitrum uses ETH
-  optimism: 'ethereum', // Optimism uses ETH
-  bitcoin: 'bitcoin',
-  solana: 'solana',
-  tron: 'tron',
-  litecoin: 'litecoin',
-  ton: 'the-open-network',
-  xrp: 'ripple'
-};
+  // Token IDs for CoinGecko API
+  const TOKEN_IDS: Record<string, string> = {
+    ethereum: 'ethereum',
+    bsc: 'binancecoin',
+    polygon: 'matic-network',
+    avalanche: 'avalanche-2',
+    arbitrum: 'ethereum', // Arbitrum uses ETH
+    optimism: 'ethereum', // Optimism uses ETH
+    base: 'ethereum', // Base uses ETH
+    fantom: 'fantom',
+    zksync: 'ethereum', // zkSync uses ETH
+    linea: 'ethereum', // Linea uses ETH
+    mantle: 'mantle',
+    scroll: 'ethereum', // Scroll uses ETH
+    'polygon-zkevm': 'ethereum', // Polygon zkEVM uses ETH
+    'arbitrum-nova': 'ethereum', // Arbitrum Nova uses ETH
+    bitcoin: 'bitcoin',
+    solana: 'solana',
+    tron: 'tron',
+    litecoin: 'litecoin',
+    ton: 'the-open-network',
+    xrp: 'ripple'
+  };
 
 export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }) => {
   const [portfolioState, setPortfolioState] = useState<PortfolioState>({
@@ -56,10 +64,11 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
     });
   }, []);
 
-  // Save portfolio to storage
-  const savePortfolio = (portfolioValue: PortfolioValue) => {
-    chrome.storage.local.set({ portfolioValue });
-  };
+        // Save portfolio to storage
+      const savePortfolio = (portfolioValue: PortfolioValue) => {
+        chrome.storage.local.set({ portfolioValue });
+        console.log('Portfolio saved to storage:', portfolioValue);
+      };
 
   // Update portfolio with real data
   const updatePortfolio = async () => {
@@ -82,7 +91,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
       }
 
       const address = walletData.address;
-      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'];
+      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism', 'base', 'fantom', 'zksync', 'linea', 'mantle', 'scroll', 'polygon-zkevm', 'arbitrum-nova'];
       const assets = [];
 
       // Fetch balances for all networks

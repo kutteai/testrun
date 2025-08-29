@@ -36,40 +36,59 @@ function initializeBackground() {
             break;
             
           case 'GET_ACCOUNTS':
-            // Mock response for now
-            sendResponse({ 
-              success: true, 
-              accounts: [] 
+            // Get accounts from wallet storage
+            chrome.storage.local.get(['wallet'], (result) => {
+              const accounts = result.wallet?.accounts || [];
+              sendResponse({ 
+                success: true, 
+                accounts 
+              });
             });
-            break;
+            return true; // Keep message channel open for async response
             
           case 'GET_BALANCE':
-            sendResponse({ 
-              success: true, 
-              balance: '0x0' 
+            // Get balance from wallet storage
+            chrome.storage.local.get(['wallet'], (result) => {
+              const balance = result.wallet?.balance || '0x0';
+              sendResponse({ 
+                success: true, 
+                balance 
+              });
             });
-            break;
+            return true; // Keep message channel open for async response
             
           case 'ETH_REQUEST_ACCOUNTS':
-            sendResponse({ 
-              success: true, 
-              accounts: [] 
+            // Request accounts from wallet
+            chrome.storage.local.get(['wallet'], (result) => {
+              const accounts = result.wallet?.accounts || [];
+              sendResponse({ 
+                success: true, 
+                accounts 
+              });
             });
-            break;
+            return true; // Keep message channel open for async response
             
           case 'ETH_ACCOUNTS':
-            sendResponse({ 
-              success: true, 
-              accounts: [] 
+            // Get current accounts
+            chrome.storage.local.get(['wallet'], (result) => {
+              const accounts = result.wallet?.accounts || [];
+              sendResponse({ 
+                success: true, 
+                accounts 
+              });
             });
-            break;
+            return true; // Keep message channel open for async response
             
           case 'ETH_CHAIN_ID':
-            sendResponse({ 
-              success: true, 
-              chainId: '0x1' 
+            // Get current chain ID
+            chrome.storage.local.get(['network'], (result) => {
+              const chainId = result.network?.chainId || '0x1';
+              sendResponse({ 
+                success: true, 
+                chainId 
+              });
             });
-            break;
+            return true; // Keep message channel open for async response
             
           default:
             sendResponse({ 

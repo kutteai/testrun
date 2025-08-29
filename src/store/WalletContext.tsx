@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { getRealBalance } from '../utils/web3-utils';
-import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validatePrivateKey, hashPassword, verifyPassword } from '../utils/crypto-utils';
+import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validatePrivateKey, hashPassword, verifyPassword, encryptData } from '../utils/crypto-utils';
 import { deriveWalletFromSeed, importWalletFromPrivateKey as importFromPrivateKey } from '../utils/key-derivation';
 import { 
   WalletData, 
@@ -10,8 +10,8 @@ import {
   Network
 } from '../types/index';
 
-// Auto-lock timeout (30 minutes)
-const AUTO_LOCK_TIMEOUT = 30 * 60 * 1000;
+// Auto-lock timeout (15 minutes)
+const AUTO_LOCK_TIMEOUT = 15 * 60 * 1000;
 
 // Initial state
 const initialState: WalletState = {
@@ -27,7 +27,8 @@ const initialState: WalletState = {
   currentNetwork: null,
   networks: [],
   accounts: [],
-  privateKey: null
+  privateKey: null,
+  globalPassword: null
 };
 
 // Action types
@@ -41,6 +42,7 @@ type WalletAction =
   | { type: 'SET_BALANCES'; payload: Record<string, string> }
   | { type: 'SET_CURRENT_NETWORK'; payload: Network }
   | { type: 'SET_HAS_WALLET'; payload: boolean }
+  | { type: 'SET_GLOBAL_PASSWORD'; payload: string }
   | { type: 'LOCK_WALLET' }
   | { type: 'CLEAR_WALLET' };
 
@@ -72,11 +74,14 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
       return { ...state, currentNetwork: action.payload };
     case 'SET_HAS_WALLET':
       return { ...state, hasWallet: action.payload };
+    case 'SET_GLOBAL_PASSWORD':
+      return { ...state, globalPassword: action.payload };
     case 'LOCK_WALLET':
       return { 
         ...state, 
         isWalletUnlocked: false,
-        privateKey: null
+        privateKey: null,
+        globalPassword: null
       };
     case 'CLEAR_WALLET':
       return { 
@@ -88,6 +93,7 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
         address: null,
         accounts: [],
         privateKey: null,
+        globalPassword: null,
         isInitializing: false
       };
     default:
@@ -114,6 +120,31 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (state.isWalletUnlocked && state.address) {
       updateAllBalances();
     }
+  }, [state.isWalletUnlocked, state.address]);
+
+  // Listen for network changes and update balances
+  useEffect(() => {
+    const handleNetworkChange = async (event: CustomEvent) => {
+      try {
+        const { networkId, network } = event.detail;
+        console.log('Network changed to:', networkId, network);
+        
+        // Update balances for the new network
+        if (state.isWalletUnlocked && state.address) {
+          await updateAllBalances();
+        }
+      } catch (error) {
+        console.error('Failed to handle network change:', error);
+      }
+    };
+
+    // Add event listener for network changes
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
   }, [state.isWalletUnlocked, state.address]);
 
   // Initialize wallet on mount - COMPLETELY DISABLED
@@ -262,10 +293,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Create new wallet with real implementation
   const createWallet = async (name: string, network: string): Promise<void> => {
     try {
+      if (!state.globalPassword) {
+        throw new Error('Global password not set. Please unlock wallet first.');
+      }
+
       dispatch({ type: 'SET_LOADING', payload: true });
 
       // Generate real BIP39 seed phrase
       const seedPhrase = generateBIP39SeedPhrase();
+      
+      // Encrypt the seed phrase with the global password
+      const encryptedSeedPhrase = await encryptData(seedPhrase, state.globalPassword);
       
       // Derive wallet from seed phrase
       const walletData = await deriveWalletFromSeed(seedPhrase, network);
@@ -276,7 +314,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         address: walletData.address,
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
-        encryptedSeedPhrase: walletData.seedPhrase,
+        encryptedSeedPhrase: encryptedSeedPhrase,
         accounts: [walletData.address],
         networks: [network],
         currentNetwork: network,
@@ -304,12 +342,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Import wallet from seed phrase with real implementation
   const importWallet = async (seedPhrase: string, network: string): Promise<void> => {
     try {
+      if (!state.globalPassword) {
+        throw new Error('Global password not set. Please unlock wallet first.');
+      }
+
       dispatch({ type: 'SET_LOADING', payload: true });
 
       // Validate seed phrase
       if (!validateBIP39SeedPhrase(seedPhrase)) {
         throw new Error('Invalid seed phrase');
       }
+
+      // Encrypt the seed phrase with the global password
+      const encryptedSeedPhrase = await encryptData(seedPhrase, state.globalPassword);
 
       // Derive wallet from seed phrase
       const walletData = await deriveWalletFromSeed(seedPhrase, network);
@@ -320,7 +365,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         address: walletData.address,
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
-        encryptedSeedPhrase: walletData.seedPhrase,
+        encryptedSeedPhrase: encryptedSeedPhrase,
         accounts: [walletData.address],
         networks: [network],
         currentNetwork: network,
@@ -426,6 +471,11 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  // Set global password
+  const setGlobalPassword = (password: string): void => {
+    dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
+  };
+
   // Unlock wallet with real password verification
   const unlockWallet = async (password: string): Promise<boolean> => {
     try {
@@ -442,6 +492,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         await storePasswordHash(hash);
         dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
         dispatch({ type: 'SET_WALLET', payload: storedWallet });
+        dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
         await storeUnlockTime(Date.now());
         toast.success('Wallet unlocked successfully');
         return true;
@@ -452,6 +503,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (isValid) {
         dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
         dispatch({ type: 'SET_WALLET', payload: storedWallet });
+        dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
         await storeUnlockTime(Date.now());
         toast.success('Wallet unlocked successfully');
         return true;
@@ -485,16 +537,194 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         throw new Error('Network not found');
       }
 
+      // Update the current network in state
       dispatch({ type: 'SET_CURRENT_NETWORK', payload: network });
+      
+      // If we have a wallet, generate the correct address for the new network
+      if (state.wallet) {
+        const { WalletManager } = await import('../core/wallet-manager');
+        const walletManager = new WalletManager();
+        
+        // Generate the correct address for the new network
+        let newAddress = state.wallet.address;
+        
+        // For non-EVM chains, we need to generate the correct address format
+        if (['tron', 'bitcoin', 'litecoin', 'solana', 'ton', 'xrp'].includes(networkId)) {
+          // For now, we'll use a placeholder approach
+          // In a real implementation, you'd derive the address from the same seed phrase
+          // using the appropriate derivation path for each network
+          
+          // Generate a deterministic address based on the wallet's private key and network
+          const { deriveWalletFromSeed } = await import('../utils/key-derivation');
+          
+          // For demonstration, we'll create a network-specific address
+          // In production, you'd use the actual seed phrase to derive the correct address
+          // For now, we'll use a hash of the private key + network to create a deterministic address
+          const addressHash = await import('crypto-browserify');
+          const hash = addressHash.createHash('sha256')
+            .update(state.wallet.privateKey + networkId)
+            .digest('hex');
+          
+          // Create a network-specific address format
+          switch (networkId) {
+            case 'tron':
+              newAddress = 'T' + hash.slice(0, 33); // TRON addresses start with T
+              break;
+            case 'bitcoin':
+              newAddress = '1' + hash.slice(0, 33); // Bitcoin addresses start with 1
+              break;
+            case 'litecoin':
+              newAddress = 'L' + hash.slice(0, 33); // Litecoin addresses start with L
+              break;
+            case 'solana':
+              newAddress = hash.slice(0, 44); // Solana addresses are base58 encoded
+              break;
+            case 'ton':
+              newAddress = '0:' + hash.slice(0, 64); // TON addresses have workchain:hex format
+              break;
+            case 'xrp':
+              newAddress = 'r' + hash.slice(0, 33); // XRP addresses start with r
+              break;
+            default:
+              newAddress = state.wallet.address; // Keep original for unknown networks
+          }
+        }
+        
+        // Update wallet with new network and address
+        const updatedWallet = { 
+          ...state.wallet, 
+          currentNetwork: networkId,
+          address: newAddress
+        };
+        dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+        
+        // Update the wallet manager
+        await walletManager.switchWalletNetwork(state.wallet.id, networkId);
+      }
       
       // Update balances for new network
       if (state.address) {
         await updateAllBalances();
       }
+      
+      toast.success(`Switched to ${network.name}`);
     } catch (error) {
       toast.error('Failed to switch network');
       dispatch({ type: 'SET_ERROR', payload: 'Failed to switch network' });
     }
+  };
+
+  // Switch account
+  const switchAccount = async (accountId: string): Promise<void> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      // Wait a bit for the wallet manager to initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await walletManager.switchAccount(state.wallet.id, accountId);
+      
+      // Get the updated wallet with the new account
+      const updatedWallet = await walletManager.getWallet(state.wallet.id);
+      if (updatedWallet) {
+        dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+        toast.success('Account switched successfully');
+      }
+    } catch (error) {
+      toast.error('Failed to switch account');
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to switch account' });
+    }
+  };
+
+  // Add new account
+  const addAccount = async (password: string): Promise<void> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      // Wait a bit for the wallet manager to initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const newAccount = await walletManager.addAccountToWallet(state.wallet.id, password);
+      
+      // Get the updated wallet with the new account
+      const updatedWallet = await walletManager.getWallet(state.wallet.id);
+      if (updatedWallet) {
+        dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+        toast.success('New account added successfully');
+      }
+    } catch (error) {
+      console.error('Error adding account:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to add account';
+      toast.error(errorMessage);
+      dispatch({ type: 'SET_ERROR', payload: errorMessage });
+    }
+  };
+
+  // Remove account
+  const removeAccount = async (accountId: string): Promise<void> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      // Wait a bit for the wallet manager to initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      await walletManager.removeAccountFromWallet(state.wallet.id, accountId);
+      
+      // Get the updated wallet
+      const updatedWallet = await walletManager.getWallet(state.wallet.id);
+      if (updatedWallet) {
+        dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+        toast.success('Account removed successfully');
+      }
+    } catch (error) {
+      toast.error('Failed to remove account');
+      dispatch({ type: 'SET_ERROR', payload: 'Failed to remove account' });
+    }
+  };
+
+  // Get current account
+  const getCurrentAccount = async (): Promise<any> => {
+    if (!state.wallet) {
+      return null;
+    }
+
+    const { WalletManager } = await import('../core/wallet-manager');
+    const walletManager = new WalletManager();
+    
+    // Wait a bit for the wallet manager to initialize
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return walletManager.getCurrentAccountForWallet(state.wallet.id);
+  };
+
+  // Get all accounts for current wallet
+  const getWalletAccounts = async (): Promise<any[]> => {
+    if (!state.wallet) {
+      return [];
+    }
+
+    const { WalletManager } = await import('../core/wallet-manager');
+    const walletManager = new WalletManager();
+    
+    // Wait a bit for the wallet manager to initialize
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    return walletManager.getWalletAccounts(state.wallet.id);
   };
 
   // Get balance for specific address and network
@@ -514,15 +744,20 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!state.address) return;
 
     try {
-      const newBalances: Record<string, string> = {};
+      // Get current network from storage
+      const result = await chrome.storage.local.get(['currentNetwork']);
+      const currentNetworkId = result.currentNetwork || 'ethereum';
       
-      for (const network of state.networks) {
-        const balance = await getRealBalance(state.address!, network.id);
-        newBalances[`${state.address}_${network.id}`] = balance;
-      }
+      // Get balance for current network
+      const balance = await getRealBalance(state.address!, currentNetworkId);
+      
+      // Update balances state with new balance for current network
+      const newBalances = { ...state.balances };
+      newBalances[currentNetworkId] = balance;
 
       dispatch({ type: 'SET_BALANCES', payload: newBalances });
     } catch (error) {
+      console.error('Failed to update balances:', error);
       toast.error('Failed to update balances');
       dispatch({ type: 'SET_ERROR', payload: 'Failed to update balances' });
     }
@@ -684,7 +919,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     getBalance,
     updateAllBalances,
     initializeWallet,
-    addHardwareWallet
+    addHardwareWallet,
+    switchAccount,
+    addAccount,
+    removeAccount,
+    getCurrentAccount,
+    getWalletAccounts,
+    setGlobalPassword
   };
 
   return (

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rarible Wallet Detection Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border-radius: 5px; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Rarible Wallet Detection Test</h1>
+    
+    <div id="results"></div>
+
+    <script>
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        // Test 1: Basic ethereum provider
+        addResult('🔍 Testing basic ethereum provider...');
+        if (window.ethereum) {
+            addResult('✅ window.ethereum found', 'success');
+            addResult(`📝 Provider type: ${typeof window.ethereum}`, 'info');
+            addResult(`📝 Is MetaMask: ${window.ethereum.isMetaMask || false}`, 'info');
+            addResult(`📝 Is PayCio: ${window.ethereum.isPayCioWallet || false}`, 'info');
+        } else {
+            addResult('❌ window.ethereum not found', 'error');
+        }
+
+        // Test 2: EIP-6963 providers
+        addResult('🔍 Testing EIP-6963 providers...');
+        if (window.ethereum && window.ethereum.providers) {
+            addResult(`✅ Found ${window.ethereum.providers.length} providers`, 'success');
+            window.ethereum.providers.forEach((provider, index) => {
+                addResult(`📝 Provider ${index}: ${provider.constructor.name}`, 'info');
+            });
+        } else {
+            addResult('❌ No EIP-6963 providers found', 'error');
+        }
+
+        // Test 3: Common wallet detection methods
+        addResult('🔍 Testing common wallet detection...');
+        
+        // Check for specific wallet properties
+        const wallets = [
+            'metamask', 'coinbase', 'walletconnect', 'paycio', 'trust', 'imtoken'
+        ];
+        
+        wallets.forEach(wallet => {
+            if (window.ethereum && window.ethereum[`is${wallet.charAt(0).toUpperCase() + wallet.slice(1)}`]) {
+                addResult(`✅ ${wallet} detected`, 'success');
+            }
+        });
+
+        // Test 4: Request accounts
+        addResult('🔍 Testing eth_requestAccounts...');
+        if (window.ethereum && window.ethereum.request) {
+            window.ethereum.request({ method: 'eth_accounts' })
+                .then(accounts => {
+                    if (accounts && accounts.length > 0) {
+                        addResult(`✅ Connected account: ${accounts[0]}`, 'success');
+                    } else {
+                        addResult('⚠️ No accounts connected', 'info');
+                    }
+                })
+                .catch(error => {
+                    addResult(`❌ Error getting accounts: ${error.message}`, 'error');
+                });
+        } else {
+            addResult('❌ eth_requestAccounts not available', 'error');
+        }
+
+        // Test 5: Check for Rarible-specific detection
+        addResult('🔍 Testing Rarible-specific patterns...');
+        
+        // Common patterns dApps use
+        const patterns = [
+            'window.ethereum',
+            'window.web3',
+            'window.ethereum.providers',
+            'window.ethereum.isMetaMask',
+            'window.ethereum.request'
+        ];
+        
+        patterns.forEach(pattern => {
+            try {
+                const result = eval(pattern);
+                if (result) {
+                    addResult(`✅ ${pattern} exists`, 'success');
+                } else {
+                    addResult(`⚠️ ${pattern} exists but is falsy`, 'info');
+                }
+            } catch (error) {
+                addResult(`❌ ${pattern} not found: ${error.message}`, 'error');
+            }
+        });
+
+        // Test 6: Check for injected script
+        addResult('🔍 Checking for injected script...');
+        const scripts = document.querySelectorAll('script');
+        let foundInjected = false;
+        scripts.forEach(script => {
+            if (script.src && script.src.includes('injected.js')) {
+                foundInjected = true;
+            }
+        });
+        
+        if (foundInjected) {
+            addResult('✅ Injected script found', 'success');
+        } else {
+            addResult('❌ Injected script not found', 'error');
+        }
+
+        addResult('🎯 Test complete! Check results above.', 'info');
+    </script>
+</body>
+</html>
+

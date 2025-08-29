@@ -1,177 +1,278 @@
 import React, { useState, useEffect } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
-import { X, Copy, Check, ExternalLink } from 'lucide-react';
-import { walletConnectManager, WalletConnectSession } from '../../utils/walletconnect-utils';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Wallet, Plus, Copy, Check, User, Shield } from 'lucide-react';
+import { useWallet } from '../../store/WalletContext';
+import toast from 'react-hot-toast';
 
 interface WalletConnectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConnected: (session: WalletConnectSession) => void;
+  onWalletSelect: (walletId: string, accountId: string) => void;
+  requestNetwork?: string;
 }
 
-export const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
+const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
   isOpen,
   onClose,
-  onConnected
+  onWalletSelect,
+  requestNetwork
 }) => {
-  const [uri, setUri] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const { wallet, getWalletAccounts, getCurrentAccount } = useWallet();
+  const [wallets, setWallets] = useState<any[]>([]);
+  const [selectedWallet, setSelectedWallet] = useState<any>(null);
+  const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen && !uri) {
-      initializeConnection();
+    if (isOpen) {
+      loadWallets();
     }
   }, [isOpen]);
 
-  const initializeConnection = async () => {
+  const loadWallets = async () => {
     try {
-      setIsConnecting(true);
-      setError(null);
-      
-      const result = await walletConnectManager.connect();
-      setUri(result.uri);
-      
-      if (result.session) {
-        onConnected(result.session);
-        onClose();
+      // In a real implementation, you would load all wallets from storage
+      // For now, we'll use the current wallet if available
+      if (wallet) {
+        const accounts = await getWalletAccounts();
+        setWallets([{
+          id: wallet.id,
+          name: wallet.name,
+          address: wallet.address,
+          network: wallet.currentNetwork,
+          accounts: accounts
+        }]);
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Connection failed');
-    } finally {
-      setIsConnecting(false);
+    } catch (error) {
+      console.error('Failed to load wallets:', error);
     }
   };
 
-  const copyToClipboard = async () => {
-    if (uri) {
-      try {
-        await navigator.clipboard.writeText(uri);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } catch (err) {
-        console.error('Failed to copy URI:', err);
-      }
+  const handleWalletSelect = (wallet: any) => {
+    setSelectedWallet(wallet);
+    setSelectedAccount(null);
+  };
+
+  const handleAccountSelect = (account: any) => {
+    setSelectedAccount(account);
+  };
+
+  const handleConnect = () => {
+    if (selectedWallet && selectedAccount) {
+      onWalletSelect(selectedWallet.id, selectedAccount.id);
+      onClose();
+    } else {
+      toast.error('Please select a wallet and account');
     }
   };
 
-  const openWalletConnect = () => {
-    if (uri) {
-      window.open(`wc:${uri}`, '_blank');
+  const copyAddress = async (address: string) => {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(address);
+      toast.success('Address copied to clipboard');
+      setTimeout(() => setCopied(null), 2000);
+    } catch {
+      toast.error('Failed to copy address');
     }
   };
 
-  if (!isOpen) return null;
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const formatBalance = (balance: string) => {
+    const num = parseFloat(balance);
+    if (num === 0) return '0.00';
+    if (num < 0.01) return '< 0.01';
+    return num.toFixed(4);
+  };
+
+  const isNetworkCompatible = (walletNetwork: string) => {
+    if (!requestNetwork) return true;
+    return walletNetwork === requestNetwork;
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-900">
-            Connect Wallet
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg mx-4 border border-white/20 max-h-[80vh] overflow-hidden flex flex-col"
           >
-            <X size={24} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="space-y-6">
-          {isConnecting ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Initializing connection...</p>
-            </div>
-          ) : error ? (
-            <div className="text-center py-8">
-              <div className="text-red-500 mb-4">
-                <p className="font-medium">Connection Failed</p>
-                <p className="text-sm">{error}</p>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                  <Wallet className="w-4 h-4 text-blue-400" />
+                </div>
+                <h3 className="text-lg font-semibold text-white">Connect Wallet</h3>
               </div>
               <button
-                onClick={initializeConnection}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={onClose}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
               >
-                Try Again
+                <X className="w-5 h-5 text-slate-400" />
               </button>
             </div>
-          ) : uri ? (
-            <div className="space-y-4">
-              {/* QR Code */}
-              <div className="text-center">
-                <div className="bg-white p-4 rounded-lg border inline-block">
-                  <QRCodeSVG
-                    value={uri}
-                    size={200}
-                    level="M"
-                    includeMargin={true}
-                  />
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto space-y-6">
+              {/* Network Request Info */}
+              {requestNetwork && (
+                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
+                    <span className="text-sm text-blue-400 font-medium">Network Request</span>
+                  </div>
+                  <p className="text-slate-300 text-sm mt-1">
+                    This dApp is requesting to connect to the {requestNetwork} network.
+                  </p>
+                </div>
+              )}
+
+              {/* Wallets List */}
+              <div>
+                <h4 className="text-sm font-medium text-slate-300 mb-3">Select Wallet</h4>
+                <div className="space-y-3">
+                  {wallets.map((wallet) => (
+                    <motion.div
+                      key={wallet.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => handleWalletSelect(wallet)}
+                      className={`p-4 bg-white/10 rounded-xl border-2 cursor-pointer transition-all ${
+                        selectedWallet?.id === wallet.id
+                          ? 'border-blue-500 bg-blue-500/20'
+                          : 'border-white/20 hover:border-white/30'
+                      } ${!isNetworkCompatible(wallet.network) ? 'opacity-50' : ''}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            selectedWallet?.id === wallet.id ? 'bg-blue-500/20' : 'bg-white/10'
+                          }`}>
+                            <Wallet className={`w-5 h-5 ${selectedWallet?.id === wallet.id ? 'text-blue-400' : 'text-white'}`} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-white">{wallet.name}</h3>
+                            <p className="text-slate-400 text-sm">{formatAddress(wallet.address)}</p>
+                            <p className="text-slate-500 text-xs">Network: {wallet.network}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          {selectedWallet?.id === wallet.id && (
+                            <Check className="w-5 h-5 text-blue-400" />
+                          )}
+                          {!isNetworkCompatible(wallet.network) && (
+                            <span className="text-xs text-red-400">Incompatible</span>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
                 </div>
               </div>
 
-              {/* Instructions */}
-              <div className="text-center space-y-2">
-                <p className="text-gray-700 font-medium">
-                  Scan QR code with your mobile wallet
-                </p>
-                <p className="text-sm text-gray-500">
-                  Or copy the connection link below
-                </p>
-              </div>
-
-              {/* URI Display */}
-              <div className="space-y-2">
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    value={uri}
-                    readOnly
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50"
-                  />
-                  <button
-                    onClick={copyToClipboard}
-                    className="p-2 text-gray-500 hover:text-gray-700 transition-colors"
-                    title="Copy to clipboard"
-                  >
-                    {copied ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
+              {/* Accounts List */}
+              {selectedWallet && (
+                <div>
+                  <h4 className="text-sm font-medium text-slate-300 mb-3">Select Account</h4>
+                  <div className="space-y-3">
+                    {selectedWallet.accounts.map((account: any, index: number) => (
+                      <motion.div
+                        key={account.id}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleAccountSelect(account)}
+                        className={`p-4 bg-white/10 rounded-xl border-2 cursor-pointer transition-all ${
+                          selectedAccount?.id === account.id
+                            ? 'border-green-500 bg-green-500/20'
+                            : 'border-white/20 hover:border-white/30'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              selectedAccount?.id === account.id ? 'bg-green-500/20' : 'bg-white/10'
+                            }`}>
+                              <User className={`w-5 h-5 ${selectedAccount?.id === account.id ? 'text-green-400' : 'text-white'}`} />
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-white">Account {index + 1}</h3>
+                              <p className="text-slate-400 text-sm">{formatAddress(account.address)}</p>
+                              <p className="text-slate-500 text-xs">
+                                Balance: {formatBalance(account.balance || '0')} {selectedWallet.network}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            {selectedAccount?.id === account.id && (
+                              <Check className="w-5 h-5 text-green-400" />
+                            )}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyAddress(account.address);
+                              }}
+                              className="p-1 hover:bg-white/10 rounded transition-colors"
+                            >
+                              {copied === account.address ? (
+                                <Check className="w-4 h-4 text-green-400" />
+                              ) : (
+                                <Copy className="w-4 h-4 text-slate-400" />
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
-                
-                <button
-                  onClick={openWalletConnect}
-                  className="w-full flex items-center justify-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  <ExternalLink size={16} />
-                  <span>Open in Wallet</span>
-                </button>
-              </div>
+              )}
 
-              {/* Supported Wallets */}
-              <div className="text-center">
-                <p className="text-sm text-gray-500 mb-2">Supported Wallets:</p>
-                <div className="flex justify-center space-x-4 text-xs text-gray-400">
-                  <span>MetaMask</span>
-                  <span>Trust Wallet</span>
-                  <span>Rainbow</span>
-                  <span>Argent</span>
+              {/* No Wallets Message */}
+              {wallets.length === 0 && (
+                <div className="text-center py-8">
+                  <Wallet className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+                  <p className="text-slate-400">No wallets available</p>
+                  <p className="text-slate-500 text-sm">Create or import a wallet to connect</p>
                 </div>
-              </div>
+              )}
             </div>
-          ) : null}
-        </div>
 
-        {/* Footer */}
-        <div className="mt-6 pt-4 border-t border-gray-200">
-          <p className="text-xs text-gray-500 text-center">
-            By connecting, you agree to our Terms of Service and Privacy Policy
-          </p>
+            {/* Footer */}
+            <div className="flex space-x-3 mt-6 pt-4 border-t border-white/10">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={onClose}
+                className="flex-1 px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700"
+              >
+                Cancel
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={handleConnect}
+                disabled={!selectedWallet || !selectedAccount}
+                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  selectedWallet && selectedAccount
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                Connect
+              </motion.button>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </div>
+      )}
+    </AnimatePresence>
   );
-}; 
+};
+
+export default WalletConnectModal; 

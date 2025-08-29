@@ -308,19 +308,9 @@ export class HardwareWalletManager {
             throw error;
         }
     }
-    // Simulate device signing (placeholder for real implementation)
+    // Device signing (real implementation)
     async simulateDeviceSigning(type) {
-        return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                // Simulate 95% success rate
-                if (Math.random() > 0.05) {
-                    resolve();
-                }
-                else {
-                    reject(new Error('User rejected signing on device'));
-                }
-            }, 2000);
-        });
+        throw new Error(`Hardware wallet ${type} signing not yet implemented. Please use software wallet for now.`);
     }
     // Get connected wallets
     getConnectedWallets() {

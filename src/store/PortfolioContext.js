@@ -66,9 +66,9 @@ export const PortfolioProvider = ({ children }) => {
             if (!walletData?.address) {
                 throw new Error('No wallet found');
             }
-            const address = walletData.address;
-            const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'];
-            const assets = [];
+                  const address = walletData.address;
+      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism', 'base', 'fantom', 'zksync', 'linea', 'mantle', 'scroll', 'polygon-zkevm', 'arbitrum-nova'];
+      const assets = [];
             // Fetch balances for all networks
             for (const network of networks) {
                 try {

@@ -81,13 +81,11 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setIsLoading(true);
 
     try {
-      // Simulate transaction
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Add transaction to history
+      // In a real implementation, you would send the actual transaction
+      // For now, we'll create a placeholder transaction
       const transaction = {
         id: Date.now().toString(),
-        hash: '0x' + Math.random().toString(16).substr(2, 64),
+        hash: '0x0000000000000000000000000000000000000000000000000000000000000000', // Placeholder hash
         from: wallet?.address || '',
         to: toAddress,
         value: amount,
@@ -100,7 +98,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       };
 
       addTransaction(transaction);
-      toast.success('Transaction sent successfully!');
+      toast.success('Transaction created! (Real implementation needed)');
       onNavigate('dashboard');
     } catch (error) {
       toast.error('Transaction failed');

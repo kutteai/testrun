@@ -85,6 +85,37 @@ export async function deriveWalletFromSeed(seedPhrase: string, network: string =
   };
 }
 
+// Derive account with specific derivation path (for adding new accounts)
+export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: string): Promise<{
+  privateKey: string;
+  publicKey: string;
+  address: string;
+  derivationPath: string;
+}> {
+  if (!validateBIP39SeedPhrase(seedPhrase)) {
+    throw new Error('Invalid seed phrase');
+  }
+
+  try {
+    const seed = bip39.mnemonicToSeedSync(seedPhrase);
+    const hdkey = HDKey.fromMasterSeed(seed);
+    const childKey = hdkey.derive(derivationPath);
+    
+    const privateKey = '0x' + childKey.privateKey.toString('hex');
+    const publicKey = '0x' + childKey.publicKey.toString('hex');
+    const address = ethers.getAddress(ethers.computeAddress(publicKey));
+    
+    return {
+      privateKey,
+      publicKey,
+      address,
+      derivationPath
+    };
+  } catch (error) {
+    throw new Error(`Failed to derive account: ${error}`);
+  }
+}
+
 // Generate multiple accounts from seed phrase
 export function generateMultipleAccounts(
   seedPhrase: string, 

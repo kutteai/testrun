@@ -18,6 +18,11 @@ import ReceiveScreen from './components/screens/ReceiveScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
 import SecurityScreen from './components/screens/SecurityScreen';
 import NetworksScreen from './components/screens/NetworksScreen';
+import AccountsScreen from './components/screens/AccountsScreen';
+import TokensScreen from './components/screens/TokensScreen';
+import ENSScreen from './components/screens/ENSScreen';
+import HardwareWalletScreen from './components/screens/HardwareWalletScreen';
+import GasSettingsScreen from './components/screens/GasSettingsScreen';
 import NFTScreen from './components/screens/NFTScreen';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
@@ -141,6 +146,16 @@ const App: React.FC = () => {
         return <SecurityScreen onNavigate={handleNavigate} />;
       case 'networks':
         return <NetworksScreen onNavigate={handleNavigate} />;
+      case 'accounts':
+        return <AccountsScreen onNavigate={handleNavigate} />;
+      case 'tokens':
+        return <TokensScreen onNavigate={handleNavigate} />;
+      case 'ens':
+        return <ENSScreen onNavigate={handleNavigate} />;
+      case 'hardware':
+        return <HardwareWalletScreen onNavigate={handleNavigate} />;
+      case 'gas':
+        return <GasSettingsScreen onNavigate={handleNavigate} />;
       case 'nfts':
         return <NFTScreen onNavigate={handleNavigate} />;
       case 'portfolio':

@@ -3,7 +3,19 @@ import * as bip39 from 'bip39';
 import * as CryptoJS from 'crypto-js';
 import * as bcrypt from 'bcryptjs';
 
-// Generate BIP39 seed phrase (real implementation)
+// BIP39 supported entropy lengths and corresponding word counts
+export const BIP39_ENTROPY_LENGTHS = {
+  128: 12, // 12 words (128 bits entropy)
+  160: 15, // 15 words (160 bits entropy)
+  192: 18, // 18 words (192 bits entropy)
+  224: 21, // 21 words (224 bits entropy)
+  256: 24  // 24 words (256 bits entropy)
+} as const;
+
+export type EntropyLength = keyof typeof BIP39_ENTROPY_LENGTHS;
+export type WordCount = typeof BIP39_ENTROPY_LENGTHS[EntropyLength];
+
+// Generate BIP39 seed phrase (real implementation) - defaults to 24 words for maximum security
 export function generateBIP39SeedPhrase(): string {
   return bip39.generateMnemonic(256); // 24 words for maximum security
 }
@@ -13,31 +25,121 @@ export function generateBIP39SeedPhrase12(): string {
   return bip39.generateMnemonic(128); // 12 words like MetaMask
 }
 
-// Generate seed phrase with specified entropy (128 for 12 words, 256 for 24 words)
-export function generateBIP39SeedPhraseWithEntropy(entropy: 128 | 256 = 256): string {
+// Generate 15-word seed phrase
+export function generateBIP39SeedPhrase15(): string {
+  return bip39.generateMnemonic(160); // 15 words
+}
+
+// Generate 18-word seed phrase
+export function generateBIP39SeedPhrase18(): string {
+  return bip39.generateMnemonic(192); // 18 words
+}
+
+// Generate 21-word seed phrase
+export function generateBIP39SeedPhrase21(): string {
+  return bip39.generateMnemonic(224); // 21 words
+}
+
+// Generate 24-word seed phrase (maximum security)
+export function generateBIP39SeedPhrase24(): string {
+  return bip39.generateMnemonic(256); // 24 words for maximum security
+}
+
+// Generate seed phrase with specified entropy (128 for 12 words, 256 for 24 words, etc.)
+export function generateBIP39SeedPhraseWithEntropy(entropy: EntropyLength = 256): string {
   return bip39.generateMnemonic(entropy);
 }
 
-// Validate BIP39 seed phrase (real implementation)
+// Generate seed phrase with specified word count
+export function generateBIP39SeedPhraseWithWordCount(wordCount: WordCount): string {
+  const entropyLength = Object.entries(BIP39_ENTROPY_LENGTHS).find(([_, count]) => count === wordCount)?.[0];
+  
+  if (!entropyLength) {
+    throw new Error(`Invalid word count: ${wordCount}. Supported: ${Object.values(BIP39_ENTROPY_LENGTHS).join(', ')}`);
+  }
+  
+  return bip39.generateMnemonic(parseInt(entropyLength) as EntropyLength);
+}
+
+// Get entropy length from word count
+export function getEntropyFromWordCount(wordCount: number): EntropyLength | null {
+  const entropyLength = Object.entries(BIP39_ENTROPY_LENGTHS).find(([_, count]) => count === wordCount)?.[0];
+  return entropyLength ? (parseInt(entropyLength) as EntropyLength) : null;
+}
+
+// Get word count from entropy length
+export function getWordCountFromEntropy(entropy: EntropyLength): WordCount {
+  return BIP39_ENTROPY_LENGTHS[entropy];
+}
+
+// Validate BIP39 seed phrase (real implementation) - supports all BIP39 lengths
 export function validateBIP39SeedPhrase(seedPhrase: string): boolean {
   try {
     const trimmed = seedPhrase.trim();
     const wordCount = trimmed.split(/\s+/).length;
     const isValid = bip39.validateMnemonic(trimmed);
     
+    // Check if word count is supported
+    const supportedWordCounts = Object.values(BIP39_ENTROPY_LENGTHS);
+    const isSupportedLength = supportedWordCounts.includes(wordCount as WordCount);
+    
     console.log('BIP39 validation:', {
       original: seedPhrase,
       trimmed: trimmed,
       wordCount: wordCount,
       isValid: isValid,
-      expectedWords: wordCount === 12 ? '12 (MetaMask style)' : wordCount === 24 ? '24 (Enhanced security)' : 'Invalid count'
+      isSupportedLength: isSupportedLength,
+      expectedWords: getWordCountDescription(wordCount),
+      supportedLengths: supportedWordCounts
     });
     
-    return isValid;
+    return isValid && isSupportedLength;
   } catch (error) {
     console.error('Seed phrase validation error:', error);
     return false;
   }
+}
+
+// Get description for word count
+export function getWordCountDescription(wordCount: number): string {
+  switch (wordCount) {
+    case 12:
+      return '12 words (128 bits entropy - MetaMask style)';
+    case 15:
+      return '15 words (160 bits entropy)';
+    case 18:
+      return '18 words (192 bits entropy)';
+    case 21:
+      return '21 words (224 bits entropy)';
+    case 24:
+      return '24 words (256 bits entropy - Maximum security)';
+    default:
+      return `Invalid count: ${wordCount}. Supported: 12, 15, 18, 21, 24`;
+  }
+}
+
+// Get security level description
+export function getSecurityLevelDescription(wordCount: number): string {
+  switch (wordCount) {
+    case 12:
+      return 'Standard Security (128 bits)';
+    case 15:
+      return 'Enhanced Security (160 bits)';
+    case 18:
+      return 'High Security (192 bits)';
+    case 21:
+      return 'Very High Security (224 bits)';
+    case 24:
+      return 'Maximum Security (256 bits)';
+    default:
+      return 'Unknown Security Level';
+  }
+}
+
+// Get entropy bits from word count
+export function getEntropyBits(wordCount: number): number | null {
+  const entropyLength = getEntropyFromWordCount(wordCount);
+  return entropyLength || null;
 }
 
 // Generate wallet address from public key for specific network (real implementation)
