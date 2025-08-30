@@ -11,37 +11,102 @@ let pendingConnectionRequests: Array<{
   reject: (error: any) => void;
 }> = [];
 
-// Check wallet unlock status
+// Check wallet unlock status using postMessage
 async function checkWalletUnlockStatus(): Promise<boolean> {
   return new Promise((resolve) => {
-    chrome.storage.local.get(['walletState'], (result) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error checking wallet status:', chrome.runtime.lastError);
-        resolve(false);
-        return;
-      }
+    const messageId = Date.now().toString();
+    
+    const messageHandler = (event: MessageEvent) => {
+      if (event.source !== window) return;
       
-      const isUnlocked = result.walletState?.isWalletUnlocked || false;
-      isWalletUnlocked = isUnlocked;
-      resolve(isUnlocked);
-    });
+      if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
+        window.removeEventListener('message', messageHandler);
+        const isUnlocked = event.data.isUnlocked || false;
+        isWalletUnlocked = isUnlocked;
+        resolve(isUnlocked);
+      }
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    // Send request to content script
+    window.postMessage({
+      type: 'PAYCIO_CHECK_WALLET_STATUS',
+      id: messageId
+    }, '*');
+    
+    // Timeout after 5 seconds
+    setTimeout(() => {
+      window.removeEventListener('message', messageHandler);
+      resolve(false);
+    }, 5000);
   });
 }
 
-// Show wallet unlock popup
+// Show wallet unlock popup using postMessage
 async function showWalletUnlockPopup(): Promise<boolean> {
   return new Promise((resolve) => {
-    // Send message to background script to open popup
-    chrome.runtime.sendMessage({
-      type: 'SHOW_WALLET_UNLOCK_POPUP'
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('Error showing unlock popup:', chrome.runtime.lastError);
-        resolve(false);
-        return;
+    const messageId = Date.now().toString();
+    
+    const messageHandler = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      
+      if (event.data.type === 'PAYCIO_UNLOCK_POPUP_RESPONSE' && event.data.id === messageId) {
+        window.removeEventListener('message', messageHandler);
+        resolve(event.data.success || false);
       }
-      resolve(response?.success || false);
-    });
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    // Send request to content script
+    window.postMessage({
+      type: 'PAYCIO_SHOW_UNLOCK_POPUP',
+      id: messageId
+    }, '*');
+    
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      window.removeEventListener('message', messageHandler);
+      resolve(false);
+    }, 10000);
+  });
+}
+
+// Process wallet request using postMessage
+async function processWalletRequest(method: string, params: any[]): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const messageId = Date.now().toString();
+    
+    const messageHandler = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      
+      if (event.data.type === 'PAYCIO_WALLET_REQUEST_RESPONSE' && event.data.id === messageId) {
+        window.removeEventListener('message', messageHandler);
+        
+        if (event.data.success) {
+          resolve(event.data.result);
+        } else {
+          reject(new Error(event.data.error || 'Unknown error'));
+        }
+      }
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    // Send request to content script
+    window.postMessage({
+      type: 'PAYCIO_WALLET_REQUEST',
+      id: messageId,
+      method: method,
+      params: params
+    }, '*');
+    
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      window.removeEventListener('message', messageHandler);
+      reject(new Error('Request timeout'));
+    }, 30000);
   });
 }
 
@@ -72,26 +137,26 @@ async function handlePendingConnections() {
 }
 
 // Process wallet request
-async function processWalletRequest(method: string, params: any[]): Promise<any> {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage({
-      type: 'WALLET_REQUEST',
-      method,
-      params
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-        return;
-      }
+// async function processWalletRequest(method: string, params: any[]): Promise<any> {
+//   return new Promise((resolve, reject) => {
+//     chrome.runtime.sendMessage({
+//       type: 'WALLET_REQUEST',
+//       method,
+//       params
+//     }, (response) => {
+//       if (chrome.runtime.lastError) {
+//         reject(new Error(chrome.runtime.lastError.message));
+//         return;
+//       }
       
-      if (response?.success) {
-        resolve(response.result);
-      } else {
-        reject(new Error(response?.error || 'Unknown error'));
-      }
-    });
-  });
-}
+//       if (response?.success) {
+//         resolve(response.result);
+//       } else {
+//         reject(new Error(response?.error || 'Unknown error'));
+//       }
+//     });
+//   });
+// }
 
 // Intercept ethereum provider requests
 function interceptEthereumProvider() {

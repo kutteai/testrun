@@ -89,9 +89,16 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           // Store verification status
           await chrome.storage.local.set({ seedPhraseVerified: true });
           
+          // Prompt for password before creating wallet
+          const password = prompt('Please enter a password to secure your wallet:');
+          if (!password) {
+            toast.error('Password is required to create wallet');
+            return;
+          }
+          
           // Create the actual wallet
           try {
-            await importWallet(result.currentSeedPhrase, 'ethereum');
+            await importWallet(result.currentSeedPhrase, 'ethereum', password);
             toast.success('Wallet created and verified successfully!');
             
             // Navigate to dashboard after a short delay

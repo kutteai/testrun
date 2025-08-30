@@ -23,7 +23,8 @@ module.exports = (env, argv) => {
     experiments: {
       asyncWebAssembly: true,
       syncWebAssembly: true,
-      layers: true
+      layers: true,
+      topLevelAwait: true
     },
 
     entry: {
@@ -37,7 +38,17 @@ module.exports = (env, argv) => {
       path: path.resolve(__dirname, `dist/${browser}`),
       filename: '[name].js',
       clean: true,
-      publicPath: ''
+      publicPath: '',
+      // Important: Set the correct environment for webpack
+      environment: {
+        arrowFunction: false,
+        bigIntLiteral: false,
+        const: false,
+        destructuring: false,
+        dynamicImport: false,
+        forOf: false,
+        module: false,
+      },
     },
     module: {
       rules: [
@@ -79,40 +90,23 @@ module.exports = (env, argv) => {
         {
           test: /\.wasm$/,
           type: 'webassembly/async'
+        },
+        // Handle mjs files properly
+        {
+          test: /\.m?js$/,
+          resolve: {
+            fullySpecified: false // disable the behaviour
+          }
         }
       ]
     },
     resolve: {
-      extensions: ['.ts', '.tsx', '.js', '.jsx', '.wasm'],
+      extensions: ['.ts', '.tsx', '.js', '.jsx', '.wasm', '.mjs'],
       alias: {
-        '@': path.resolve(__dirname, 'src'),
-        // Fix axios conflicts by aliasing to main axios version
-        'axios/lib/utils': path.resolve(__dirname, 'node_modules/axios/lib/utils.js'),
-        'axios/lib/helpers/isURLSameOrigin': path.resolve(__dirname, 'node_modules/axios/lib/helpers/isURLSameOrigin.js'),
-        'axios/lib/adapters/http': path.resolve(__dirname, 'node_modules/axios/lib/adapters/http.js'),
-        'axios/lib/adapters/xhr': path.resolve(__dirname, 'node_modules/axios/lib/adapters/xhr.js'),
-        'axios/lib/core/dispatchRequest': path.resolve(__dirname, 'node_modules/axios/lib/core/dispatchRequest.js'),
-        'axios/lib/core/settle': path.resolve(__dirname, 'node_modules/axios/lib/core/settle.js'),
-        'axios/lib/core/buildFullPath': path.resolve(__dirname, 'node_modules/axios/lib/core/buildFullPath.js'),
-        'axios/lib/core/createError': path.resolve(__dirname, 'node_modules/axios/lib/core/createError.js'),
-        'axios/lib/cancel/CancelToken': path.resolve(__dirname, 'node_modules/axios/lib/cancel/CancelToken.js'),
-        'axios/lib/helpers/normalizeHeaderName': path.resolve(__dirname, 'node_modules/axios/lib/helpers/normalizeHeaderName.js'),
-        'axios/lib/helpers/parseHeaders': path.resolve(__dirname, 'node_modules/axios/lib/helpers/parseHeaders.js'),
-        'axios/lib/helpers/cookies': path.resolve(__dirname, 'node_modules/axios/lib/helpers/cookies.js'),
-        'axios/lib/helpers/isAbsoluteURL': path.resolve(__dirname, 'node_modules/axios/lib/helpers/isAbsoluteURL.js'),
-        'axios/lib/helpers/combineURLs': path.resolve(__dirname, 'node_modules/axios/lib/helpers/combineURLs.js'),
-        'axios/lib/helpers/buildURL': path.resolve(__dirname, 'node_modules/axios/lib/helpers/buildURL.js'),
-        'axios/lib/core/InterceptorManager': path.resolve(__dirname, 'node_modules/axios/lib/core/InterceptorManager.js'),
-        'axios/lib/core/transformData': path.resolve(__dirname, 'node_modules/axios/lib/core/transformData.js'),
-        'axios/lib/cancel/Cancel': path.resolve(__dirname, 'node_modules/axios/lib/cancel/Cancel.js'),
-        'axios/lib/cancel/isCancel': path.resolve(__dirname, 'node_modules/axios/lib/cancel/isCancel.js'),
-        'axios/lib/helpers/spread': path.resolve(__dirname, 'node_modules/axios/lib/helpers/spread.js'),
-        'axios/lib/helpers/validator': path.resolve(__dirname, 'node_modules/axios/lib/helpers/validator.js'),
-        'axios/lib/core/enhanceError': path.resolve(__dirname, 'node_modules/axios/lib/core/enhanceError.js'),
-        'axios/lib/platform': path.resolve(__dirname, 'node_modules/axios/lib/platform/index.js')
+        '@': path.resolve(__dirname, 'src')
       },
       fallback: {
-        "process": require.resolve("process/browser"),
+        "process": require.resolve("process/browser.js"),
         "buffer": require.resolve("buffer"),
         "crypto": require.resolve("crypto-browserify"),
         "stream": require.resolve("stream-browserify"),
@@ -129,26 +123,39 @@ module.exports = (env, argv) => {
         "os": require.resolve("os-browserify/browser"),
         "vm": require.resolve("vm-browserify")
       },
+      // Add module resolution for node_modules
+      modules: [
+        'node_modules',
+        path.resolve(__dirname, 'src')
+      ],
+      // Handle ESM modules properly
       extensionAlias: {
-        ".js": [".js", ".ts", ".tsx"]
+        ".js": [".js", ".ts", ".tsx", ".mjs"]
       }
     },
     plugins: [
       // Environment variables
       new DefinePlugin({
-        'process.env': JSON.stringify(process.env),
+        'process.env': JSON.stringify({
+          ...process.env,
+          NODE_ENV: argv.mode,
+          BROWSER: browser
+        }),
         'process.env.NODE_ENV': JSON.stringify(argv.mode),
         'process.env.BROWSER': JSON.stringify(browser),
         'window.CONFIG': JSON.stringify(CONFIG),
         'global': 'globalThis',
+        // Define process for browser compatibility
+        'process.browser': JSON.stringify(true),
+        'process.version': JSON.stringify(''),
+        'process.versions': JSON.stringify({}),
       }),
 
-      // Provide Buffer global
+      // Provide Buffer and process globals
       new webpack.ProvidePlugin({
         Buffer: ['buffer', 'Buffer'],
-        process: 'process/browser',
-        // Provide global fallbacks for axios
-        'process.browser': 'process/browser'
+        process: 'process/browser.js',
+        global: 'globalThis'
       }),
 
       // HTML files
@@ -234,10 +241,6 @@ module.exports = (env, argv) => {
         })
       ] : [])
     ],
-    experiments: {
-      asyncWebAssembly: true,
-      syncWebAssembly: true
-    },
     optimization: {
       minimize: isProduction,
       minimizer: [
@@ -261,7 +264,8 @@ module.exports = (env, argv) => {
           vendor: {
             test: /[\\/]node_modules[\\/]/,
             name: 'vendors',
-            chunks: 'all'
+            chunks: 'all',
+            enforce: true
           }
         }
       }
@@ -275,15 +279,23 @@ module.exports = (env, argv) => {
     },
     performance: {
       hints: isProduction ? 'warning' : false,
-      maxEntrypointSize: 512000,
-      maxAssetSize: 512000
+      maxEntrypointSize: 1024000, // Increased for crypto libraries
+      maxAssetSize: 1024000
     },
     stats: {
       colors: true,
       modules: false,
       children: false,
       chunks: false,
-      chunkModules: false
+      chunkModules: false,
+      errorDetails: true // This will show more error details
+    },
+    // Add this to handle Node.js modules properly
+    target: 'web',
+    node: {
+      global: false,
+      __filename: false,
+      __dirname: false,
     }
   };
 };

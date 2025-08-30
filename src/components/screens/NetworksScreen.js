@@ -61,7 +61,8 @@ const NetworksScreen = ({ onNavigate }) => {
             await switchNetwork(network.id);
             toast.success(`Switched to ${network.name}`);
         }
-        catch {
+        catch (error) {
+            toast.error(error.message);
             toast.error('Failed to switch network');
         }
     };

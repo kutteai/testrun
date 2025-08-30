@@ -10,11 +10,13 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [importMethod, setImportMethod] = useState<'seed' | 'privateKey'>('seed');
   const [seedPhrase, setSeedPhrase] = useState('');
   const [privateKey, setPrivateKey] = useState('');
+  const [password, setPassword] = useState('');
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isValid, setIsValid] = useState(false);
 
-  const { importWallet, importWalletFromPrivateKey } = useWallet();
+  const { importWallet, importWalletFromPrivateKey, isWalletUnlocked, hasWallet } = useWallet();
 
   const handleSeedPhraseChange = (value: string) => {
     setSeedPhrase(value);
@@ -46,6 +48,13 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return;
     }
 
+    // Check if we need a password
+    const needsPassword = !isWalletUnlocked && !hasWallet;
+    if (needsPassword && !password.trim()) {
+      toast.error('Please enter a password to encrypt your imported wallet');
+      return;
+    }
+
     try {
       console.log('Importing wallet...');
       
@@ -58,7 +67,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
         
         // Import wallet from private key
-        await importWalletFromPrivateKey(privateKey, 'ethereum');
+        await importWalletFromPrivateKey(privateKey, 'ethereum', password || undefined);
         console.log('Private key import successful');
       } else {
         console.log('Importing from seed phrase...');
@@ -69,7 +78,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
         
         // Import wallet from seed phrase
-        await importWallet(seedPhrase, 'ethereum');
+        await importWallet(seedPhrase, 'ethereum', password || undefined);
         console.log('Seed phrase import successful');
       }
       
@@ -156,7 +165,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           {importMethod === 'seed' ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   Seed Phrase
                 </label>
                 <div className="relative">
@@ -185,35 +194,67 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           ) : (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-slate-300 mb-2">
                   Private Key
                 </label>
                 <div className="relative">
-                                  <input
-                  type={showPrivateKey ? 'text' : 'password'}
-                  value={privateKey}
-                  onChange={(e) => handlePrivateKeyChange(e.target.value)}
-                  placeholder="Enter your private key (0x...)"
-                  className="w-full px-3 py-2 pr-10 border border-white/20 bg-white/10 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                  <input
+                    type={showPrivateKey ? 'text' : 'password'}
+                    value={privateKey}
+                    onChange={(e) => handlePrivateKeyChange(e.target.value)}
+                    placeholder="Enter your private key (0x...)"
+                    className="w-full px-3 py-2 pr-10 border border-white/20 bg-white/10 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                  />
+                  <button
+                    onClick={() => setShowPrivateKey(!showPrivateKey)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded hover:bg-white/10"
+                  >
+                    {showPrivateKey ? (
+                      <EyeOff className="w-4 h-4 text-slate-400" />
+                    ) : (
+                      <Eye className="w-4 h-4 text-slate-400" />
+                    )}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">
+                  Your private key should be 64 characters long (with or without 0x prefix)
+                </p>
+                <p className="text-xs text-blue-400 mt-1">
+                  💡 For MetaMask: Export your private key from MetaMask settings
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Password input - only show if wallet is not unlocked and no wallet exists */}
+          {!isWalletUnlocked && !hasWallet && (
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-slate-300">
+                Wallet Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter a password to encrypt your wallet"
+                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 pr-10"
                 />
                 <button
-                  onClick={() => setShowPrivateKey(!showPrivateKey)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded hover:bg-white/10"
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
                 >
-                  {showPrivateKey ? (
-                    <EyeOff className="w-4 h-4 text-slate-400" />
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-slate-400" />
                   ) : (
-                    <Eye className="w-4 h-4 text-slate-400" />
+                    <Eye className="h-4 w-4 text-slate-400" />
                   )}
                 </button>
               </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Your private key should be 64 characters long (with or without 0x prefix)
+              <p className="text-xs text-slate-400">
+                This password will be used to encrypt and protect your imported wallet
               </p>
-              <p className="text-xs text-blue-400 mt-1">
-                💡 For MetaMask: Export your private key from MetaMask settings
-              </p>
-              </div>
             </div>
           )}
 
@@ -239,7 +280,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         </motion.div>
 
         {/* Security Warning */}
-        <div className="bg-yellow-500/10 border border-yellow-400/20 rounded-lg p-4 mb-6 mt-6">
+        <div className="bg-yellow-500/10 border border-yellow-400/20 rounded-lg p-4 mb-6">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
@@ -261,10 +302,10 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           whileTap={{ scale: 0.98 }}
           onClick={handleImport}
           disabled={!isValid}
-          className={`w-full font-semibold py-4 px-6 rounded-xl shadow-lg transition-colors ${
+          className={`w-full py-3 rounded-lg font-semibold transition-colors ${
             isValid
-              ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white hover:from-blue-600 hover:to-purple-700'
-              : 'bg-white/10 text-slate-400 cursor-not-allowed'
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+              : 'bg-slate-600 text-slate-400 cursor-not-allowed'
           }`}
         >
           Import Wallet
@@ -274,4 +315,4 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   );
 };
 
-export default ImportWalletScreen; 
+export default ImportWalletScreen;

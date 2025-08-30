@@ -198,8 +198,8 @@ export interface WalletContextType {
   accounts: string[];
   privateKey: string | null;
   createWallet: (name: string, network: string) => Promise<void>;
-  importWallet: (seedPhrase: string, network: string) => Promise<void>;
-  importWalletFromPrivateKey: (privateKey: string, network: string) => Promise<void>;
+  importWallet: (seedPhrase: string, network: string, password?: string) => Promise<void>;
+importWalletFromPrivateKey: (privateKey: string, network: string, password?: string) => Promise<void>;
   unlockWallet: (password: string) => Promise<boolean>;
   lockWallet: () => void;
   switchNetwork: (networkId: string) => Promise<void>;
@@ -213,6 +213,7 @@ export interface WalletContextType {
   getCurrentAccount: () => Promise<any>;
   getWalletAccounts: () => Promise<any[]>;
   setGlobalPassword: (password: string) => void;
+  setGlobalPasswordAndHash: (password: string) => Promise<void>;
 }
 
 export interface SecurityContextType {

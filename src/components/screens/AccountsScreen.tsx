@@ -38,7 +38,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const handleAddAccount = async () => {
-    if (!password.trim()) {
+    if (!isWalletUnlocked && !password.trim()) {
       toast.error('Please enter your password');
       return;
     }
@@ -240,11 +240,11 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </div>
               
               <p className="text-slate-400 text-sm mb-4">
-                Enter your wallet password to derive a new account from your seed phrase.
+              {isWalletUnlocked ? 'Enter your wallet password to add a new account.' : 'Enter your wallet password to derive a new account from your seed phrase.'}
               </p>
               
               <div className="space-y-4">
-                <div>
+                {!isWalletUnlocked && ( <div>
                   <label className="block text-sm font-medium text-slate-300 mb-1">
                     Wallet Password
                   </label>
@@ -255,7 +255,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     placeholder="Enter your wallet password"
                     className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
                   />
-                </div>
+                </div>)}
               </div>
 
               <div className="flex space-x-3 mt-6">

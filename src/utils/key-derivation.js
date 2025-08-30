@@ -142,12 +142,22 @@ export async function seedPhraseToPrivateKey(seedPhrase, derivationPath = "m/44'
 // Get derivation path for different networks (real implementation)
 export function getDerivationPath(network, accountIndex = 0) {
     const paths = {
+        // EVM Networks - All use Ethereum's derivation path (coin type 60)
         ethereum: `m/44'/60'/0'/0/${accountIndex}`,
         bsc: `m/44'/60'/0'/0/${accountIndex}`,
         polygon: `m/44'/60'/0'/0/${accountIndex}`,
         avalanche: `m/44'/60'/0'/0/${accountIndex}`,
         arbitrum: `m/44'/60'/0'/0/${accountIndex}`,
         optimism: `m/44'/60'/0'/0/${accountIndex}`,
+        base: `m/44'/60'/0'/0/${accountIndex}`,
+        fantom: `m/44'/60'/0'/0/${accountIndex}`,
+        zksync: `m/44'/60'/0'/0/${accountIndex}`,
+        linea: `m/44'/60'/0'/0/${accountIndex}`,
+        mantle: `m/44'/60'/0'/0/${accountIndex}`,
+        scroll: `m/44'/60'/0'/0/${accountIndex}`,
+        'polygon-zkevm': `m/44'/60'/0'/0/${accountIndex}`,
+        'arbitrum-nova': `m/44'/60'/0'/0/${accountIndex}`,
+        // Non-EVM Networks - Each has unique coin type
         bitcoin: `m/44'/0'/0'/0/${accountIndex}`,
         litecoin: `m/44'/2'/0'/0/${accountIndex}`,
         solana: `m/44'/501'/0'/0'/${accountIndex}'`,

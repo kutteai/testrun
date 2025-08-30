@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
 
+
 interface Network {
   id: string;
   name: string;
@@ -52,7 +53,7 @@ function getConfig() {
     return window.CONFIG;
   }
   return {
-    INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID || 'YOUR_INFURA_KEY',
+    INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID ,
     ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY || ''
   };
 }
@@ -198,6 +199,66 @@ const defaultNetworks: Network[] = [
     explorerUrl: 'https://nova.arbiscan.io',
     isCustom: false,
     isEnabled: true
+  },
+  {
+    id: 'bitcoin',
+    name: 'Bitcoin',
+    symbol: 'BTC',
+    rpcUrl: '', // Bitcoin doesn't use traditional RPC
+    chainId: '', // Not applicable for Bitcoin
+    explorerUrl: 'https://mempool.space',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'solana',
+    name: 'Solana',
+    symbol: 'SOL',
+    rpcUrl: 'https://api.mainnet-beta.solana.com',
+    chainId: '', // Solana doesn't use chain IDs like EVM
+    explorerUrl: 'https://solscan.io',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'tron',
+    name: 'TRON',
+    symbol: 'TRX',
+    rpcUrl: 'https://api.trongrid.io',
+    chainId: '', // TRON doesn't use chain IDs like EVM
+    explorerUrl: 'https://tronscan.org',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'litecoin',
+    name: 'Litecoin',
+    symbol: 'LTC',
+    rpcUrl: '', // Litecoin doesn't use traditional RPC
+    chainId: '', // Not applicable for Litecoin
+    explorerUrl: 'https://blockchair.com/litecoin',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'ton',
+    name: 'TON',
+    symbol: 'TON',
+    rpcUrl: 'https://toncenter.com/api/v2/jsonRPC',
+    chainId: '', // TON doesn't use chain IDs like EVM
+    explorerUrl: 'https://tonscan.org',
+    isCustom: false,
+    isEnabled: true
+  },
+  {
+    id: 'xrp',
+    name: 'XRP',
+    symbol: 'XRP',
+    rpcUrl: '', // XRP doesn't use traditional RPC
+    chainId: '', // Not applicable for XRP
+    explorerUrl: 'https://livenet.xrpl.org',
+    isCustom: false,
+    isEnabled: true
   }
 ];
 
@@ -238,8 +299,8 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
     console.log(`🚀 Starting connection test for ${network.name}...`);
     
     try {
-      // Create a timeout promise with longer timeout for BSC
-      const timeout = network.id === 'bsc' ? 10000 : 5000;
+      // Set timeout based on network type
+      const timeout = 10000; // 10 seconds for all networks
       console.log(`⏱️  Timeout set to ${timeout}ms for ${network.name}`);
       
       const timeoutPromise = new Promise((_, reject) => {
@@ -250,42 +311,197 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         }, timeout);
       });
 
-      // Create the fetch promise with proper headers
-      console.log(`📡 Making request to ${network.rpcUrl}`);
-      const fetchPromise = fetch(network.rpcUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          method: 'eth_blockNumber',
-          params: [],
-          id: 1,
-        }),
-      });
-
-      // Race between fetch and timeout
-      const response = await Promise.race([fetchPromise, timeoutPromise]) as Response;
+      // Test connection based on network type
+      let isConnected = false;
+      
+      if (['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(network.id)) {
+        // EVM networks - test with eth_blockNumber
+        console.log(`📡 Testing EVM network: ${network.name}`);
+        const response = await Promise.race([
+          fetch(network.rpcUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'eth_blockNumber',
+              params: [],
+              id: 1,
+            }),
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(`RPC error: ${data.error.message || 'Unknown error'}`);
+        }
+        
+        isConnected = data.result !== undefined;
+        
+      } else if (network.id === 'bitcoin') {
+        // Bitcoin - test with getblockchaininfo
+        console.log(`📡 Testing Bitcoin network: ${network.name}`);
+        const response = await Promise.race([
+          fetch('https://blockstream.info/api/blocks/tip/height', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = typeof data === 'number' && data > 0;
+        
+      } else if (network.id === 'litecoin') {
+        // Litecoin - test with getblockchaininfo
+        console.log(`📡 Testing Litecoin network: ${network.name}`);
+        const response = await Promise.race([
+          fetch('https://api.blockcypher.com/v1/ltc/main', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = data.height && data.height > 0;
+        
+      } else if (network.id === 'solana') {
+        // Solana - test with getHealth
+        console.log(`📡 Testing Solana network: ${network.name}`);
+        const response = await Promise.race([
+          fetch('https://api.mainnet-beta.solana.com', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'getHealth',
+              params: [],
+              id: 1,
+            }),
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = data.result === 'ok';
+        
+      } else if (network.id === 'tron') {
+        // TRON - test with getNowBlock
+        console.log(`📡 Testing TRON network: ${network.name}`);
+        const response = await Promise.race([
+          fetch('https://api.trongrid.io/wallet/getnowblock', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({}),
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = data.block_header && data.block_header.raw_data;
+        
+      } else if (network.id === 'ton') {
+        // TON - test with getMasterchainInfo
+        console.log(`📡 Testing TON network: ${network.name}`);
+        const response = await Promise.race([
+          fetch('https://toncenter.com/api/v2/getMasterchainInfo', {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' },
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = data.ok === true;
+        
+      } else if (network.id === 'xrp') {
+        // XRP - test with server_info
+        console.log(`📡 Testing XRP network: ${network.name}`);
+        const response = await Promise.race([
+          fetch('https://s1.ripple.com:51234', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              method: 'server_info',
+              params: [],
+            }),
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = data.result && data.result.info;
+        
+      } else {
+        // Unknown network - try generic RPC test
+        console.log(`📡 Testing unknown network: ${network.name}`);
+        const response = await Promise.race([
+          fetch(network.rpcUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method: 'eth_blockNumber',
+              params: [],
+              id: 1,
+            }),
+          }),
+          timeoutPromise
+        ]) as Response;
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        isConnected = data.result !== undefined;
+      }
+      
       const elapsed = Date.now() - startTime;
-      console.log(`✅ Got response in ${elapsed}ms for ${network.name}, status: ${response.status}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log(`📊 Response data for ${network.name}:`, data);
+      console.log(`✅ Connection test completed in ${elapsed}ms for ${network.name}: ${isConnected ? 'SUCCESS' : 'FAILED'}`);
+      return isConnected;
       
-      // Check for both result and error in response
-      if (data.error) {
-        throw new Error(`RPC error: ${data.error.message || 'Unknown error'}`);
-      }
-      
-      const success = data.result !== undefined;
-      console.log(`🎯 Connection test ${success ? 'SUCCESS' : 'FAILED'} for ${network.name}`);
-      return success;
     } catch (error) {
       const elapsed = Date.now() - startTime;
       console.warn(`❌ Connection test failed for ${network.name} after ${elapsed}ms:`, error);
@@ -294,48 +510,48 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
   };
 
   // Switch network
-  const switchNetwork = async (networkId: string): Promise<void> => {
-    try {
-      const network = networkState.networks.find(n => n.id === networkId);
-      if (!network) {
-        throw new Error('Network not found');
-      }
-
-      // Test connection before switching (but don't block if it fails)
-      let isConnected = false;
+    // Switch network
+    const switchNetwork = async (networkId: string): Promise<void> => {
       try {
-        console.log(`Testing connection to ${network.name} at ${network.rpcUrl}`);
-        isConnected = await testConnection(network);
-        console.log(`Connection test result for ${network.name}:`, isConnected);
+        const network = networkState.networks.find(n => n.id === networkId);
+        if (!network) {
+          throw new Error('Network not found');
+        }
+  
+        // Test connection before switching (but don't block if it fails)
+        let isConnected = false;
+        try {
+          console.log(`Testing connection to ${network.name} at ${network.rpcUrl}`);
+          isConnected = await testConnection(network);
+          console.log(`Connection test result for ${network.name}:`, isConnected);
+        } catch (error) {
+          console.warn('Connection test failed, but continuing with network switch:', error);
+          isConnected = false;
+        }
+        
+        setNetworkState(prev => ({
+          ...prev,
+          currentNetwork: network,
+          isConnected: true, // Always set as connected since we're switching anyway
+          connectionError: null
+        }));
+  
+        // Save current network to storage
+        chrome.storage.local.set({ currentNetwork: networkId });
+  
+        // Trigger a custom event to notify other contexts about network change
+        window.dispatchEvent(new CustomEvent('networkChanged', { 
+          detail: { networkId, network } 
+        }));
+  
       } catch (error) {
-        console.warn('Connection test failed, but continuing with network switch:', error);
-        isConnected = false;
+        setNetworkState(prev => ({
+          ...prev,
+          connectionError: error instanceof Error ? error.message : 'Unknown error'
+        }));
+        throw error; // Re-throw so NetworkSwitcher can handle it
       }
-      
-      setNetworkState(prev => ({
-        ...prev,
-        currentNetwork: network,
-        isConnected: true, // Always set as connected since we're switching anyway
-        connectionError: null
-      }));
-
-      // Save current network to storage
-      chrome.storage.local.set({ currentNetwork: networkId });
-
-      // Trigger a custom event to notify other contexts about network change
-      window.dispatchEvent(new CustomEvent('networkChanged', { 
-        detail: { networkId, network } 
-      }));
-
-        toast.success(`Switched to ${network.name}`);
-    } catch (error) {
-      toast.error('Failed to switch network');
-      setNetworkState(prev => ({
-        ...prev,
-        connectionError: error instanceof Error ? error.message : 'Unknown error'
-      }));
-    }
-  };
+    };
 
   // Add custom network
   const addCustomNetwork = async (network: Omit<Network, 'isCustom'>) => {

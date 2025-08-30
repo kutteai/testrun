@@ -144,8 +144,8 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
 };
 
 const NetworkSwitcher: React.FC = () => {
-  const { networkState, addCustomNetwork, switchNetwork } = useNetwork();
-  const { wallet } = useWallet();
+  const { networkState, addCustomNetwork, switchNetwork: switchNetworkContext } = useNetwork();
+  const { wallet, switchNetwork: switchWalletNetwork } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [showAddNetwork, setShowAddNetwork] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -190,19 +190,33 @@ const NetworkSwitcher: React.FC = () => {
       optimism: '🔴',
       avalanche: '🔴',
       goerli: '🧪',
-      sepolia: '🧪'
+      sepolia: '🧪',
+      // Non-EVM Networks
+      bitcoin: '🪙',
+      litecoin: '🥈',
+      solana: '🟣',
+      tron: '⚡',
+      ton: '🔹',
+      xrp: '💧'
     };
     return icons[networkId] || '🌐';
   };
 
   const handleNetworkSwitch = async (network: NetworkWithIcon) => {
     try {
-      await switchNetwork(network.id);
+      // Switch network in NetworkContext (updates network state)
+      await switchNetworkContext(network.id);
+      
+      // If wallet exists, also switch in WalletContext (updates address)
+      if (wallet) {
+        await switchWalletNetwork(network.id);
+      }
+      
       setIsOpen(false);
       toast.success(`Switched to ${network.name}`);
     } catch (error) {
       console.error('Failed to switch network:', error);
-      toast.error('Failed to switch network');
+      toast.error(error.toString());
     }
   };
 
