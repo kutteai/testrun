@@ -73,7 +73,7 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="e.g., My Custom Network"
                 required
               />
@@ -84,7 +84,7 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
                 type="text"
                 value={formData.symbol}
                 onChange={(e) => setFormData({ ...formData, symbol: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="e.g., CUSTOM"
                 required
               />
@@ -95,7 +95,7 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
                 type="text"
                 value={formData.chainId}
                 onChange={(e) => setFormData({ ...formData, chainId: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="e.g., 1337"
                 required
               />
@@ -106,7 +106,7 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
                 type="url"
                 value={formData.rpcUrl}
                 onChange={(e) => setFormData({ ...formData, rpcUrl: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="https://..."
                 required
               />
@@ -117,7 +117,7 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
                 type="url"
                 value={formData.explorerUrl}
                 onChange={(e) => setFormData({ ...formData, explorerUrl: e.target.value })}
-                className="w-full px-3 py-2 bg-gray-800 border border-white/10 rounded-lg focus:outline-none focus:border-blue-500"
+                className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 placeholder-gray-500"
                 placeholder="https://..."
               />
             </div>
@@ -204,10 +204,10 @@ const NetworkSwitcher: React.FC = () => {
 
   const handleNetworkSwitch = async (network: NetworkWithIcon) => {
     try {
-      // Switch network in NetworkContext (updates network state)
+      // Switch network in NetworkContext first
       await switchNetworkContext(network.id);
       
-      // If wallet exists, also switch in WalletContext (updates address)
+      // Then switch in WalletContext if wallet exists
       if (wallet) {
         await switchWalletNetwork(network.id);
       }
@@ -216,6 +216,14 @@ const NetworkSwitcher: React.FC = () => {
       toast.success(`Switched to ${network.name}`);
     } catch (error) {
       console.error('Failed to switch network:', error);
+      // Revert network context if wallet switch failed
+      if (wallet) {
+        try {
+          await switchNetworkContext(currentNetwork?.id || 'ethereum');
+        } catch (revertError) {
+          console.error('Failed to revert network:', revertError);
+        }
+      }
       toast.error(error.toString());
     }
   };

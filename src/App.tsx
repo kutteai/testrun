@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { useWallet } from './store/WalletContext';
 import { useNetwork } from './store/NetworkContext';
 import { useTransaction } from './store/TransactionContext';
 import { usePortfolio } from './store/PortfolioContext';
-import toast from 'react-hot-toast';
 
 // Import screens
 import WelcomeScreen from './components/screens/WelcomeScreen';
@@ -22,9 +21,16 @@ import NetworksScreen from './components/screens/NetworksScreen';
 import AccountsScreen from './components/screens/AccountsScreen';
 import TokensScreen from './components/screens/TokensScreen';
 import ENSScreen from './components/screens/ENSScreen';
-import HardwareWalletScreen from './components/screens/HardwareWalletScreen';
-import GasSettingsScreen from './components/screens/GasSettingsScreen';
-import NFTScreen from './components/screens/NFTScreen';
+import HardwareWalletScreen from './components/screens/HardwareWalletScreen.js';
+import GasSettingsScreen from './components/screens/GasSettingsScreen.js';
+import NFTsScreen from './components/screens/NFTsScreen';
+import BitcoinScreen from './components/screens/BitcoinScreen';
+import SolanaScreen from './components/screens/SolanaScreen';
+import TronScreen from './components/screens/TronScreen';
+import LitecoinScreen from './components/screens/LitecoinScreen';
+import TonScreen from './components/screens/TonScreen';
+import XrpScreen from './components/screens/XrpScreen';
+import { WalletConnectScreen } from './components/screens/WalletConnectScreen';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
 import TransactionHistoryScreen from './components/screens/TransactionHistoryScreen';
@@ -50,6 +56,7 @@ const App: React.FC = () => {
   // Initialize app and determine initial screen - DISABLED
   useEffect(() => {
     console.log('App: Skipping initialization...');
+    console.log('App: Wallet state - hasWallet:', hasWallet, 'isWalletUnlocked:', isWalletUnlocked);
     setIsAppInitialized(true);
     setCurrentScreen('welcome');
   }, []);
@@ -73,15 +80,22 @@ const App: React.FC = () => {
 
   // Update screen when wallet state changes
   useEffect(() => {
+    console.log('🔄 App.tsx: Wallet state effect triggered');
+    console.log('🔄 App.tsx: isAppInitialized:', isAppInitialized, 'isInitializing:', isInitializing);
+    console.log('🔄 App.tsx: hasWallet:', hasWallet, 'isWalletUnlocked:', isWalletUnlocked);
+    console.log('🔄 App.tsx: currentScreen:', currentScreen);
+    
     if (isAppInitialized && !isInitializing) {
       if (hasWallet && isWalletUnlocked) {
         // Only auto-navigate to dashboard if we're on welcome screen
         if (currentScreen === 'welcome') {
+          console.log('🔄 App.tsx: Auto-navigating to dashboard');
           setCurrentScreen('dashboard');
         }
       } else if (hasWallet && !isWalletUnlocked) {
         // Wallet locked, go back to welcome for unlock
-        if (currentScreen !== 'welcome') {
+        if (currentScreen !== 'welcome' && currentScreen !== 'accounts') {
+          console.log('🔄 App.tsx: Wallet locked, going back to welcome (but allowing accounts)');
           setCurrentScreen('welcome');
           toast('Please unlock your wallet to continue');
         }
@@ -91,17 +105,33 @@ const App: React.FC = () => {
 
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
+    console.log('🔀 App.tsx: handleNavigate called with screen:', screen);
+    console.log('🔀 App.tsx: Current screen before navigation:', currentScreen);
+    console.log('🔀 App.tsx: isWalletUnlocked:', isWalletUnlocked);
+    console.log('🔀 App.tsx: Stack trace:', new Error().stack);
+    
     // Prevent navigation to protected screens if wallet is locked
     const protectedScreens: ScreenId[] = [
      'dashboard', 'send', 'receive', 'settings', 
   'security', 'networks', 'nfts', 'portfolio', 'transactions',
-  'address-book', 'ens', 'accounts', 'tokens' 
+  'address-book', 'ens', 'tokens' 
     ];
     
+    console.log('🔍 App.tsx: Navigation check - screen:', screen, 'isWalletUnlocked:', isWalletUnlocked, 'isProtected:', protectedScreens.includes(screen));
+    
     if (protectedScreens.includes(screen) && !isWalletUnlocked) {
+      console.log('🚫 App.tsx: Blocked navigation to protected screen:', screen);
       toast.error('Please unlock your wallet first');
       setCurrentScreen('welcome');
       return;
+    }
+    
+    console.log('✅ App.tsx: Allowing navigation to:', screen);
+    
+    // Special handling for accounts screen
+    if (screen === 'accounts') {
+      console.log('🎯 App.tsx: Navigating to accounts screen');
+      toast.success('🎯 Navigating to accounts screen', { duration: 3000 });
     }
     
     setCurrentScreen(screen);
@@ -121,6 +151,8 @@ const App: React.FC = () => {
 
   // Render current screen
   const renderScreen = () => {
+    console.log('🎬 App.tsx: renderScreen called with currentScreen:', currentScreen);
+    console.log('🎬 App.tsx: Stack trace:', new Error().stack);
     switch (currentScreen) {
       case 'welcome':
         return (
@@ -160,8 +192,22 @@ const App: React.FC = () => {
         return <HardwareWalletScreen onNavigate={handleNavigate} />;
       case 'gas':
         return <GasSettingsScreen onNavigate={handleNavigate} />;
+      case 'bitcoin':
+        return <BitcoinScreen onNavigate={handleNavigate} />;
+      case 'solana':
+        return <SolanaScreen onNavigate={handleNavigate} />;
+      case 'tron':
+        return <TronScreen onNavigate={handleNavigate} />;
+      case 'litecoin':
+        return <LitecoinScreen onNavigate={handleNavigate} />;
+      case 'ton':
+        return <TonScreen onNavigate={handleNavigate} />;
+      case 'xrp':
+        return <XrpScreen onNavigate={handleNavigate} />;
+      case 'walletconnect':
+        return <WalletConnectScreen />;
       case 'nfts':
-        return <NFTScreen onNavigate={handleNavigate} />;
+        return <NFTsScreen onNavigate={handleNavigate} />;
       case 'portfolio':
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':

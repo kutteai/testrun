@@ -97,57 +97,56 @@ export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: 
   }
 
   try {
-    const seed = bip39.mnemonicToSeedSync(seedPhrase);
-    const hdkey = HDKey.fromMasterSeed(seed);
-    const childKey = hdkey.derive(derivationPath);
-    
-    const privateKey = '0x' + childKey.privateKey.toString('hex');
-    const publicKey = '0x' + childKey.publicKey.toString('hex');
-    const address = ethers.getAddress(ethers.computeAddress(publicKey));
+    // Use ethers.js HDNodeWallet instead of hdkey for better compatibility
+    const seed = await bip39.mnemonicToSeed(seedPhrase);
+    const hdNode = ethers.HDNodeWallet.fromSeed(seed);
+    const derivedWallet = hdNode.derivePath(derivationPath);
     
     return {
-      privateKey,
-      publicKey,
-      address,
+      privateKey: derivedWallet.privateKey,
+      publicKey: derivedWallet.publicKey,
+      address: derivedWallet.address,
       derivationPath
     };
   } catch (error) {
+    console.error('Failed to derive account:', error);
     throw new Error(`Failed to derive account: ${error}`);
   }
 }
 
 // Generate multiple accounts from seed phrase
-export function generateMultipleAccounts(
+export async function generateMultipleAccounts(
   seedPhrase: string, 
   network: string, 
   count: number = 5
-): WalletAccount[] {
+): Promise<WalletAccount[]> {
   if (!validateBIP39SeedPhrase(seedPhrase)) {
     throw new Error('Invalid seed phrase');
   }
 
-  const accounts: WalletAccount[] = [];
-  const seed = bip39.mnemonicToSeedSync(seedPhrase);
-  const hdkey = HDKey.fromMasterSeed(seed);
-  
-  for (let i = 0; i < count; i++) {
-    const derivationPath = getDerivationPath(network, i);
-    const childKey = hdkey.derive(derivationPath);
+  try {
+    const accounts: WalletAccount[] = [];
+    const seed = await bip39.mnemonicToSeed(seedPhrase);
+    const hdNode = ethers.HDNodeWallet.fromSeed(seed);
     
-    const privateKey = '0x' + childKey.privateKey.toString('hex');
-    const publicKey = '0x' + childKey.publicKey.toString('hex');
-    const address = ethers.getAddress(ethers.computeAddress(publicKey));
+    for (let i = 0; i < count; i++) {
+      const derivationPath = getDerivationPath(network, i);
+      const derivedWallet = hdNode.derivePath(derivationPath);
+      
+      accounts.push({
+        address: derivedWallet.address,
+        privateKey: derivedWallet.privateKey,
+        publicKey: derivedWallet.publicKey,
+        derivationPath,
+        network
+      });
+    }
     
-    accounts.push({
-      address,
-      privateKey,
-      publicKey,
-      derivationPath,
-      network
-    });
+    return accounts;
+  } catch (error) {
+    console.error('Failed to generate multiple accounts:', error);
+    throw new Error(`Failed to generate accounts: ${error}`);
   }
-  
-  return accounts;
 }
 
 // Import wallet from private key

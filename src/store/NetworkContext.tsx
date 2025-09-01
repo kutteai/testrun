@@ -259,7 +259,8 @@ const defaultNetworks: Network[] = [
     explorerUrl: 'https://livenet.xrpl.org',
     isCustom: false,
     isEnabled: true
-  }
+  },
+
 ];
 
 export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) => {
@@ -293,24 +294,24 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
     chrome.storage.local.set({ customNetworks });
   };
 
-  // Test network connection
-  const testConnection = async (network: Network): Promise<boolean> => {
-    const startTime = Date.now();
-    console.log(`🚀 Starting connection test for ${network.name}...`);
-    
-    try {
+    // Test network connection
+    const testConnection = async (network: Network): Promise<boolean> => {
+      const startTime = Date.now();
+      console.log(`🚀 Starting connection test for ${network.name}...`);
+      
+      try {
       // Set timeout based on network type
       const timeout = 10000; // 10 seconds for all networks
-      console.log(`⏱️  Timeout set to ${timeout}ms for ${network.name}`);
-      
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => {
-          const elapsed = Date.now() - startTime;
-          console.log(`⏰ Timeout after ${elapsed}ms for ${network.name}`);
-          reject(new Error('Connection timeout'));
-        }, timeout);
-      });
-
+        console.log(`⏱️  Timeout set to ${timeout}ms for ${network.name}`);
+        
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            const elapsed = Date.now() - startTime;
+            console.log(`⏰ Timeout after ${elapsed}ms for ${network.name}`);
+            reject(new Error('Connection timeout'));
+          }, timeout);
+        });
+  
       // Test connection based on network type
       let isConnected = false;
       
@@ -319,25 +320,25 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         console.log(`📡 Testing EVM network: ${network.name}`);
         const response = await Promise.race([
           fetch(network.rpcUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify({
-              jsonrpc: '2.0',
-              method: 'eth_blockNumber',
-              params: [],
-              id: 1,
-            }),
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'eth_blockNumber',
+            params: [],
+            id: 1,
+          }),
           }),
           timeoutPromise
         ]) as Response;
-        
+  
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+  
         const data = await response.json();
         if (data.error) {
           throw new Error(`RPC error: ${data.error.message || 'Unknown error'}`);
@@ -502,56 +503,56 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
       console.log(`✅ Connection test completed in ${elapsed}ms for ${network.name}: ${isConnected ? 'SUCCESS' : 'FAILED'}`);
       return isConnected;
       
-    } catch (error) {
-      const elapsed = Date.now() - startTime;
-      console.warn(`❌ Connection test failed for ${network.name} after ${elapsed}ms:`, error);
-      return false;
-    }
-  };
-
-  // Switch network
-    // Switch network
-    const switchNetwork = async (networkId: string): Promise<void> => {
-      try {
-        const network = networkState.networks.find(n => n.id === networkId);
-        if (!network) {
-          throw new Error('Network not found');
-        }
-  
-        // Test connection before switching (but don't block if it fails)
-        let isConnected = false;
-        try {
-          console.log(`Testing connection to ${network.name} at ${network.rpcUrl}`);
-          isConnected = await testConnection(network);
-          console.log(`Connection test result for ${network.name}:`, isConnected);
-        } catch (error) {
-          console.warn('Connection test failed, but continuing with network switch:', error);
-          isConnected = false;
-        }
-        
-        setNetworkState(prev => ({
-          ...prev,
-          currentNetwork: network,
-          isConnected: true, // Always set as connected since we're switching anyway
-          connectionError: null
-        }));
-  
-        // Save current network to storage
-        chrome.storage.local.set({ currentNetwork: networkId });
-  
-        // Trigger a custom event to notify other contexts about network change
-        window.dispatchEvent(new CustomEvent('networkChanged', { 
-          detail: { networkId, network } 
-        }));
-  
       } catch (error) {
-        setNetworkState(prev => ({
-          ...prev,
-          connectionError: error instanceof Error ? error.message : 'Unknown error'
-        }));
-        throw error; // Re-throw so NetworkSwitcher can handle it
+        const elapsed = Date.now() - startTime;
+        console.warn(`❌ Connection test failed for ${network.name} after ${elapsed}ms:`, error);
+        return false;
       }
     };
+
+  // Switch network
+  // Switch network
+  const switchNetwork = async (networkId: string): Promise<void> => {
+    try {
+      const network = networkState.networks.find(n => n.id === networkId);
+      if (!network) {
+        throw new Error('Network not found');
+      }
+
+      // Test connection before switching (but don't block if it fails)
+      let isConnected = false;
+      try {
+        console.log(`Testing connection to ${network.name} at ${network.rpcUrl}`);
+        isConnected = await testConnection(network);
+        console.log(`Connection test result for ${network.name}:`, isConnected);
+      } catch (error) {
+        console.warn('Connection test failed, but continuing with network switch:', error);
+        isConnected = false;
+      }
+      
+      setNetworkState(prev => ({
+        ...prev,
+        currentNetwork: network,
+        isConnected: true, // Always set as connected since we're switching anyway
+        connectionError: null
+      }));
+
+      // Save current network to storage
+      chrome.storage.local.set({ currentNetwork: networkId });
+
+      // Trigger a custom event to notify other contexts about network change
+      window.dispatchEvent(new CustomEvent('networkChanged', { 
+        detail: { networkId, network } 
+      }));
+
+    } catch (error) {
+      setNetworkState(prev => ({
+        ...prev,
+        connectionError: error instanceof Error ? error.message : 'Unknown error'
+      }));
+        throw error; // Re-throw so NetworkSwitcher can handle it
+    }
+  };
 
   // Add custom network
   const addCustomNetwork = async (network: Omit<Network, 'isCustom'>) => {
@@ -594,20 +595,24 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
   const validateNetworkConfig = (config: Partial<Network>): { isValid: boolean; errors: string[] } => {
     const errors: string[] = [];
 
+    // Required fields
     if (!config.id) errors.push('Network ID is required');
     if (!config.name) errors.push('Network name is required');
-    if (!config.rpcUrl) errors.push('RPC URL is required');
-    if (!config.chainId) errors.push('Chain ID is required');
     if (!config.symbol) errors.push('Symbol is required');
 
-    // Validate RPC URL format
-    if (config.rpcUrl && !config.rpcUrl.startsWith('http')) {
-      errors.push('RPC URL must start with http:// or https://');
+    // RPC URL validation (optional for non-EVM networks like Bitcoin, XRP)
+    if (config.rpcUrl && !config.rpcUrl.startsWith('http') && config.rpcUrl !== '') {
+      errors.push('RPC URL must start with http:// or https:// (or leave empty for non-EVM networks)');
     }
 
-    // Validate chain ID format
-    if (config.chainId && !/^[0-9]+$/.test(config.chainId)) {
-      errors.push('Chain ID must be a valid number');
+    // Chain ID validation (optional for non-EVM networks)
+    if (config.chainId && config.chainId !== '' && !/^(0x[0-9a-fA-F]+|[0-9]+)$/.test(config.chainId)) {
+      errors.push('Chain ID must be a valid number (decimal) or hex (0x...) format, or leave empty for non-EVM networks');
+    }
+
+    // Network ID format validation
+    if (config.id && !/^[a-z0-9-]+$/.test(config.id)) {
+      errors.push('Network ID must contain only lowercase letters, numbers, and hyphens');
     }
 
     return {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Toaster } from 'react-hot-toast';
+import { Toaster, toast } from 'react-hot-toast';
 import { useWallet } from '../store/WalletContext';
 import { useNetwork } from '../store/NetworkContext';
 import { usePortfolio } from '../store/PortfolioContext';
@@ -25,7 +25,7 @@ import ENSScreen from '../components/screens/ENSScreen';
 import HardwareWalletScreen from '../components/screens/HardwareWalletScreen';
 import GasSettingsScreen from '../components/screens/GasSettingsScreen';
 
-import NFTScreen from '../components/screens/NFTScreen';
+import NFTsScreen from '../components/screens/NFTsScreen';
 import PortfolioScreen from '../components/screens/PortfolioScreen';
 import TransactionsScreen from '../components/screens/TransactionsScreen';
 import TransactionHistoryScreen from '../components/screens/TransactionHistoryScreen';
@@ -47,6 +47,7 @@ import type { ScreenId } from '../types/index';
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('welcome');
+  const [previousScreen, setPreviousScreen] = useState<ScreenId>('welcome');
   const [error, setError] = useState<string | null>(null);
 
   const { wallet, hasWallet, isWalletUnlocked, isInitializing } = useWallet();
@@ -57,13 +58,30 @@ const App: React.FC = () => {
   const { nfts } = useNFT();
 
   useEffect(() => {
+    console.log('🔄 Popup App: useEffect triggered');
+    console.log('🔄 Popup App: isInitializing:', isInitializing);
+    console.log('🔄 Popup App: error:', error);
+    console.log('🔄 Popup App: currentScreen:', currentScreen);
+    console.log('🔄 Popup App: hasWallet:', hasWallet);
+    console.log('🔄 Popup App: isWalletUnlocked:', isWalletUnlocked);
+    
     if (isInitializing) {
       setCurrentScreen('welcome');
       return;
     }
 
-    if (error) {
-      setCurrentScreen('error');
+    // Temporarily disabled redirect for debugging
+    if (error && currentScreen !== 'accounts' && currentScreen !== 'tokens' && currentScreen !== 'nfts') {
+      console.log('🚨 Redirect DISABLED - would normally redirect to error screen due to error:', error);
+      // setCurrentScreen('error');
+      // return;
+    }
+    
+    // Force reset if stuck on error screen
+    if (currentScreen === 'error') {
+      console.log('🔄 Force resetting from error screen to dashboard');
+      toast.success('🔄 Reset from error screen to dashboard', { duration: 3000 });
+      setCurrentScreen('dashboard');
       return;
     }
 
@@ -78,7 +96,16 @@ const App: React.FC = () => {
 
   const handleNavigate = (screen: ScreenId) => {
     console.log('handleNavigate called with screen:', screen);
-    console.log('Setting currentScreen to:', screen);
+    console.log('Previous screen was:', currentScreen);
+    setPreviousScreen(currentScreen);
+    
+    // Prevent navigation to error screen
+    if (screen === 'error') {
+      console.log('🚫 Navigation to error screen blocked, staying on current screen');
+      toast.error('Navigation to error screen blocked', { duration: 3000 });
+      return;
+    }
+    
     setCurrentScreen(screen);
     console.log('currentScreen should now be:', screen);
   };
@@ -144,7 +171,7 @@ const App: React.FC = () => {
         return <XrpScreen onNavigate={handleNavigate} />;
 
       case 'nfts':
-        return <NFTScreen onNavigate={handleNavigate} />;
+        return <NFTsScreen onNavigate={handleNavigate} />;
       case 'portfolio':
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':
@@ -156,7 +183,24 @@ const App: React.FC = () => {
       case 'loading':
         return <LoadingScreen message="Loading wallet..." />;
       case 'error':
-        return <ErrorScreen error={error || 'An error occurred'} onRetry={() => setError(null)} />;
+        return (
+          <ErrorScreen 
+            error={error || 'An error occurred'} 
+            onRetry={() => {
+              setError(null);
+              // Go back to the previous screen if it was accounts, otherwise dashboard
+              if (previousScreen === 'accounts') {
+                setCurrentScreen('accounts');
+              } else {
+                setCurrentScreen('dashboard');
+              }
+            }}
+            onGoToAccounts={error?.includes('accounts') || error?.includes('Accounts') ? () => {
+              setError(null);
+              setCurrentScreen('accounts');
+            } : undefined}
+          />
+        );
       default:
         return <DashboardScreen onNavigate={handleNavigate} />;
     }
@@ -174,7 +218,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <ErrorBoundary>
+    // Temporarily disabled ErrorBoundary for debugging
+    // <ErrorBoundary>
       <div className="w-96 h-96 bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white overflow-hidden">
         <Toaster
           position="top-center"
@@ -208,7 +253,7 @@ const App: React.FC = () => {
           />
         )}
       </div>
-    </ErrorBoundary>
+    // </ErrorBoundary>
   );
 };
 

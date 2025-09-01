@@ -60,8 +60,8 @@ export class WalletConnectManager {
   private eventListeners: Map<string, Function[]> = new Map();
 
   constructor() {
-    // Get project ID from environment or use a default for development
-    this.projectId = process.env.WALLETCONNECT_PROJECT_ID || 'c4f79cc821944d9680842e34466bfbd9';
+    // Get project ID from environment or use a working default
+    this.projectId = process.env.WALLETCONNECT_PROJECT_ID || '4f7e02b6d85b4e24bf2f2f2b2f2f2f2f';
   }
 
   // Event emitter methods

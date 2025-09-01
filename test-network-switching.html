@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Network Switching Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .network-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .network-btn:hover {
+            background: #0056b3;
+        }
+        .address-display {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 10px 0;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+    </style>
+</head>
+<body>
+    <h1>🔗 Network Switching Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Instructions</h2>
+        <p>This test verifies that network switching works correctly:</p>
+        <ol>
+            <li><strong>EVM to Non-EVM:</strong> Switch from Ethereum → Bitcoin → Solana (address should change)</li>
+            <li><strong>Non-EVM to EVM:</strong> Switch from Solana → Ethereum → BSC (address should change back to EVM format)</li>
+            <li><strong>EVM to EVM:</strong> Switch between Ethereum → BSC → Polygon (address should stay the same)</li>
+        </ol>
+    </div>
+
+    <div class="test-section">
+        <h2>Current Status</h2>
+        <div id="status" class="status info">Waiting for wallet connection...</div>
+        <div id="currentAddress" class="address-display">No address available</div>
+        <div id="currentNetwork" class="address-display">No network selected</div>
+    </div>
+
+    <div class="test-section">
+        <h2>Network Switching</h2>
+        <h3>EVM Networks (should share same address)</h3>
+        <button class="network-btn" onclick="switchNetwork('ethereum')">Ethereum</button>
+        <button class="network-btn" onclick="switchNetwork('bsc')">BSC</button>
+        <button class="network-btn" onclick="switchNetwork('polygon')">Polygon</button>
+        
+        <h3>Non-EVM Networks (should have different addresses)</h3>
+        <button class="network-btn" onclick="switchNetwork('bitcoin')">Bitcoin</button>
+        <button class="network-btn" onclick="switchNetwork('solana')">Solana</button>
+        <button class="network-btn" onclick="switchNetwork('tron')">TRON</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Results</h2>
+        <div id="testResults"></div>
+    </div>
+
+    <script>
+        let currentAddress = '';
+        let currentNetwork = '';
+        let addressHistory = [];
+
+        // Check if wallet is available
+        function checkWallet() {
+            if (typeof window.ethereum !== 'undefined') {
+                updateStatus('Wallet detected! Ready for testing.', 'success');
+                return true;
+            } else {
+                updateStatus('No wallet detected. Please install PayCio Wallet extension.', 'error');
+                return false;
+            }
+        }
+
+        // Update status display
+        function updateStatus(message, type = 'info') {
+            const statusEl = document.getElementById('status');
+            statusEl.textContent = message;
+            statusEl.className = `status ${type}`;
+        }
+
+        // Update address display
+        function updateAddress(address, network) {
+            const addressEl = document.getElementById('currentAddress');
+            const networkEl = document.getElementById('currentNetwork');
+            
+            addressEl.textContent = `Address: ${address}`;
+            networkEl.textContent = `Network: ${network}`;
+            
+            // Track address changes
+            if (address !== currentAddress) {
+                addressHistory.push({
+                    from: { address: currentAddress, network: currentNetwork },
+                    to: { address: address, network: network },
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                updateTestResults();
+            }
+            
+            currentAddress = address;
+            currentNetwork = network;
+        }
+
+        // Switch network
+        async function switchNetwork(networkId) {
+            try {
+                updateStatus(`Switching to ${networkId}...`, 'info');
+                
+                // Request network switch
+                const result = await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: getChainId(networkId) }]
+                });
+                
+                // Get current account
+                const accounts = await window.ethereum.request({
+                    method: 'eth_accounts'
+                });
+                
+                if (accounts && accounts.length > 0) {
+                    updateAddress(accounts[0], networkId);
+                    updateStatus(`Successfully switched to ${networkId}`, 'success');
+                } else {
+                    updateStatus('No accounts found', 'error');
+                }
+                
+            } catch (error) {
+                updateStatus(`Failed to switch to ${networkId}: ${error.message}`, 'error');
+            }
+        }
+
+        // Get chain ID for network
+        function getChainId(networkId) {
+            const chainIds = {
+                'ethereum': '0x1',
+                'bsc': '0x38',
+                'polygon': '0x89',
+                'bitcoin': '0x0', // Not applicable for EVM
+                'solana': '0x0',  // Not applicable for EVM
+                'tron': '0x0'     // Not applicable for EVM
+            };
+            return chainIds[networkId] || '0x1';
+        }
+
+        // Update test results
+        function updateTestResults() {
+            const resultsEl = document.getElementById('testResults');
+            if (addressHistory.length === 0) {
+                resultsEl.innerHTML = '<p>No network switches yet.</p>';
+                return;
+            }
+
+            let html = '<h3>Address Change History:</h3>';
+            addressHistory.forEach((change, index) => {
+                const isEvmToEvm = isEvmNetwork(change.from.network) && isEvmNetwork(change.to.network);
+                const isNonEvmToEvm = !isEvmNetwork(change.from.network) && isEvmNetwork(change.to.network);
+                const isEvmToNonEvm = isEvmNetwork(change.from.network) && !isEvmNetwork(change.to.network);
+                
+                let status = '';
+                if (isEvmToEvm && change.from.address === change.to.address) {
+                    status = '✅ Correct: EVM networks share same address';
+                } else if (isNonEvmToEvm && change.from.address !== change.to.address) {
+                    status = '✅ Correct: Non-EVM to EVM address changed';
+                } else if (isEvmToNonEvm && change.from.address !== change.to.address) {
+                    status = '✅ Correct: EVM to Non-EVM address changed';
+                } else {
+                    status = '❌ Issue: Unexpected address behavior';
+                }
+                
+                html += `
+                    <div style="border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 4px;">
+                        <strong>Switch ${index + 1}</strong> (${change.timestamp})<br>
+                        From: ${change.from.network} (${change.from.address || 'none'})<br>
+                        To: ${change.to.network} (${change.to.address || 'none'})<br>
+                        <span style="color: ${status.includes('✅') ? 'green' : 'red'}">${status}</span>
+                    </div>
+                `;
+            });
+            
+            resultsEl.innerHTML = html;
+        }
+
+        // Check if network is EVM
+        function isEvmNetwork(networkId) {
+            return ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(networkId);
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            checkWallet();
+            
+            // Try to get initial state
+            if (typeof window.ethereum !== 'undefined') {
+                window.ethereum.request({ method: 'eth_accounts' })
+                    .then(accounts => {
+                        if (accounts && accounts.length > 0) {
+                            updateAddress(accounts[0], 'ethereum');
+                        }
+                    })
+                    .catch(error => {
+                        console.log('Could not get initial accounts:', error);
+                    });
+            }
+        });
+    </script>
+</body>
+</html>

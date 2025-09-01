@@ -296,6 +296,303 @@ function initializeBackground() {
                     }
                     return;
                   }
+                  case 'eth_sendTransaction': {
+                    console.log('Background: Processing eth_sendTransaction');
+                    
+                    const txParams = params[0];
+                    const { to, value, data, gas, gasPrice, nonce } = txParams;
+                    
+                    try {
+                      const { ethers } = await import('ethers');
+                      
+                      // Get current wallet
+                      chrome.storage.local.get(['currentWallet', 'wallets'], async (walletResult) => {
+                        try {
+                          const wallets = walletResult.wallets || [];
+                          const currentWallet = walletResult.currentWallet;
+                          
+                          if (!currentWallet || !wallets.length) {
+                            sendResponse({ success: false, error: 'No wallet available' });
+                            return;
+                          }
+                          
+                          const wallet = wallets.find((w: any) => w.id === currentWallet) || wallets[0];
+                          if (!wallet || !wallet.privateKey) {
+                            sendResponse({ success: false, error: 'No private key available' });
+                            return;
+                          }
+                          
+                          // Get network RPC URL
+                          const currentNetwork = result.network || 'ethereum';
+                          let rpcUrl = 'https://cloudflare-eth.com';
+                          if (currentNetwork === 'bsc') rpcUrl = 'https://bsc-dataseed1.binance.org';
+                          else if (currentNetwork === 'polygon') rpcUrl = 'https://polygon-rpc.com';
+                          
+                          const provider = new ethers.JsonRpcProvider(rpcUrl);
+                          const signer = new ethers.Wallet(wallet.privateKey, provider);
+                          
+                          // Build transaction
+                          const txRequest: any = {
+                            to: to || undefined,
+                            data: data || '0x'
+                          };
+                          
+                          if (value) txRequest.value = ethers.toBeHex(BigInt(value));
+                          if (gasPrice) txRequest.gasPrice = ethers.toBeHex(BigInt(gasPrice));
+                          if (gas) txRequest.gasLimit = ethers.toBeHex(BigInt(gas));
+                          if (nonce !== undefined) txRequest.nonce = Number(nonce);
+                          
+                          // Fill missing gas/gasPrice
+                          if (!txRequest.gasPrice) {
+                            const feeData = await provider.getFeeData();
+                            if (feeData.gasPrice) txRequest.gasPrice = feeData.gasPrice;
+                          }
+                          if (!txRequest.gasLimit) {
+                            const est = await provider.estimateGas({ 
+                              from: await signer.getAddress(), 
+                              ...txRequest 
+                            });
+                            txRequest.gasLimit = est;
+                          }
+                          
+                          // Send transaction
+                          const sentTx = await signer.sendTransaction(txRequest);
+                          console.log('Transaction sent:', sentTx.hash);
+                          
+                          sendResponse({ 
+                            success: true, 
+                            result: sentTx.hash 
+                          });
+                          
+                        } catch (error) {
+                          console.error('Transaction failed:', error);
+                          sendResponse({ 
+                            success: false, 
+                            error: error instanceof Error ? error.message : 'Transaction failed' 
+                          });
+                        }
+                      });
+                    } catch (error) {
+                      sendResponse({ success: false, error: 'Failed to load ethers library' });
+                    }
+                    return;
+                  }
+                  case 'eth_signTransaction': {
+                    console.log('Background: Processing eth_signTransaction');
+                    
+                    const txParams = params[0];
+                    const { to, value, data, gas, gasPrice, nonce } = txParams;
+                    
+                    try {
+                      const { ethers } = await import('ethers');
+                      
+                      chrome.storage.local.get(['currentWallet', 'wallets'], async (walletResult) => {
+                        try {
+                          const wallets = walletResult.wallets || [];
+                          const currentWallet = walletResult.currentWallet;
+                          
+                          if (!currentWallet || !wallets.length) {
+                            sendResponse({ success: false, error: 'No wallet available' });
+                            return;
+                          }
+                          
+                          const wallet = wallets.find((w: any) => w.id === currentWallet) || wallets[0];
+                          if (!wallet || !wallet.privateKey) {
+                            sendResponse({ success: false, error: 'No private key available' });
+                            return;
+                          }
+                          
+                          const signer = new ethers.Wallet(wallet.privateKey);
+                          
+                          // Build transaction
+                          const txRequest: any = {
+                            to: to || undefined,
+                            data: data || '0x'
+                          };
+                          
+                          if (value) txRequest.value = ethers.toBeHex(BigInt(value));
+                          if (gasPrice) txRequest.gasPrice = ethers.toBeHex(BigInt(gasPrice));
+                          if (gas) txRequest.gasLimit = ethers.toBeHex(BigInt(gas));
+                          if (nonce !== undefined) txRequest.nonce = Number(nonce);
+                          
+                          // Sign transaction (don't send)
+                          const signedTx = await signer.signTransaction(txRequest);
+                          console.log('Transaction signed');
+                          
+                          sendResponse({ 
+                            success: true, 
+                            result: signedTx 
+                          });
+                          
+                        } catch (error) {
+                          console.error('Transaction signing failed:', error);
+                          sendResponse({ 
+                            success: false, 
+                            error: error instanceof Error ? error.message : 'Transaction signing failed' 
+                          });
+                        }
+                      });
+                    } catch (error) {
+                      sendResponse({ success: false, error: 'Failed to load ethers library' });
+                    }
+                    return;
+                  }
+                  case 'personal_sign': {
+                    console.log('Background: Processing personal_sign');
+                    
+                    const message = params[0];
+                    const address = params[1];
+                    
+                    try {
+                      const { ethers } = await import('ethers');
+                      
+                      chrome.storage.local.get(['currentWallet', 'wallets'], async (walletResult) => {
+                        try {
+                          const wallets = walletResult.wallets || [];
+                          const currentWallet = walletResult.currentWallet;
+                          
+                          if (!currentWallet || !wallets.length) {
+                            sendResponse({ success: false, error: 'No wallet available' });
+                            return;
+                          }
+                          
+                          const wallet = wallets.find((w: any) => w.id === currentWallet) || wallets[0];
+                          if (!wallet || !wallet.privateKey) {
+                            sendResponse({ success: false, error: 'No private key available' });
+                            return;
+                          }
+                          
+                          const signer = new ethers.Wallet(wallet.privateKey);
+                          
+                          // Sign personal message
+                          const signature = await signer.signMessage(message);
+                          console.log('Message signed');
+                          
+                          sendResponse({ 
+                            success: true, 
+                            result: signature 
+                          });
+                          
+                        } catch (error) {
+                          console.error('Message signing failed:', error);
+                          sendResponse({ 
+                            success: false, 
+                            error: error instanceof Error ? error.message : 'Message signing failed' 
+                          });
+                        }
+                      });
+                    } catch (error) {
+                      sendResponse({ success: false, error: 'Failed to load ethers library' });
+                    }
+                    return;
+                  }
+                  case 'eth_signTypedData':
+                  case 'eth_signTypedData_v3':
+                  case 'eth_signTypedData_v4': {
+                    console.log('Background: Processing', method);
+                    
+                    const address = params[0];
+                    const typedData = params[1];
+                    
+                    try {
+                      const { ethers } = await import('ethers');
+                      
+                      chrome.storage.local.get(['currentWallet', 'wallets'], async (walletResult) => {
+                        try {
+                          const wallets = walletResult.wallets || [];
+                          const currentWallet = walletResult.currentWallet;
+                          
+                          if (!currentWallet || !wallets.length) {
+                            sendResponse({ success: false, error: 'No wallet available' });
+                            return;
+                          }
+                          
+                          const wallet = wallets.find((w: any) => w.id === currentWallet) || wallets[0];
+                          if (!wallet || !wallet.privateKey) {
+                            sendResponse({ success: false, error: 'No private key available' });
+                            return;
+                          }
+                          
+                          const signer = new ethers.Wallet(wallet.privateKey);
+                          
+                          // Parse typed data
+                          const parsedData = typeof typedData === 'string' ? JSON.parse(typedData) : typedData;
+                          
+                          // Sign typed data
+                          const signature = await signer.signTypedData(
+                            parsedData.domain,
+                            parsedData.types,
+                            parsedData.message
+                          );
+                          console.log('Typed data signed');
+                          
+                          sendResponse({ 
+                            success: true, 
+                            result: signature 
+                          });
+                          
+                        } catch (error) {
+                          console.error('Typed data signing failed:', error);
+                          sendResponse({ 
+                            success: false, 
+                            error: error instanceof Error ? error.message : 'Typed data signing failed' 
+                          });
+                        }
+                      });
+                    } catch (error) {
+                      sendResponse({ success: false, error: 'Failed to load ethers library' });
+                    }
+                    return;
+                  }
+                  case 'eth_sign': {
+                    console.log('Background: Processing eth_sign');
+                    
+                    const address = params[0];
+                    const data = params[1];
+                    
+                    try {
+                      const { ethers } = await import('ethers');
+                      
+                      chrome.storage.local.get(['currentWallet', 'wallets'], async (walletResult) => {
+                        try {
+                          const wallets = walletResult.wallets || [];
+                          const currentWallet = walletResult.currentWallet;
+                          
+                          if (!currentWallet || !wallets.length) {
+                            sendResponse({ success: false, error: 'No wallet available' });
+                            return;
+                          }
+                          
+                          const wallet = wallets.find((w: any) => w.id === currentWallet) || wallets[0];
+                          if (!wallet || !wallet.privateKey) {
+                            sendResponse({ success: false, error: 'No private key available' });
+                            return;
+                          }
+                          
+                          const signer = new ethers.Wallet(wallet.privateKey);
+                          
+                          // Sign raw data
+                          const signature = await signer.signMessage(ethers.getBytes(data));
+                          console.log('Data signed');
+                          
+                          sendResponse({ 
+                            success: true, 
+                            result: signature 
+                          });
+                          
+                        } catch (error) {
+                          console.error('Data signing failed:', error);
+                          sendResponse({ 
+                            success: false, 
+                            error: error instanceof Error ? error.message : 'Data signing failed' 
+                          });
+                        }
+                      });
+                    } catch (error) {
+                      sendResponse({ success: false, error: 'Failed to load ethers library' });
+                    }
+                    return;
+                  }
                   default:
                     sendResponse({ success: false, error: `Unsupported method: ${method}` });
                 }

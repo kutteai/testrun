@@ -42,14 +42,20 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
     setIsLoadingDomains(true);
     try {
+      // Load saved ENS domains from storage
+      const result = await chrome.storage.local.get(['savedENSDomains']);
+      const savedDomains = result.savedENSDomains || [];
+      
       // Try to reverse resolve the user's address to ENS name
       const ensName = await lookupENS(wallet.address);
+      
+      let domains: ENSDomain[] = [...savedDomains];
       
       if (ensName) {
         const records = await getENSRecords(ensName);
         const expiryDate = await getDomainExpiry(ensName);
         
-        const domain: ENSDomain = {
+        const userDomain: ENSDomain = {
           id: Date.now().toString(),
           name: ensName,
           address: wallet.address,
@@ -62,15 +68,41 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           records
         };
         
-        setMyDomains([domain]);
-      } else {
-        setMyDomains([]);
+        // Add user's domain if not already in the list
+        if (!domains.find(d => d.name === ensName)) {
+          domains = [userDomain, ...domains];
+        }
       }
+      
+      setMyDomains(domains);
     } catch (error) {
       console.error('Error loading user domains:', error);
       setMyDomains([]);
     } finally {
       setIsLoadingDomains(false);
+    }
+  };
+
+  const saveDomainToStorage = async (domain: ENSDomain) => {
+    try {
+      const result = await chrome.storage.local.get(['savedENSDomains']);
+      const savedDomains = result.savedENSDomains || [];
+      
+      // Check if domain already exists
+      const existingIndex = savedDomains.findIndex((d: ENSDomain) => d.name === domain.name);
+      
+      if (existingIndex >= 0) {
+        // Update existing domain
+        savedDomains[existingIndex] = domain;
+      } else {
+        // Add new domain
+        savedDomains.push(domain);
+      }
+      
+      await chrome.storage.local.set({ savedENSDomains: savedDomains });
+      console.log('✅ ENS domain saved to storage:', domain.name);
+    } catch (error) {
+      console.error('❌ Error saving ENS domain:', error);
     }
   };
 
@@ -131,15 +163,19 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       // In a real implementation, this would interact with ENS contracts
       // For now, we'll simulate the registration process
       
-      toast.success(`Registration simulation for ${domain.name} completed!`);
-      
       const registeredDomain = {
         ...domain,
+        id: Date.now().toString(),
         isOwned: true,
         isAvailable: false,
-        address: wallet.address
+        address: wallet.address,
+        expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       };
       
+      // Save to storage
+      await saveDomainToStorage(registeredDomain);
+      
+      // Update local state
       setMyDomains(prev => [...prev, registeredDomain]);
       setSearchResult(null);
       setSearchQuery('');

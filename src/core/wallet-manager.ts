@@ -269,7 +269,8 @@ export class WalletManager {
   }
 
   // Get all wallets (public interface)
-  getAllWallets(): WalletData[] {
+  async getAllWallets(): Promise<WalletData[]> {
+    await this.ensureInitialized();
     return this.wallets.map(wallet => this.convertToWalletData(wallet));
   }
 
@@ -282,7 +283,35 @@ export class WalletManager {
   // Get wallet accounts
   async getWalletAccounts(walletId: string): Promise<WalletAccount[]> {
     const wallet = await this.getInternalWallet(walletId);
-    return wallet ? wallet.accounts : [];
+    if (!wallet) return [];
+    
+    // Safety check: ensure accounts are properly formatted objects, not strings
+    const validAccounts = wallet.accounts.filter(acc => {
+      if (typeof acc === 'string') {
+        console.warn('🔧 WalletManager: Found string account, converting to object:', acc);
+        return false; // Filter out string accounts
+      }
+      return acc && typeof acc === 'object' && acc.address;
+    });
+    
+    // If we have string accounts but no valid accounts, create a fallback account
+    if (validAccounts.length === 0 && wallet.accounts.length > 0 && wallet.address) {
+      console.log('🔧 WalletManager: Creating fallback account from wallet address');
+      const fallbackAccount: WalletAccount = {
+        id: wallet.id + '-main',
+        address: wallet.address,
+        privateKey: wallet.privateKey || '',
+        publicKey: wallet.publicKey || '',
+        derivationPath: wallet.derivationPath || "m/44'/60'/0'/0/0",
+        network: wallet.network || 'ethereum',
+        balance: '0',
+        nonce: 0,
+        createdAt: wallet.createdAt || Date.now()
+      };
+      return [fallbackAccount];
+    }
+    
+    return validAccounts;
   }
 
   // Get account by address
@@ -613,26 +642,98 @@ export class WalletManager {
   }
 
   // Get current account for a wallet
-  getCurrentAccountForWallet(walletId: string): WalletAccount | null {
-    // Read from in-memory wallets to avoid async in a sync method
+  async getCurrentAccountForWallet(walletId: string): Promise<WalletAccount | null> {
+    await this.ensureInitialized();
+    
+    console.log('🔍 WalletManager.getCurrentAccountForWallet: Looking for wallet:', walletId);
+    console.log('🔍 Available wallets:', this.wallets.map(w => ({ id: w.id, address: w.address, accountsCount: w.accounts.length })));
+    
     const wallet = this.wallets.find(w => w.id === walletId);
-    if (!wallet) return null;
-    return wallet.accounts.find(acc => acc.address === wallet.address) || null;
+    if (!wallet) {
+      console.log('❌ WalletManager.getCurrentAccountForWallet: Wallet not found');
+      return null;
+    }
+    
+    console.log('✅ WalletManager.getCurrentAccountForWallet: Wallet found:', {
+      id: wallet.id,
+      address: wallet.address,
+      accountsCount: wallet.accounts.length,
+      accountAddresses: wallet.accounts.map(acc => acc.address)
+    });
+    
+    // Safety check: ensure accounts are properly formatted objects, not strings
+    const validAccounts = wallet.accounts.filter(acc => {
+      if (typeof acc === 'string') {
+        console.warn('🔧 WalletManager: Found string account in getCurrentAccount, skipping:', acc);
+        return false; // Filter out string accounts
+      }
+      return acc && typeof acc === 'object' && acc.address;
+    });
+    
+    // If we have string accounts but no valid accounts, create a fallback account
+    if (validAccounts.length === 0 && wallet.accounts.length > 0 && wallet.address) {
+      console.log('🔧 WalletManager: Creating fallback current account from wallet address');
+      const fallbackAccount: WalletAccount = {
+        id: wallet.id + '-main',
+        address: wallet.address,
+        privateKey: wallet.privateKey || '',
+        publicKey: wallet.publicKey || '',
+        derivationPath: wallet.derivationPath || "m/44'/60'/0'/0/0",
+        network: wallet.network || 'ethereum',
+        balance: '0',
+        nonce: 0,
+        createdAt: wallet.createdAt || Date.now()
+      };
+      return fallbackAccount;
+    }
+    
+    // First try to find an account that matches the wallet's address
+    let currentAccount = validAccounts.find(acc => acc.address === wallet.address);
+    
+    // If not found, use the first account but DON'T automatically update the wallet's address
+    // This prevents the wallet from switching to a new account when one is added
+    if (!currentAccount && validAccounts.length > 0) {
+      currentAccount = validAccounts[0];
+      console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account as fallback (without updating wallet address):', currentAccount.address);
+      // Note: We don't update wallet.address here to avoid switching to new accounts automatically
+    }
+    
+    console.log('🔍 WalletManager.getCurrentAccountForWallet: Current account:', currentAccount ? {
+      id: currentAccount.id,
+      address: currentAccount.address
+    } : 'null');
+    
+    return currentAccount || null;
   }
 
   // Add a new account to a wallet
   async addAccountToWallet(walletId: string, password: string): Promise<WalletAccount> {
     try {
+      console.log('🔍 WalletManager: Looking for wallet with ID:', walletId);
+      console.log('🔍 WalletManager: Available wallets:', this.wallets.map(w => ({ id: w.id, name: w.name })));
+      
       const wallet = await this.getInternalWallet(walletId);
       if (!wallet) {
+        console.error('❌ WalletManager: Wallet not found with ID:', walletId);
         throw new Error('Wallet not found');
       }
 
+      console.log('✅ WalletManager: Wallet found:', { 
+        id: wallet.id, 
+        name: wallet.name,
+        hasEncryptedSeedPhrase: !!wallet.encryptedSeedPhrase,
+        currentAccountsCount: wallet.accounts?.length || 0
+      });
+
       // Decrypt seed phrase
+      console.log('🔐 WalletManager: Attempting to decrypt seed phrase...');
       const seedPhrase = await decryptData(wallet.encryptedSeedPhrase, password);
       if (!seedPhrase) {
+        console.error('❌ WalletManager: Failed to decrypt seed phrase - invalid password');
         throw new Error('Invalid password');
       }
+      
+      console.log('✅ WalletManager: Seed phrase decrypted successfully');
 
       // Derive new account
       const newAccountIndex = wallet.accounts.length;

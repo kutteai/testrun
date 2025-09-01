@@ -414,25 +414,47 @@ try {
       
       console.log('PayCio: Blocking WalletConnect WebSocket connection to:', url);
       
-      // Return a mock WebSocket that does nothing
-      const mockWs = {
-        readyState: 3, // CLOSED
-        url: url,
-        protocol: '',
-        extensions: '',
-        bufferedAmount: 0,
-        onopen: null,
-        onclose: null,
-        onmessage: null,
-        onerror: null,
-        close: () => {},
-        send: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false
-      };
-      
-      return mockWs as any;
+      // Return a proper WebSocket that handles WalletConnect gracefully
+      try {
+        const ws = new originalWebSocket(url, protocols);
+        
+        // Add proper error handling for WalletConnect connections
+        ws.addEventListener('error', (event) => {
+          console.log('WalletConnect WebSocket error (handled):', event);
+        });
+        
+        ws.addEventListener('close', (event) => {
+          console.log('WalletConnect WebSocket closed:', event.code, event.reason);
+        });
+        
+        return ws;
+      } catch (error) {
+        console.log('Failed to create WalletConnect WebSocket, using fallback:', error);
+        
+        // Only create fallback if real WebSocket fails
+        const fallbackWs = {
+          readyState: 3, // CLOSED
+          url: url,
+          protocol: '',
+          extensions: '',
+          bufferedAmount: 0,
+          onopen: null,
+          onclose: null,
+          onmessage: null,
+          onerror: null,
+          close: () => {},
+          send: () => { console.log('WebSocket send blocked for:', url); },
+          addEventListener: (type: string, listener: any) => {
+            if (type === 'error' && listener) {
+              setTimeout(() => listener(new Error('WebSocket connection blocked')), 0);
+            }
+          },
+          removeEventListener: () => {},
+          dispatchEvent: () => false
+        };
+        
+        return fallbackWs as any;
+      }
     }
     
     const ws = new originalWebSocket(url, protocols);
@@ -878,6 +900,161 @@ try {
               if (response?.success) return resolve(response.result ?? null);
               reject(new Error(response?.error || 'wallet_addEthereumChain failed'));
             });
+          });
+        }
+
+        case 'eth_sendTransaction': {
+          console.log('PayCio: Transaction request received:', request.params);
+          
+          return new Promise((resolve, reject) => {
+            const txParams = request.params[0];
+            
+            createConfirmationPopup(
+              `Send Transaction\n\nTo: ${txParams.to}\nValue: ${txParams.value || '0x0'} ETH\nGas: ${txParams.gas || 'auto'}`,
+              () => {
+                console.log('PayCio: Transaction approved by user');
+                chrome.runtime.sendMessage({ 
+                  type: 'WALLET_REQUEST', 
+                  method: 'eth_sendTransaction', 
+                  params: request.params 
+                }, (response) => {
+                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                  if (response?.success) return resolve(response.result);
+                  reject(new Error(response?.error || 'Transaction failed'));
+                });
+              },
+              () => {
+                console.log('PayCio: Transaction rejected by user');
+                reject(new Error('User rejected the transaction'));
+              }
+            );
+          });
+        }
+
+        case 'eth_signTransaction': {
+          console.log('PayCio: Sign transaction request received:', request.params);
+          
+          return new Promise((resolve, reject) => {
+            const txParams = request.params[0];
+            
+            createConfirmationPopup(
+              `Sign Transaction\n\nTo: ${txParams.to}\nValue: ${txParams.value || '0x0'} ETH\nNote: This will not send the transaction`,
+              () => {
+                console.log('PayCio: Sign transaction approved by user');
+                chrome.runtime.sendMessage({ 
+                  type: 'WALLET_REQUEST', 
+                  method: 'eth_signTransaction', 
+                  params: request.params 
+                }, (response) => {
+                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                  if (response?.success) return resolve(response.result);
+                  reject(new Error(response?.error || 'Transaction signing failed'));
+                });
+              },
+              () => {
+                console.log('PayCio: Sign transaction rejected by user');
+                reject(new Error('User rejected the transaction signing'));
+              }
+            );
+          });
+        }
+
+        case 'personal_sign': {
+          console.log('PayCio: Personal sign request received:', request.params);
+          
+          return new Promise((resolve, reject) => {
+            const message = request.params[0];
+            const address = request.params[1];
+            
+            createConfirmationPopup(
+              `Sign Message\n\nMessage: ${message}\nSigning with: ${address}`,
+              () => {
+                console.log('PayCio: Personal sign approved by user');
+                chrome.runtime.sendMessage({ 
+                  type: 'WALLET_REQUEST', 
+                  method: 'personal_sign', 
+                  params: request.params 
+                }, (response) => {
+                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                  if (response?.success) return resolve(response.result);
+                  reject(new Error(response?.error || 'Message signing failed'));
+                });
+              },
+              () => {
+                console.log('PayCio: Personal sign rejected by user');
+                reject(new Error('User rejected the message signing'));
+              }
+            );
+          });
+        }
+
+        case 'eth_signTypedData':
+        case 'eth_signTypedData_v3':
+        case 'eth_signTypedData_v4': {
+          console.log('PayCio: Typed data sign request received:', request.params);
+          
+          return new Promise((resolve, reject) => {
+            const address = request.params[0];
+            const typedData = request.params[1];
+            let domain = '';
+            let message = '';
+            
+            try {
+              const parsedData = typeof typedData === 'string' ? JSON.parse(typedData) : typedData;
+              domain = parsedData.domain?.name || 'Unknown dApp';
+              message = JSON.stringify(parsedData.message || {}, null, 2);
+            } catch (e) {
+              message = 'Unable to parse typed data';
+            }
+            
+            createConfirmationPopup(
+              `Sign Typed Data\n\nDomain: ${domain}\nSigning with: ${address}\n\nData:\n${message}`,
+              () => {
+                console.log('PayCio: Typed data sign approved by user');
+                chrome.runtime.sendMessage({ 
+                  type: 'WALLET_REQUEST', 
+                  method: request.method, 
+                  params: request.params 
+                }, (response) => {
+                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                  if (response?.success) return resolve(response.result);
+                  reject(new Error(response?.error || 'Typed data signing failed'));
+                });
+              },
+              () => {
+                console.log('PayCio: Typed data sign rejected by user');
+                reject(new Error('User rejected the typed data signing'));
+              }
+            );
+          });
+        }
+
+        case 'eth_sign': {
+          console.log('PayCio: eth_sign request received:', request.params);
+          
+          return new Promise((resolve, reject) => {
+            const address = request.params[0];
+            const data = request.params[1];
+            
+            createConfirmationPopup(
+              `Sign Data\n\nData: ${data}\nSigning with: ${address}\n\nWarning: This is a raw signature request`,
+              () => {
+                console.log('PayCio: eth_sign approved by user');
+                chrome.runtime.sendMessage({ 
+                  type: 'WALLET_REQUEST', 
+                  method: 'eth_sign', 
+                  params: request.params 
+                }, (response) => {
+                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                  if (response?.success) return resolve(response.result);
+                  reject(new Error(response?.error || 'Data signing failed'));
+                });
+              },
+              () => {
+                console.log('PayCio: eth_sign rejected by user');
+                reject(new Error('User rejected the data signing'));
+              }
+            );
           });
         }
           

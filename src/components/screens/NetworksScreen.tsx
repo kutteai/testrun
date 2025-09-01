@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, Check, Globe, Settings, Wifi, WifiOff, Bitcoin, Zap, TrendingUp } from 'lucide-react';
 import { useNetwork } from '../../store/NetworkContext';
 import { useWallet } from '../../store/WalletContext';
+import { getConfig } from '../../utils/config';
 import toast from 'react-hot-toast';
 import type { ScreenProps, Network } from '../../types/index';
 
@@ -11,6 +12,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { switchNetwork: switchWalletNetwork } = useWallet();
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState<string | null>(null);
+  const [isAddingNetwork, setIsAddingNetwork] = useState(false);
   const [customNetwork, setCustomNetwork] = useState({
     name: '',
     symbol: '',
@@ -24,7 +26,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       id: 'ethereum',
       name: 'Ethereum',
       symbol: 'ETH',
-      rpcUrl: 'https://mainnet.infura.io/v3/',
+              rpcUrl: `https://mainnet.infura.io/v3/${getConfig().INFURA_PROJECT_ID}`,
       chainId: '1',
       explorerUrl: 'https://etherscan.io',
       isCustom: false,
@@ -212,6 +214,8 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return;
     }
 
+    setIsAddingNetwork(true);
+
     try {
       const newNetwork: Network = {
         id: customNetwork.name.toLowerCase().replace(/\s+/g, '-'),
@@ -224,8 +228,29 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         isEnabled: true
       };
 
+      // Add the custom network
       await addCustomNetwork(newNetwork);
-      toast.success('Custom network added successfully');
+      
+      // Automatically switch to the new network and generate address
+      toast.loading(`Switching to ${newNetwork.name}...`);
+      
+      try {
+        // Switch network in NetworkContext
+        await switchNetwork(newNetwork.id);
+        
+        // Switch network in WalletContext to generate the correct address
+        await switchWalletNetwork(newNetwork.id);
+        
+        toast.dismiss();
+        toast.success(`✅ ${newNetwork.name} added and activated! Address ready.`);
+      } catch (switchError) {
+        toast.dismiss();
+        toast.success(`✅ ${newNetwork.name} added successfully`);
+        toast.error('Failed to auto-switch to new network. You can switch manually.');
+        console.error('Auto-switch failed:', switchError);
+      }
+      
+      // Close modal and reset form
       setIsAddingCustom(false);
       setCustomNetwork({
         name: '',
@@ -234,8 +259,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         chainId: '',
         explorerUrl: ''
       });
-    } catch {
+    } catch (error) {
+      console.error('Failed to add network:', error);
       toast.error('Failed to add network');
+    } finally {
+      setIsAddingNetwork(false);
     }
   };
 
@@ -577,13 +605,14 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         {/* Add Custom Network Modal */}
         {isAddingCustom && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mx-4 border border-white/20"
+              className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg mx-4 border border-slate-600 shadow-2xl"
             >
-              <h3 className="text-lg font-semibold text-white mb-4">Add Custom Network</h3>
+              <h3 className="text-lg font-semibold text-white mb-2">Add Custom Network</h3>
+              <p className="text-sm text-slate-400 mb-6">Add a custom EVM-compatible network to your wallet. Make sure to verify the network details.</p>
               
               <div className="space-y-4">
                 <div>
@@ -594,8 +623,9 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     type="text"
                     value={customNetwork.name}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., My Custom Network"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                    placeholder="e.g., Polygon Mumbai"
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900 placeholder-gray-500 transition-all duration-200 hover:border-gray-400"
+                    required
                   />
                 </div>
 
@@ -607,8 +637,9 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     type="text"
                     value={customNetwork.symbol}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, symbol: e.target.value }))}
-                    placeholder="e.g., CUSTOM"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                    placeholder="e.g., MATIC"
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900 placeholder-gray-500 transition-all duration-200 hover:border-gray-400"
+                    required
                   />
                 </div>
 
@@ -620,8 +651,9 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     type="url"
                     value={customNetwork.rpcUrl}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, rpcUrl: e.target.value }))}
-                    placeholder="https://rpc.example.com"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                    placeholder="https://rpc-mumbai.maticvigil.com"
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900 placeholder-gray-500 transition-all duration-200 hover:border-gray-400"
+                    required
                   />
                 </div>
 
@@ -633,8 +665,9 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     type="text"
                     value={customNetwork.chainId}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, chainId: e.target.value }))}
-                    placeholder="e.g., 1"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                    placeholder="80001 or 0x13881"
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900 placeholder-gray-500 transition-all duration-200 hover:border-gray-400"
+                    required
                   />
                 </div>
 
@@ -646,28 +679,48 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     type="url"
                     value={customNetwork.explorerUrl}
                     onChange={(e) => setCustomNetwork(prev => ({ ...prev, explorerUrl: e.target.value }))}
-                    placeholder="https://explorer.example.com"
-                    className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
+                    placeholder="https://mumbai.polygonscan.com"
+                    className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none text-gray-900 placeholder-gray-500 transition-all duration-200 hover:border-gray-400"
                   />
                 </div>
               </div>
 
-              <div className="flex space-x-3 mt-6">
+              <div className="flex space-x-3 mt-8">
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: isAddingNetwork ? 1 : 1.02 }}
+                  whileTap={{ scale: isAddingNetwork ? 1 : 0.98 }}
                   onClick={() => setIsAddingCustom(false)}
-                  className="flex-1 px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700"
+                  disabled={isAddingNetwork}
+                  className={`flex-1 px-4 py-3 border rounded-lg transition-all duration-200 font-medium ${
+                    isAddingNetwork
+                      ? 'border-slate-600 text-slate-500 cursor-not-allowed'
+                      : 'border-slate-500 text-slate-300 hover:bg-slate-700'
+                  }`}
                 >
                   Cancel
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ scale: isAddingNetwork ? 1 : 1.02 }}
+                  whileTap={{ scale: isAddingNetwork ? 1 : 0.98 }}
                   onClick={handleAddCustomNetwork}
-                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  disabled={isAddingNetwork}
+                  className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 font-medium shadow-lg flex items-center justify-center ${
+                    isAddingNetwork 
+                      ? 'bg-blue-500 cursor-not-allowed' 
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  } text-white`}
                 >
-                  Add Network
+                  {isAddingNetwork ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Network'
+                  )}
                 </motion.button>
               </div>
             </motion.div>

@@ -16,10 +16,16 @@ import ReceiveScreen from '../components/screens/ReceiveScreen';
 import SettingsScreen from '../components/screens/SettingsScreen';
 import SecurityScreen from '../components/screens/SecurityScreen';
 import NetworksScreen from '../components/screens/NetworksScreen';
-import NFTScreen from '../components/screens/NFTScreen';
 import PortfolioScreen from '../components/screens/PortfolioScreen';
-import TransactionsScreen from '../components/screens/TransactionsScreen';
 import TransactionHistoryScreen from '../components/screens/TransactionHistoryScreen';
+import AccountsScreen from '../components/screens/AccountsScreen.js';
+import TokensScreen from '../components/screens/TokensScreen.js';
+import NFTsScreen from '../components/screens/NFTsScreen.js';
+import TransactionsScreen from '../components/screens/TransactionsScreen.js';
+import ENSScreen from '../components/screens/ENSScreen.js';
+import AddressBookScreen from '../components/screens/AddressBookScreen.js';
+import HardwareWalletScreen from '../components/screens/HardwareWalletScreen.js';
+import GasSettingsScreen from '../components/screens/GasSettingsScreen.js';
 import LoadingScreen from '../components/screens/LoadingScreen';
 import ErrorScreen from '../components/screens/ErrorScreen';
 // Import common components
@@ -31,22 +37,29 @@ const App = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [notification, setNotification] = useState(null);
     // Context hooks
-    const { wallet, isWalletUnlocked, isLoading: walletLoading, error: walletError, initializeWallet } = useWallet();
+    const { wallet, isWalletUnlocked, isLoading: walletLoading, error: walletError, initializeWallet, clearError } = useWallet();
     const { currentNetwork } = useNetwork();
     // Initialize app
     useEffect(() => {
         const initializeApp = async () => {
             try {
+                // Force clear any persistent errors before initialization
+                console.log('🧹 App.js: Clearing any persistent errors before initialization...');
+                if (clearError) {
+                    clearError();
+                }
+                
                 await initializeWallet();
                 setIsLoading(false);
             }
-            catch {
+            catch (initError) {
+                console.error('❌ App.js: Failed to initialize app:', initError);
                 toast.error('Failed to initialize app');
                 setIsLoading(false);
             }
         };
         initializeApp();
-    }, [initializeWallet]);
+    }, [initializeWallet, clearError]);
     // Handle navigation
     const handleNavigate = (screen) => {
         setCurrentScreen(screen);
@@ -59,12 +72,41 @@ const App = () => {
     if (isLoading || walletLoading) {
         return _jsx(LoadingScreen, { message: "Initializing wallet..." });
     }
-    // Show error screen
+    // Show error screen with detailed debugging
     if (walletError) {
-        return (_jsx(ErrorScreen, { error: walletError || 'An unknown error occurred', onRetry: () => window.location.reload() }));
+        console.error('🚨 App.js: Wallet error detected:', walletError);
+        console.error('🚨 App.js: Error type:', typeof walletError);
+        console.error('🚨 App.js: Error value:', JSON.stringify(walletError));
+        console.error('🚨 App.js: Current screen when error occurred:', currentScreen);
+        
+        return (_jsx(ErrorScreen, { 
+            error: `${walletError} (Screen: ${currentScreen})`, 
+            onRetry: () => {
+                console.log('🔄 App.js: User clicked retry, clearing error and going to dashboard...');
+                try {
+                    clearError();
+                    console.log('✅ App.js: Error cleared successfully');
+                    handleNavigate('dashboard');
+                } catch (clearErr) {
+                    console.error('❌ App.js: Failed to clear error:', clearErr);
+                    window.location.reload();
+                }
+            }
+        }));
     }
+    // Debug: Log current state
+    console.log('🔍 App.js: Current app state:', {
+        currentScreen,
+        isLoading,
+        walletLoading,
+        hasWallet: !!wallet,
+        walletError,
+        isWalletUnlocked
+    });
+
     // Render current screen
     const renderScreen = () => {
+        console.log('🎬 App.js: Rendering screen:', currentScreen);
         switch (currentScreen) {
             case 'welcome':
                 return _jsx(WelcomeScreen, { onNavigate: handleNavigate });
@@ -86,14 +128,26 @@ const App = () => {
                 return _jsx(SecurityScreen, { onNavigate: handleNavigate });
             case 'networks':
                 return _jsx(NetworksScreen, { onNavigate: handleNavigate });
-            case 'nfts':
-                return _jsx(NFTScreen, { onNavigate: handleNavigate });
+                              case 'nfts':
+                      return _jsx(NFTsScreen, { onNavigate: handleNavigate });
+                  case 'transactions':
+                      return _jsx(TransactionsScreen, { onNavigate: handleNavigate });
             case 'portfolio':
                 return _jsx(PortfolioScreen, { onNavigate: handleNavigate });
-            case 'transactions':
-                return _jsx(TransactionsScreen, { onNavigate: handleNavigate });
             case 'transaction-history':
                 return _jsx(TransactionHistoryScreen, { onNavigate: handleNavigate });
+            case 'accounts':
+                return _jsx(AccountsScreen, { onNavigate: handleNavigate });
+            case 'tokens':
+                return _jsx(TokensScreen, { onNavigate: handleNavigate });
+            case 'ens':
+                return _jsx(ENSScreen, { onNavigate: handleNavigate });
+            case 'address-book':
+                return _jsx(AddressBookScreen, { onNavigate: handleNavigate });
+            case 'hardware-wallet':
+                return _jsx(HardwareWalletScreen, { onNavigate: handleNavigate });
+            case 'gas-settings':
+                return _jsx(GasSettingsScreen, { onNavigate: handleNavigate });
             case 'loading':
                 return _jsx(LoadingScreen, {});
             case 'error':

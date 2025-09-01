@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Send, Download, Users, Coins, Globe, Shield, Zap, Copy, Eye, EyeOff, RefreshCw } from 'lucide-react';
+import { Send, Download, Users, Coins, Globe, Shield, Zap, Copy, Eye, EyeOff, RefreshCw, Image, Crown } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
 import { useNetwork } from '../../store/NetworkContext';
+import { getOwnedNFTs, getProfilePicture } from '../../utils/nft-utils';
+import { getNetworkRPCUrl } from '../../utils/token-balance-utils';
+import { getBitcoinTransactions } from '../../utils/bitcoin-simple';
+import { getEVMTransactions } from '../../utils/evm-transaction-utils';
 import Header from '../common/Header';
 import toast from 'react-hot-toast';
 import type { ScreenId } from '../../types/index';
@@ -29,6 +33,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
   const { networkState, currentNetwork } = useNetwork();
   const [showBalance, setShowBalance] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [nfts, setNfts] = useState<any[]>([]);
+  const [profilePicture, setProfilePicture] = useState<any>(null);
+  const [isLoadingNFTs, setIsLoadingNFTs] = useState(false);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
 
   // Debug logging
   React.useEffect(() => {
@@ -38,6 +47,24 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
   // Get current network-specific data
   const currentBalance = balances[currentNetwork?.id || 'ethereum'] || '0.00';
   const currentNetworkData = currentNetwork || networkState.currentNetwork;
+  
+  // Debug wallet address changes
+  React.useEffect(() => {
+    console.log('🔍 Dashboard: Wallet address changed:', {
+      address: wallet?.address,
+      currentNetwork: wallet?.currentNetwork,
+      networkId: currentNetworkData?.id
+    });
+  }, [wallet?.address, wallet?.currentNetwork, currentNetworkData?.id]);
+
+  // Load NFTs, profile picture, and transactions
+  useEffect(() => {
+    if (wallet?.address) {
+      loadNFTs();
+      loadProfilePicture();
+      loadTransactions();
+    }
+  }, [wallet?.address]);
 
   // Refresh balance when network changes
   useEffect(() => {
@@ -46,6 +73,68 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
       refreshBalance();
     }
   }, [currentNetworkData?.id]);
+
+  const loadNFTs = async () => {
+    if (!wallet?.address) return;
+    
+    setIsLoadingNFTs(true);
+    try {
+      const network = wallet.currentNetwork || 'ethereum';
+      const rpcUrl = getNetworkRPCUrl(network);
+      
+      console.log('🔍 Dashboard: Loading NFTs for address:', wallet.address);
+      console.log('🔍 Dashboard: Network:', network);
+      console.log('🔍 Dashboard: RPC URL:', rpcUrl);
+      
+      const ownedNFTs = await getOwnedNFTs(wallet.address, rpcUrl, network);
+      console.log('✅ Dashboard: Loaded NFTs:', ownedNFTs.length);
+      console.log('📊 Dashboard: NFT details:', ownedNFTs.map(nft => ({
+        name: nft.metadata.name,
+        collection: nft.name,
+        tokenId: nft.tokenId
+      })));
+      
+      setNfts(ownedNFTs.slice(0, 3)); // Show only first 3 NFTs
+    } catch (error) {
+      console.error('❌ Dashboard: Error loading NFTs:', error);
+    } finally {
+      setIsLoadingNFTs(false);
+    }
+  };
+
+  const loadProfilePicture = async () => {
+    try {
+      const currentProfile = await getProfilePicture();
+      setProfilePicture(currentProfile);
+    } catch (error) {
+      console.error('Error loading profile picture:', error);
+    }
+  };
+
+  const loadTransactions = async () => {
+    if (!wallet?.address) return;
+    
+    setIsLoadingTransactions(true);
+    try {
+      const network = wallet.currentNetwork || 'ethereum';
+      
+      if (network === 'bitcoin') {
+        // Load Bitcoin transactions
+        const btcTransactions = await getBitcoinTransactions(wallet.address, 'mainnet');
+        setTransactions(btcTransactions.slice(0, 5)); // Show only first 5 transactions
+      } else {
+        // Load EVM transactions
+        const rpcUrl = getNetworkRPCUrl(network);
+        const evmTransactions = await getEVMTransactions(wallet.address, rpcUrl, network);
+        setTransactions(evmTransactions.slice(0, 5)); // Show only first 5 transactions
+      }
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      setTransactions([]);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  };
 
   const refreshBalance = async () => {
     if (!isRefreshing) {
@@ -71,6 +160,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
 
   // Get network-specific features based on current network
   const getNetworkSpecificFeatures = () => {
+    console.log('🔍 Dashboard: getNetworkSpecificFeatures called with network:', currentNetworkData?.id);
     const baseFeatures = [
       {
         id: 'tokens',
@@ -86,10 +176,43 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
           console.log('onNavigate call completed');
           console.log('=== TOKENS BUTTON CLICK END ===');
         }
+      },
+      {
+        id: 'nfts',
+        title: 'NFTs',
+        description: 'View NFT collections',
+        icon: Image,
+        color: 'bg-purple-600',
+        onClick: () => onNavigate?.('nfts')
+      },
+      {
+        id: 'transactions',
+        title: 'Transactions',
+        description: 'View transaction history',
+        icon: RefreshCw,
+        color: 'bg-blue-600',
+        onClick: () => onNavigate?.('transactions')
+      },
+      {
+        id: 'hardware',
+        title: 'Hardware Wallet',
+        description: 'Connect hardware devices',
+        icon: Shield,
+        color: 'bg-red-600',
+        onClick: () => onNavigate?.('hardware')
+      },
+      {
+        id: 'gas',
+        title: 'Gas Settings',
+        description: 'Customize gas fees',
+        icon: Zap,
+        color: 'bg-orange-600',
+        onClick: () => onNavigate?.('gas')
       }
     ];
 
     // Add network-specific features
+    console.log('🔍 Dashboard: Switching on network:', currentNetworkData?.id);
     switch (currentNetworkData?.id) {
       case 'bitcoin':
         return [
@@ -165,6 +288,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
         ];
       default:
         // EVM chains
+        console.log('🔍 Dashboard: Using EVM features for network:', currentNetworkData?.id);
         return [
           ...baseFeatures,
           {
@@ -228,6 +352,11 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
   ];
 
   const advancedFeatures = getNetworkSpecificFeatures();
+  console.log('🔍 Dashboard: Advanced features:', {
+    count: advancedFeatures.length,
+    features: advancedFeatures.map(f => ({ id: f.id, title: f.title })),
+    currentNetwork: currentNetworkData?.id
+  });
 
   // Format address based on network
   const formatAddress = (addr: string) => {
@@ -374,6 +503,166 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
         </div>
       </motion.div>
 
+      {/* NFTs Section */}
+      {(() => {
+        console.log('🔍 Dashboard: NFT section render check:', {
+          nftsLength: nfts.length,
+          hasProfilePicture: !!profilePicture,
+          isLoadingNFTs
+        });
+        return (nfts.length > 0 || profilePicture);
+      })() && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">NFTs</h3>
+            <button
+              onClick={() => onNavigate?.('nfts')}
+              className="text-sm text-purple-400 hover:text-purple-300 transition-colors"
+            >
+              View All
+            </button>
+          </div>
+          
+          {/* Profile Picture */}
+          {profilePicture && (
+            <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 mb-4">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 rounded-xl overflow-hidden bg-gradient-to-br from-purple-500 to-pink-600 relative">
+                  <img 
+                    src={profilePicture.metadata.image} 
+                    alt={profilePicture.metadata.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCA0OCA0OCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjODg4Ii8+CjxwYXRoIGQ9Ik0yNCAyNEMzMi4wNTg5IDI0IDM4IDE4LjA1ODkgMzggMTBDMzggMS45NDExIDMyLjA1ODkgLTQgMjQgLTRDMTUuOTQxMSAtNCAxMCAxLjk0MTEgMTAgMTBDMTAgMTguMDU4OSAxNS45NDExIDI0IDI0IDI0WiIgZmlsbD0iI0FBQSIvPgo8cGF0aCBkPSJNMzggMzZDMzggMjcuOTQxMSAzMi4wNTg5IDIyIDI0IDIyQzE1Ljk0MTEgMjIgMTAgMjcuOTQxMSAxMCAzNkgzOFoiIGZpbGw9IiNBQUEiLz4KPC9zdmc+';
+                    }}
+                  />
+                  <div className="absolute top-1 right-1">
+                    <Crown className="w-3 h-3 text-yellow-400" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-semibold text-white text-sm">{profilePicture.metadata.name}</h4>
+                  <p className="text-xs text-gray-400">{profilePicture.name}</p>
+                  <p className="text-xs text-gray-500">Profile Picture</p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* NFT Grid */}
+          {nfts.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              {nfts.map((nft, index) => (
+                <motion.div
+                  key={nft.id}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.1 * index }}
+                  className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden cursor-pointer hover:border-white/20 transition-all"
+                  onClick={() => onNavigate?.('nfts')}
+                >
+                  <div className="aspect-square bg-gradient-to-br from-purple-500/20 to-pink-500/20 relative">
+                    <img 
+                      src={nft.metadata.image} 
+                      alt={nft.metadata.name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgdmlld0JveD0iMCAwIDEwMCAxMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIiBmaWxsPSIjODg4Ii8+CjxwYXRoIGQ9Ik01MCA1MEM2Ni4xMzcgNTAgODAgMzYuMTM3IDgwIDIwQzgwIDMuODYzIDY2LjEzNyAtMTAgNTAgLTEwQzMzLjg2MyAtMTAgMjAgMy44NjMgMjAgMjBDMjAgMzYuMTM3IDMzLjg2MyA1MCA1MCA1MFoiIGZpbGw9IiNBQUEiLz4KPHBhdGggZD0iTTgwIDgwQzgwIDY2Ljg2MyA2Ni4xMzcgNjAgNTAgNjBDMzMuODYzIDYwIDIwIDY2Ljg2MyAyMCA4MEg4MFoiIGZpbGw9IiNBQUEiLz4KPC9zdmc+';
+                      }}
+                    />
+                  </div>
+                  <div className="p-2">
+                    <h4 className="font-semibold text-white text-xs truncate">{nft.metadata.name}</h4>
+                    <p className="text-xs text-gray-400 truncate">{nft.name}</p>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+          
+          {/* Loading State */}
+          {isLoadingNFTs && (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-6 h-6 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
+      {/* Transaction History */}
+      {transactions.length > 0 && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="space-y-4"
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">Recent Transactions</h3>
+            <button
+              onClick={() => onNavigate?.('transactions')}
+              className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              View All
+            </button>
+          </div>
+          
+          <div className="space-y-3">
+            {transactions.map((tx, index) => (
+              <motion.div
+                key={tx.txid || index}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 * index }}
+                className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl p-4 hover:border-white/20 transition-all cursor-pointer"
+                onClick={() => onNavigate?.('transactions')}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      tx.type === 'receive' ? 'bg-green-500/20' : 'bg-red-500/20'
+                    }`}>
+                      <div className={`w-2 h-2 rounded-full ${
+                        tx.type === 'receive' ? 'bg-green-400' : 'bg-red-400'
+                      }`}></div>
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white text-sm capitalize">{tx.type}</h4>
+                      <p className="text-xs text-gray-400">
+                        {tx.txid ? `${tx.txid.slice(0, 8)}...${tx.txid.slice(-8)}` : 
+                         tx.hash ? `${tx.hash.slice(0, 8)}...${tx.hash.slice(-8)}` : 'Transaction'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-semibold text-sm ${
+                      tx.type === 'receive' ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(8)} {currentNetworkData?.symbol || (wallet?.currentNetwork === 'bitcoin' ? 'BTC' : 'ETH')}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {tx.confirmations > 0 ? `${tx.confirmations} confirmations` : 'Pending'}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+          
+          {/* Loading State */}
+          {isLoadingTransactions && (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-6 h-6 border-2 border-blue-400 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          )}
+        </motion.div>
+      )}
+
         {/* Advanced Features */}
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -382,9 +671,15 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
           className="space-y-4"
           style={{ position: 'relative', zIndex: 100 }}
         >
-          <h3 className="text-lg font-semibold text-white">Advanced Features</h3>
+          <h3 className="text-lg font-semibold text-white">Advanced Features ({advancedFeatures.length})</h3>
           <div className="grid grid-cols-2 gap-4">
-            {advancedFeatures.map((feature) => (
+            {advancedFeatures.length === 0 ? (
+              <div className="col-span-2 text-center py-8 text-gray-400">
+                <p>No advanced features available</p>
+                <p className="text-sm">Current network: {currentNetworkData?.id || 'unknown'}</p>
+              </div>
+            ) : (
+            advancedFeatures.map((feature) => (
               <button
                 key={feature.id}
                 data-testid={`feature-${feature.id}`}
@@ -399,7 +694,8 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ onNavigate }) => {
                 <h4 className="font-semibold text-white mb-1">{feature.title}</h4>
                 <p className="text-xs text-gray-400">{feature.description}</p>
               </button>
-            ))}
+            ))
+            )}
           </div>
         </motion.div>
         </div>

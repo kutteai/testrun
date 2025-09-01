@@ -1,130 +1,115 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Zap, Gauge, Clock, DollarSign, TrendingUp, TrendingDown, Settings } from 'lucide-react';
+import { ArrowLeft, Settings, Zap, Clock, Shield, Save, Loader, RefreshCw } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
-import { useNetwork } from '../../store/NetworkContext';
+import { 
+  GasSettings, 
+  TransactionSettings, 
+  DEFAULT_GAS_SETTINGS, 
+  GAS_PRESETS,
+  getCurrentGasPrices,
+  saveGasSettings,
+  loadGasSettings,
+  saveTransactionSettings,
+  loadTransactionSettings
+} from '../../utils/gas-utils';
+import { getNetworkRPCUrl } from '../../utils/token-balance-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
-interface GasOption {
-  id: string;
-  name: string;
-  description: string;
-  gasPrice: string;
-  estimatedFee: string;
-  estimatedTime: string;
-  priority: 'low' | 'medium' | 'high' | 'custom';
-}
-
 const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
-  const { currentNetwork } = useNetwork();
-  const [gasOptions, setGasOptions] = useState<GasOption[]>([]);
-  const [selectedOption, setSelectedOption] = useState<string>('medium');
-  const [customGasPrice, setCustomGasPrice] = useState('');
-  const [customGasLimit, setCustomGasLimit] = useState('21000');
+  const [gasSettings, setGasSettings] = useState<GasSettings>(DEFAULT_GAS_SETTINGS);
+  const [transactionSettings, setTransactionSettings] = useState<TransactionSettings>({
+    gasSettings: DEFAULT_GAS_SETTINGS,
+    autoApprove: false,
+    sessionTimeout: 15
+  });
+  const [currentGasPrices, setCurrentGasPrices] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    loadGasOptions();
-  }, [currentNetwork]);
+    loadSettings();
+    loadCurrentGasPrices();
+  }, [wallet?.currentNetwork]);
 
-  const loadGasOptions = async () => {
+  const loadSettings = async () => {
+    try {
+      const [gas, tx] = await Promise.all([
+        loadGasSettings(),
+        loadTransactionSettings()
+      ]);
+      setGasSettings(gas);
+      setTransactionSettings(tx);
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+  };
+
+  const loadCurrentGasPrices = async () => {
+    if (!wallet?.currentNetwork) return;
+
     setIsLoading(true);
     try {
-      // Simulate gas price fetching
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const baseGasPrice = 20; // Gwei
-      const options: GasOption[] = [
-        {
-          id: 'low',
-          name: 'Slow',
-          description: 'Lowest fee, may take longer',
-          gasPrice: `${baseGasPrice - 5} Gwei`,
-          estimatedFee: '$2.50',
-          estimatedTime: '5-10 min',
-          priority: 'low'
-        },
-        {
-          id: 'medium',
-          name: 'Standard',
-          description: 'Balanced fee and speed',
-          gasPrice: `${baseGasPrice} Gwei`,
-          estimatedFee: '$5.00',
-          estimatedTime: '2-5 min',
-          priority: 'medium'
-        },
-        {
-          id: 'high',
-          name: 'Fast',
-          description: 'Higher fee, faster confirmation',
-          gasPrice: `${baseGasPrice + 10} Gwei`,
-          estimatedFee: '$7.50',
-          estimatedTime: '30 sec - 2 min',
-          priority: 'high'
-        },
-        {
-          id: 'custom',
-          name: 'Custom',
-          description: 'Set your own gas price',
-          gasPrice: 'Custom',
-          estimatedFee: 'Calculated',
-          estimatedTime: 'Variable',
-          priority: 'custom'
-        }
-      ];
-      
-      setGasOptions(options);
+      const network = wallet.currentNetwork;
+      const rpcUrl = getNetworkRPCUrl(network);
+      const prices = await getCurrentGasPrices(rpcUrl);
+      setCurrentGasPrices(prices);
     } catch (error) {
-      toast.error('Failed to load gas options');
+      console.error('Error loading gas prices:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleOptionSelect = (optionId: string) => {
-    setSelectedOption(optionId);
-    if (optionId === 'custom') {
-      setCustomGasPrice('25');
+  const handleGasPriorityChange = (priority: GasSettings['priority']) => {
+    setGasSettings(prev => ({ ...prev, priority }));
+  };
+
+  const handleCustomGasChange = (field: string, value: string) => {
+    setGasSettings(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSessionTimeoutChange = (timeout: number) => {
+    setTransactionSettings(prev => ({ ...prev, sessionTimeout: timeout }));
+  };
+
+  const handleAutoApproveChange = (autoApprove: boolean) => {
+    setTransactionSettings(prev => ({ ...prev, autoApprove }));
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    try {
+      const updatedTransactionSettings = {
+        ...transactionSettings,
+        gasSettings
+      };
+      
+      await Promise.all([
+        saveGasSettings(gasSettings),
+        saveTransactionSettings(updatedTransactionSettings)
+      ]);
+      
+      toast.success('Settings saved successfully');
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      toast.error('Failed to save settings');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const calculateCustomFee = () => {
-    if (!customGasPrice || !customGasLimit) return '$0.00';
-    const gasPrice = parseFloat(customGasPrice);
-    const gasLimit = parseFloat(customGasLimit);
-    const fee = (gasPrice * gasLimit * 0.000000001 * 2000); // Approximate ETH price
-    return `$${fee.toFixed(2)}`;
+  const formatGwei = (wei: string) => {
+    return (parseInt(wei) / 1e9).toFixed(2);
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'low': return 'from-green-500 to-emerald-500';
-      case 'medium': return 'from-yellow-500 to-orange-500';
-      case 'high': return 'from-red-500 to-pink-500';
-      case 'custom': return 'from-purple-500 to-indigo-500';
-      default: return 'from-gray-500 to-slate-500';
-    }
-  };
-
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case 'low': return <TrendingDown className="w-4 h-4" />;
-      case 'medium': return <Gauge className="w-4 h-4" />;
-      case 'high': return <TrendingUp className="w-4 h-4" />;
-      case 'custom': return <Settings className="w-4 h-4" />;
-      default: return <Zap className="w-4 h-4" />;
-    }
-  };
-
-  const saveGasSettings = () => {
-    const selectedGasOption = gasOptions.find(option => option.id === selectedOption);
-    if (selectedGasOption) {
-      // In a real implementation, this would save to storage
-      toast.success('Gas settings saved successfully');
-      onNavigate('dashboard');
-    }
+  const formatUSD = (gwei: string) => {
+    // Rough estimate: 1 gwei ≈ $0.000000002 (varies by ETH price)
+    const gweiValue = parseFloat(gwei);
+    const usdValue = gweiValue * 0.000000002;
+    return usdValue.toFixed(6);
   };
 
   return (
@@ -148,148 +133,193 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold">Gas Settings</h1>
-              <p className="text-slate-400 text-sm">Customize transaction fees</p>
+              <p className="text-slate-400 text-sm">Transaction & Session Management</p>
             </div>
           </div>
-          <div className="w-10"></div>
+          <button
+            onClick={loadCurrentGasPrices}
+            disabled={isLoading}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isLoading ? <Loader className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6" />}
+          </button>
         </div>
       </motion.div>
 
-      {/* Content */}
+      <div className="px-6 pb-6 flex-1 space-y-6">
+        {/* Current Gas Prices */}
+        {currentGasPrices && (
       <motion.div 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-6 pb-6 flex-1 overflow-y-auto"
-      >
-        {/* Current Network Info */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-white">Current Network</h3>
-              <p className="text-slate-400 text-sm">{currentNetwork?.name || 'Ethereum'}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm text-slate-400">Base Fee</p>
-              <p className="text-white font-medium">~20 Gwei</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Gas Options */}
-        <div>
-          <h3 className="text-lg font-semibold mb-4">Gas Options</h3>
-          <div className="space-y-3">
-            {gasOptions.map((option) => (
-              <motion.div
-                key={option.id}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => handleOptionSelect(option.id)}
-                className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                  selectedOption === option.id
-                    ? 'border-orange-500 bg-orange-500/20'
-                    : 'border-white/20 hover:border-white/30 bg-white/10'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className={`w-10 h-10 bg-gradient-to-r ${getPriorityColor(option.priority)} rounded-lg flex items-center justify-center`}>
-                      {getPriorityIcon(option.priority)}
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-white">{option.name}</h4>
-                      <p className="text-slate-400 text-sm">{option.description}</p>
-                      <div className="flex items-center space-x-4 mt-1">
-                        <div className="flex items-center space-x-1">
-                          <DollarSign className="w-3 h-3 text-slate-400" />
-                          <span className="text-xs text-slate-400">{option.estimatedFee}</span>
-                        </div>
-                        <div className="flex items-center space-x-1">
-                          <Clock className="w-3 h-3 text-slate-400" />
-                          <span className="text-xs text-slate-400">{option.estimatedTime}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-white">{option.gasPrice}</p>
-                    {selectedOption === option.id && (
-                      <div className="w-2 h-2 bg-orange-400 rounded-full mx-auto mt-2"></div>
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-
-        {/* Custom Gas Settings */}
-        {selectedOption === 'custom' && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20"
+            className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
           >
-            <h4 className="font-semibold text-white mb-4">Custom Gas Settings</h4>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Gas Price (Gwei)
-                </label>
-                <input
-                  type="number"
-                  value={customGasPrice}
-                  onChange={(e) => setCustomGasPrice(e.target.value)}
-                  placeholder="20"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-white placeholder-slate-400"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Gas Limit
-                </label>
-                <input
-                  type="number"
-                  value={customGasLimit}
-                  onChange={(e) => setCustomGasLimit(e.target.value)}
-                  placeholder="21000"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent text-white placeholder-slate-400"
-                />
-              </div>
-              <div className="bg-slate-800 rounded-lg p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-slate-400">Estimated Fee:</span>
-                  <span className="text-white font-medium">{calculateCustomFee()}</span>
-                </div>
-              </div>
+            <h3 className="text-lg font-semibold mb-4 flex items-center">
+              <Zap className="w-5 h-5 mr-2 text-orange-400" />
+              Current Network Gas Prices
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white/5 rounded-xl p-4">
+                <p className="text-sm text-gray-400">Max Fee Per Gas</p>
+                <p className="text-xl font-bold">{formatGwei(currentGasPrices.maxFeePerGas)} Gwei</p>
+                <p className="text-xs text-gray-500">~${formatUSD(currentGasPrices.maxFeePerGas)}</p>
             </div>
+              <div className="bg-white/5 rounded-xl p-4">
+                <p className="text-sm text-gray-400">Max Priority Fee</p>
+                <p className="text-xl font-bold">{formatGwei(currentGasPrices.maxPriorityFeePerGas)} Gwei</p>
+                <p className="text-xs text-gray-500">~${formatUSD(currentGasPrices.maxPriorityFeePerGas)}</p>
+            </div>
+              <div className="bg-white/5 rounded-xl p-4">
+                <p className="text-sm text-gray-400">Gas Price</p>
+                <p className="text-xl font-bold">{formatGwei(currentGasPrices.gasPrice)} Gwei</p>
+                <p className="text-xs text-gray-500">~${formatUSD(currentGasPrices.gasPrice)}</p>
+          </div>
+        </div>
           </motion.div>
         )}
 
-        {/* Gas Tips */}
-        <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4">
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-            <span className="text-sm text-blue-400 font-medium">Gas Tips</span>
-          </div>
-          <div className="space-y-2 text-sm">
-            <p className="text-slate-300">• <strong>Low:</strong> Use during low network congestion</p>
-            <p className="text-slate-300">• <strong>Standard:</strong> Good for most transactions</p>
-            <p className="text-slate-300">• <strong>Fast:</strong> Use for urgent transactions</p>
-            <p className="text-slate-300">• <strong>Custom:</strong> Set your own values</p>
-          </div>
+        {/* Gas Priority Settings */}
+              <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
+        >
+          <h3 className="text-lg font-semibold mb-4">Gas Priority</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {Object.entries(GAS_PRESETS).map(([key, preset]) => (
+              <button
+                key={key}
+                onClick={() => handleGasPriorityChange(key as GasSettings['priority'])}
+                className={`p-4 rounded-xl border transition-all ${
+                  gasSettings.priority === key
+                    ? 'border-orange-500 bg-orange-500/20'
+                    : 'border-white/20 hover:border-white/40'
+                }`}
+              >
+                <div className="text-left">
+                  <h4 className="font-semibold capitalize">{key}</h4>
+                  <p className="text-sm text-gray-400">{preset.description}</p>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Max Fee: {formatGwei(preset.maxFeePerGas)} Gwei
+                  </p>
+                </div>
+              </button>
+            ))}
         </div>
 
-        {/* Save Button */}
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={saveGasSettings}
-          className="w-full py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors font-medium"
+        {/* Custom Gas Settings */}
+          {gasSettings.priority === 'custom' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Max Fee Per Gas (Gwei)</label>
+                  <input
+                    type="number"
+                    value={gasSettings.maxFeePerGas ? formatGwei(gasSettings.maxFeePerGas) : ''}
+                    onChange={(e) => handleCustomGasChange('maxFeePerGas', (parseFloat(e.target.value) * 1e9).toString())}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="25.0"
+                  />
+                </div>
+              <div>
+                  <label className="block text-sm font-medium mb-2">Max Priority Fee (Gwei)</label>
+                <input
+                  type="number"
+                    value={gasSettings.maxPriorityFeePerGas ? formatGwei(gasSettings.maxPriorityFeePerGas) : ''}
+                    onChange={(e) => handleCustomGasChange('maxPriorityFeePerGas', (parseFloat(e.target.value) * 1e9).toString())}
+                    className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    placeholder="2.0"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Gas Limit</label>
+                <input
+                  type="number"
+                  value={gasSettings.gasLimit || ''}
+                  onChange={(e) => handleCustomGasChange('gasLimit', e.target.value)}
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  placeholder="21000"
+                />
+              </div>
+            </div>
+          )}
+        </motion.div>
+
+        {/* Session Management */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6"
         >
-          Save Gas Settings
-        </motion.button>
+          <h3 className="text-lg font-semibold mb-4 flex items-center">
+            <Clock className="w-5 h-5 mr-2 text-blue-400" />
+            Session Management
+          </h3>
+          
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Session Timeout (minutes)</label>
+              <select
+                value={transactionSettings.sessionTimeout}
+                onChange={(e) => handleSessionTimeoutChange(parseInt(e.target.value))}
+                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value={5}>5 minutes</option>
+                <option value={15}>15 minutes</option>
+                <option value={30}>30 minutes</option>
+                <option value={60}>1 hour</option>
+                <option value={120}>2 hours</option>
+                <option value={0}>Never (manual lock)</option>
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Wallet will automatically lock after {transactionSettings.sessionTimeout || 'manual'} of inactivity
+              </p>
+                </div>
+
+            <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl">
+              <div>
+                <h4 className="font-semibold">Auto-Approve Transactions</h4>
+                <p className="text-sm text-gray-400">Automatically approve transactions without confirmation</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={transactionSettings.autoApprove}
+                  onChange={(e) => handleAutoApproveChange(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-orange-500"></div>
+              </label>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Save Button */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex justify-center"
+        >
+          <button
+            onClick={handleSaveSettings}
+            disabled={isSaving}
+            className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed px-8 py-4 rounded-xl font-semibold transition-all duration-200 flex items-center space-x-2"
+          >
+            {isSaving ? (
+              <>
+                <Loader className="w-5 h-5 animate-spin" />
+                <span>Saving...</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-5 h-5" />
+                <span>Save Settings</span>
+              </>
+            )}
+          </button>
       </motion.div>
+      </div>
     </div>
   );
 };

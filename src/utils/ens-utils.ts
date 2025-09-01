@@ -41,16 +41,115 @@ function namehash(name: string): string {
   return node;
 }
 
-// Resolve ENS name to address
-export async function resolveENS(ensName: string): Promise<string | null> {
+// Resolve ENS name to address (multi-chain support)
+export async function resolveENS(ensName: string, network: string = 'ethereum'): Promise<string | null> {
   try {
-    const config = getConfig();
-    const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
+    // Handle different domain types
+    if (ensName.includes('.eth')) {
+      // Traditional ENS (Ethereum)
+      const config = getConfig();
+      const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
+      const address = await provider.resolveName(ensName);
+      return address;
+    } else if (ensName.includes('.bnb')) {
+      // BNB domains (Space ID)
+      return await resolveBNBDomain(ensName);
+    } else if (ensName.includes('.crypto') || ensName.includes('.nft') || ensName.includes('.x') || ensName.includes('.wallet') || ensName.includes('.bitcoin') || ensName.includes('.dao')) {
+      // Unstoppable Domains
+      return await resolveUnstoppableDomain(ensName);
+    } else if (ensName.includes('.sol')) {
+      // Solana Name Service
+      return await resolveSolanaDomain(ensName);
+    } else if (ensName.includes('.avax')) {
+      // Avalanche Name Service
+      return await resolveAvalancheDomain(ensName);
+    }
     
-    const address = await provider.resolveName(ensName);
-    return address;
+    return null;
   } catch (error) {
     console.error('ENS resolution failed:', error);
+    return null;
+  }
+}
+
+// Resolve BNB domains (Space ID)
+async function resolveBNBDomain(domain: string): Promise<string | null> {
+  try {
+    const provider = new ethers.JsonRpcProvider('https://bsc-dataseed1.binance.org');
+    
+    // Space ID contract on BSC
+    const SPACE_ID_CONTRACT = '0x08CEd32a7f3eCf3562427ddf9a624E9Df47d65Fc';
+    const SPACE_ID_ABI = [
+      'function resolve(bytes32 node) view returns (address)',
+      'function addr(bytes32 node) view returns (address)'
+    ];
+    
+    const contract = new ethers.Contract(SPACE_ID_CONTRACT, SPACE_ID_ABI, provider);
+    const node = namehash(domain);
+    const address = await contract.addr(node);
+    
+    if (address && address !== '0x0000000000000000000000000000000000000000') {
+      return address;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('BNB domain resolution failed:', error);
+    return null;
+  }
+}
+
+// Resolve Unstoppable Domains
+async function resolveUnstoppableDomain(domain: string): Promise<string | null> {
+  try {
+    // Unstoppable Domains API
+    const response = await fetch(`https://resolve.unstoppabledomains.com/domains/${domain}`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.UNSTOPPABLE_DOMAINS_API_KEY || ''}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      return data.records?.['crypto.ETH.address'] || null;
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Unstoppable domain resolution failed:', error);
+    return null;
+  }
+}
+
+// Resolve Solana domains
+async function resolveSolanaDomain(domain: string): Promise<string | null> {
+  try {
+    // Solana Name Service resolution
+    const response = await fetch(`https://sns-api.bonfida.org/resolve/${domain}`);
+    if (response.ok) {
+      const data = await response.json();
+      return data.result || null;
+    }
+    return null;
+  } catch (error) {
+    console.error('Solana domain resolution failed:', error);
+    return null;
+  }
+}
+
+// Resolve Avalanche domains
+async function resolveAvalancheDomain(domain: string): Promise<string | null> {
+  try {
+    const provider = new ethers.JsonRpcProvider('https://api.avax.network/ext/bc/C/rpc');
+    
+    // AVVY Domains contract on Avalanche
+    const AVVY_CONTRACT = '0x1111111111111111111111111111111111111111'; // Placeholder
+    // Implementation would require actual AVVY contract address and ABI
+    
+    return null; // Placeholder - needs actual implementation
+  } catch (error) {
+    console.error('Avalanche domain resolution failed:', error);
     return null;
   }
 }

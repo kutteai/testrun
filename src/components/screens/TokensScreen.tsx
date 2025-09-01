@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Search, Copy, Check, Coins, TrendingUp, TrendingDown, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Plus, Search, Copy, Check, Coins, TrendingUp, TrendingDown, ExternalLink, RefreshCw, Trash2 } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
+import { useSend } from '../../store/SendContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { detectTokensWithBalances, getAllPopularTokens, getNetworkRPCUrl, getTokenPrice, type TokenBalance } from '../../utils/token-balance-utils';
 
 interface Token {
   id: string;
@@ -16,10 +18,12 @@ interface Token {
   change24h: number;
   logo?: string;
   isCustom: boolean;
+  isAutoDetected?: boolean;
 }
 
 const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
+  const { setSelectedToken } = useSend();
   
   // Debug logging
   console.log('TokensScreen rendered, onNavigate:', !!onNavigate);
@@ -34,6 +38,77 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     name: '',
     decimals: 18
   });
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Default popular tokens
+  const defaultTokens: Token[] = [
+    {
+      id: 'usdt',
+      symbol: 'USDT',
+      name: 'Tether USD',
+      address: '0xdAC17F958D2ee523a2206206994597C13D831ec7',
+      balance: '0',
+      decimals: 6,
+      price: 1.00,
+      change24h: 0.01,
+      isCustom: false
+    },
+    {
+      id: 'usdc',
+      symbol: 'USDC',
+      name: 'USD Coin',
+      address: '0xA0b86a33E6441b8C4C8C8C8C8C8C8C8C8C8C8C8C',
+      balance: '0',
+      decimals: 6,
+      price: 1.00,
+      change24h: -0.02,
+      isCustom: false
+    },
+    {
+      id: 'dai',
+      symbol: 'DAI',
+      name: 'Dai Stablecoin',
+      address: '0x6B175474E89094C44Da98b954EedeAC495271d0F',
+      balance: '0',
+      decimals: 18,
+      price: 1.00,
+      change24h: 0.05,
+      isCustom: false
+    },
+    {
+      id: 'weth',
+      symbol: 'WETH',
+      name: 'Wrapped Ether',
+      address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
+      balance: '0',
+      decimals: 18,
+      price: 2000.00,
+      change24h: 2.5,
+      isCustom: false
+    },
+    {
+      id: 'link',
+      symbol: 'LINK',
+      name: 'Chainlink',
+      address: '0x514910771AF9Ca656af840dff83E8264EcF986CA',
+      balance: '0',
+      decimals: 18,
+      price: 15.50,
+      change24h: -1.2,
+      isCustom: false
+    },
+    {
+      id: 'busd',
+      symbol: 'BUSD',
+      name: 'Binance USD',
+      address: '0x4Fabb145d64652a948d72533023f6E7A623C7C53',
+      balance: '0',
+      decimals: 18,
+      price: 1.00,
+      change24h: 0.01,
+      isCustom: false
+    }
+  ];
 
   // Load and fetch tokens
   useEffect(() => {
@@ -42,36 +117,84 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       try {
         // Load custom tokens from storage
         const result = await chrome.storage.local.get(['customTokens']);
-        const savedTokens = result.customTokens || [];
+        const savedCustomTokens = result.customTokens || [];
+        console.log('📦 Loaded custom tokens from storage:', savedCustomTokens.length);
+        
+        // Combine default tokens with custom tokens
+        const allTokens = [...defaultTokens, ...savedCustomTokens];
         
         if (wallet && wallet.accounts && wallet.accounts.length > 0) {
-          // In a real implementation, you would fetch tokens from the blockchain
-          // For now, we'll use saved custom tokens
-          setTokens(savedTokens);
+          // Auto-detect tokens in the current account
+          const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
+          if (currentAccount && currentAccount.address) {
+            const accountAddress = currentAccount.address;
+            console.log('🔍 Auto-detecting tokens for account:', accountAddress);
+            
+            try {
+              // Get RPC URL for current network
+              const network = wallet.currentNetwork || 'ethereum';
+              const rpcUrl = getNetworkRPCUrl(network);
+              
+              // Auto-detect tokens with balances > 0 only
+              const tokensWithBalances = await detectTokensWithBalances(accountAddress, rpcUrl);
+              
+              // Convert to Token format - only tokens with real balances > 0
+              const autoDetectedTokens = tokensWithBalances.map((token: TokenBalance) => ({
+                id: token.address,
+                symbol: token.symbol,
+                name: token.name,
+                address: token.address,
+                balance: token.balance, // Only tokens with balance > 0
+                decimals: token.decimals,
+                price: token.price || 0,
+                change24h: 0, // Would need 24h price data
+                isCustom: false,
+                isAutoDetected: true
+              }));
+              
+              console.log('✅ Auto-detected tokens with balances > 0:', autoDetectedTokens.length);
+              console.log('📊 Token balances:', autoDetectedTokens.map(t => `${t.symbol}: ${t.balance}`));
+              
+              // Combine auto-detected tokens with saved custom tokens
+              const finalTokens = [...autoDetectedTokens, ...savedCustomTokens];
+              setTokens(finalTokens);
+              console.log('📋 Final token list:', finalTokens.length, 'tokens');
+            } catch (error) {
+              console.error('Error detecting tokens:', error);
+              setTokens(allTokens);
+            }
+          } else {
+            setTokens(allTokens);
+          }
         } else {
-          setTokens(savedTokens);
+          setTokens(allTokens);
         }
       } catch (error) {
         console.error('Error loading tokens:', error);
-        setTokens([]);
+        setTokens(defaultTokens);
       }
     };
 
     loadAndFetchTokens();
   }, [wallet]);
 
-  // Save tokens to storage whenever tokens change
+  // Save custom tokens to storage whenever tokens change
   useEffect(() => {
-    const saveTokens = async () => {
+    const saveCustomTokens = async () => {
       try {
-        await chrome.storage.local.set({ customTokens: tokens });
+        // Only save custom tokens, not all tokens
+        const customTokens = tokens.filter(token => token.isCustom);
+        console.log('💾 Saving custom tokens to storage:', customTokens.length);
+        await chrome.storage.local.set({ customTokens: customTokens });
       } catch (error) {
-        console.error('Error saving tokens:', error);
+        console.error('Error saving custom tokens:', error);
       }
     };
 
-    if (tokens.length > 0) {
-      saveTokens();
+    // Only save if we have custom tokens
+    const customTokens = tokens.filter(token => token.isCustom);
+    if (customTokens.length > 0) {
+      saveCustomTokens();
     }
   }, [tokens]);
 
@@ -80,6 +203,48 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     token.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleRefreshTokens = async () => {
+    setIsRefreshing(true);
+    try {
+              if (wallet && wallet.accounts && wallet.accounts.length > 0) {
+          const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
+          
+          if (currentAccount && currentAccount.address) {
+          // Real token balance detection
+          const network = wallet.currentNetwork || 'ethereum';
+          const rpcUrl = getNetworkRPCUrl(network);
+          
+          const tokensWithBalances = await detectTokensWithBalances(currentAccount.address, rpcUrl);
+          
+          // Convert to Token format - only tokens with real balances > 0
+          const autoDetectedTokens = tokensWithBalances.map((token: TokenBalance) => ({
+            id: token.address,
+            symbol: token.symbol,
+            name: token.name,
+            address: token.address,
+            balance: token.balance, // Only tokens with balance > 0
+            decimals: token.decimals,
+            price: token.price || 0,
+            change24h: 0,
+            isCustom: false,
+            isAutoDetected: true
+          }));
+          
+          const result = await chrome.storage.local.get(['customTokens']);
+          const savedCustomTokens = result.customTokens || [];
+          
+          setTokens([...autoDetectedTokens, ...savedCustomTokens]);
+          toast.success(`Found ${autoDetectedTokens.length} tokens with balances > 0`);
+        }
+      }
+    } catch (error) {
+      console.error('Error refreshing tokens:', error);
+      toast.error('Failed to refresh tokens');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleAddToken = async () => {
     if (!newToken.address || !newToken.symbol || !newToken.name) {
       toast.error('Please fill in all fields');
@@ -87,7 +252,21 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
 
     try {
-      // In a real implementation, you would validate the token contract
+      // Validate token address format
+      if (!validateTokenAddress(newToken.address)) {
+        toast.error('Invalid contract address format');
+        return;
+      }
+
+      // Check if token already exists
+      const existingToken = tokens.find(token => 
+        token.address.toLowerCase() === newToken.address.toLowerCase()
+      );
+      if (existingToken) {
+        toast.error('Token already exists in your list');
+        return;
+      }
+
       const token: Token = {
         id: Date.now().toString(),
         symbol: newToken.symbol.toUpperCase(),
@@ -100,20 +279,20 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         isCustom: true
       };
 
+      console.log('➕ Adding custom token:', token);
       const updatedTokens = [...tokens, token];
       setTokens(updatedTokens);
       
-      // Save to storage immediately
-      try {
-        await chrome.storage.local.set({ customTokens: updatedTokens });
-      } catch (error) {
-        console.error('Error saving token:', error);
-      }
+      // Save custom tokens to storage immediately
+      const customTokens = updatedTokens.filter(t => t.isCustom);
+      await chrome.storage.local.set({ customTokens: customTokens });
+      console.log('💾 Saved custom tokens to storage:', customTokens.length);
       
       setIsAddingToken(false);
       setNewToken({ address: '', symbol: '', name: '', decimals: 18 });
-      toast.success('Token added successfully');
+      toast.success(`${token.symbol} added successfully`);
     } catch (error) {
+      console.error('Error adding token:', error);
       toast.error('Failed to add token');
     }
   };
@@ -127,6 +306,142 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     } catch {
       toast.error('Failed to copy address');
     }
+  };
+
+  const handleRemoveToken = async (tokenId: string, tokenSymbol: string) => {
+    try {
+      // Show confirmation dialog
+      const confirmed = window.confirm(`Are you sure you want to remove ${tokenSymbol} from your token list?`);
+      if (!confirmed) return;
+
+      console.log('🗑️ Removing token:', tokenSymbol, 'ID:', tokenId);
+      
+      // Remove token from state
+      const updatedTokens = tokens.filter(token => token.id !== tokenId);
+      setTokens(updatedTokens);
+
+      // Update storage - only save custom tokens
+      const customTokensOnly = updatedTokens.filter(token => token.isCustom);
+      await chrome.storage.local.set({ customTokens: customTokensOnly });
+      console.log('💾 Updated custom tokens in storage:', customTokensOnly.length);
+
+      toast.success(`${tokenSymbol} removed from token list`);
+    } catch (error) {
+      console.error('Error removing token:', error);
+      toast.error('Failed to remove token');
+    }
+  };
+
+  const validateTokenAddress = (address: string): boolean => {
+    // Basic Ethereum address validation
+    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+    return ethAddressRegex.test(address);
+  };
+
+  const fetchTokenDetails = async (address: string) => {
+    if (!validateTokenAddress(address)) {
+      toast.error('Invalid contract address');
+      return null;
+    }
+
+    try {
+      // Check if token already exists
+      const existingToken = tokens.find(token => 
+        token.address.toLowerCase() === address.toLowerCase()
+      );
+      if (existingToken) {
+        toast.error('Token already added');
+        return null;
+      }
+
+      // Query the actual contract for token details
+      const { ethers } = await import('ethers');
+      const networkRPCUrl = getNetworkRPCUrl(wallet?.currentNetwork || 'ethereum');
+      const provider = new ethers.JsonRpcProvider(networkRPCUrl);
+      
+      // ERC-20 ABI for basic token info
+      const tokenABI = [
+        'function name() view returns (string)',
+        'function symbol() view returns (string)',
+        'function decimals() view returns (uint8)',
+        'function totalSupply() view returns (uint256)'
+      ];
+      
+      const contract = new ethers.Contract(address, tokenABI, provider);
+      
+      // Get token details from contract
+      const [name, symbol, decimals] = await Promise.all([
+        contract.name(),
+        contract.symbol(),
+        contract.decimals()
+      ]);
+      
+      // Auto-fill the form with contract details
+      setNewToken({
+        address,
+        symbol: symbol,
+        name: name,
+        decimals: Number(decimals)
+      });
+      
+      toast.success(`Token details loaded: ${name} (${symbol})`);
+      return { name, symbol, decimals: Number(decimals) };
+    } catch (error) {
+      console.error('Error fetching token details:', error);
+      toast.error('Failed to fetch token details from contract. Please enter manually.');
+      return null;
+    }
+  };
+
+  const handleValidateToken = async () => {
+    if (!newToken.address) {
+      toast.error('Please enter a contract address');
+      return;
+    }
+
+    const isValid = await fetchTokenDetails(newToken.address);
+    if (isValid) {
+      // Auto-focus on symbol field if validation passes
+      const symbolInput = document.querySelector('input[placeholder="Symbol (e.g., USDT)"]') as HTMLInputElement;
+      if (symbolInput) symbolInput.focus();
+    }
+  };
+
+  const handleClearAllCustomTokens = async () => {
+    const customTokens = tokens.filter(token => token.isCustom);
+    if (customTokens.length === 0) {
+      toast.error('No custom tokens to remove');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Are you sure you want to remove all ${customTokens.length} custom tokens? This action cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    try {
+      // Keep only default tokens
+      const defaultTokensOnly = tokens.filter(token => !token.isCustom);
+      setTokens(defaultTokensOnly);
+
+      // Clear custom tokens from storage
+      await chrome.storage.local.set({ customTokens: [] });
+
+      toast.success(`Removed ${customTokens.length} custom tokens`);
+    } catch (error) {
+      console.error('Error clearing custom tokens:', error);
+      toast.error('Failed to clear custom tokens');
+    }
+  };
+
+  const handleSendToken = (token: Token) => {
+    // Set the selected token in the send context
+    setSelectedToken(token);
+    
+    // Navigate to send screen
+    onNavigate('send');
+    
+    toast.success(`Selected ${token.symbol} for sending`);
   };
 
   const formatAddress = (address: string) => {
@@ -173,14 +488,31 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <p className="text-slate-400 text-sm">Manage your tokens</p>
             </div>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsAddingToken(true)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <Plus className="w-6 h-6" />
-          </motion.button>
+          <div className="flex items-center space-x-2">
+            {/* Clear all custom tokens button */}
+            {tokens.filter(token => token.isCustom).length > 0 && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={handleClearAllCustomTokens}
+                className="p-2 hover:bg-red-500/20 rounded-lg transition-colors text-red-400"
+                title="Clear all custom tokens"
+              >
+                <Trash2 className="w-5 h-5" />
+              </motion.button>
+            )}
+            
+            {/* Add token button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsAddingToken(true)}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              title="Add custom token"
+            >
+              <Plus className="w-6 h-6" />
+            </motion.button>
+          </div>
         </div>
 
         {/* Search */}
@@ -188,12 +520,25 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
           <input
             type="text"
-            placeholder="Search tokens..."
+            placeholder="Search tokens by name or symbol..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full pl-10 pr-12 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-white transition-colors"
+          >
+            ✕
+          </button>
         </div>
+        
+        {/* Search Results Info */}
+        {searchQuery && (
+          <div className="mb-4 text-sm text-slate-400">
+            Found {filteredTokens.length} token{filteredTokens.length !== 1 ? 's' : ''} matching "{searchQuery}"
+          </div>
+        )}
       </motion.div>
 
       {/* Content */}
@@ -221,6 +566,11 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     {token.isCustom && (
                       <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
                         Custom
+                      </span>
+                    )}
+                    {token.isAutoDetected && (
+                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
+                        Auto
                       </span>
                     )}
                   </div>
@@ -259,12 +609,24 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 )}
                 <span className="text-xs">Copy Address</span>
               </button>
-              <button
-                onClick={() => onNavigate('send')}
-                className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-colors"
-              >
-                Send
-              </button>
+              <div className="flex items-center space-x-2">
+                {/* Remove button - only show for custom tokens */}
+                {token.isCustom && (
+                  <button
+                    onClick={() => handleRemoveToken(token.id, token.symbol)}
+                    className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-lg hover:bg-red-500/30 transition-colors flex items-center space-x-1"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    <span>Remove</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => handleSendToken(token)}
+                  className="px-3 py-1 bg-purple-600 text-white text-xs rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </motion.div>
         ))}
@@ -272,8 +634,20 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         {filteredTokens.length === 0 && (
           <div className="text-center py-8">
             <Coins className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-400">No tokens found</p>
-            <p className="text-slate-500 text-sm">Add tokens to get started</p>
+            <p className="text-slate-400">
+              {searchQuery ? `No tokens found matching "${searchQuery}"` : 'No tokens found'}
+            </p>
+            <p className="text-slate-500 text-sm">
+              {searchQuery ? 'Try a different search term or add a custom token' : 'Add tokens to get started'}
+            </p>
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="mt-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+              >
+                Clear Search
+              </button>
+            )}
           </div>
         )}
       </motion.div>
@@ -293,13 +667,24 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 <label className="block text-sm font-medium text-slate-300 mb-1">
                   Contract Address
                 </label>
-                <input
-                  type="text"
-                  value={newToken.address}
-                  onChange={(e) => setNewToken(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="0x..."
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-400"
-                />
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={newToken.address}
+                    onChange={(e) => setNewToken(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="0x..."
+                    className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-white placeholder-slate-400"
+                  />
+                  <button
+                    onClick={handleValidateToken}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Validate
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Enter the token's contract address to validate it
+                </p>
               </div>
 
               <div>

@@ -18,7 +18,7 @@ import ReceiveScreen from './components/screens/ReceiveScreen';
 import SettingsScreen from './components/screens/SettingsScreen';
 import SecurityScreen from './components/screens/SecurityScreen';
 import NetworksScreen from './components/screens/NetworksScreen';
-import NFTScreen from './components/screens/NFTScreen';
+import NFTsScreen from './components/screens/NFTsScreen.js';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
 import TransactionHistoryScreen from './components/screens/TransactionHistoryScreen';
@@ -72,7 +72,7 @@ const App = () => {
             case 'networks':
                 return _jsx(NetworksScreen, { onNavigate: handleNavigate });
             case 'nfts':
-                return _jsx(NFTScreen, { onNavigate: handleNavigate });
+                return _jsx(NFTsScreen, { onNavigate: handleNavigate });
             case 'portfolio':
                 return _jsx(PortfolioScreen, { onNavigate: handleNavigate });
             case 'transactions':

@@ -1,564 +1,279 @@
-import { createHash, randomBytes } from 'crypto-browserify';
-import { pbkdf2Sync, createCipher, createDecipher } from 'crypto-browserify';
+// Bitcoin utilities - simplified version for transaction history and balance
 
-// Bitcoin network constants
-export const BITCOIN_NETWORKS = {
-  mainnet: {
-    name: 'Bitcoin Mainnet',
-    symbol: 'BTC',
-    bip32: 0x0488b21e,
-    bip44: 0,
-    addressPrefix: 0x00,
-    scriptPrefix: 0x05,
-    wifPrefix: 0x80,
-    segwitPrefix: 'bc'
-  },
-  testnet: {
-    name: 'Bitcoin Testnet',
-    symbol: 'tBTC',
-    bip32: 0x043587cf,
-    bip44: 1,
-    addressPrefix: 0x6f,
-    scriptPrefix: 0xc4,
-    wifPrefix: 0xef,
-    segwitPrefix: 'tb'
-  }
-};
-
-// Bitcoin address types
+// Address types for Bitcoin
 export enum AddressType {
   LEGACY = 'legacy',
-  SEGWIT = 'segwit',
-  NATIVE_SEGWIT = 'native_segwit'
+  NATIVE_SEGWIT = 'native_segwit',
+  NESTED_SEGWIT = 'nested_segwit'
 }
 
-// Bitcoin transaction interface
-export interface BitcoinTransaction {
-  txid: string;
-  blockHeight?: number;
-  confirmations: number;
-  timestamp: number;
-  amount: number;
-  fee: number;
-  type: 'send' | 'receive';
+export interface BitcoinAccount {
+  id: string;
   address: string;
-  vout: number;
-  vin: number;
+  privateKey: string;
+  publicKey: string;
+  derivationPath: string;
+  balance: string;
+  network: 'mainnet' | 'testnet';
 }
 
-// Bitcoin wallet interface
 export interface BitcoinWallet {
   id: string;
   name: string;
   address: string;
-  publicKey: string;
   privateKey: string;
-  addressType: AddressType;
-  balance: number;
-  unconfirmedBalance: number;
-  network: 'mainnet' | 'testnet';
+  publicKey: string;
   derivationPath: string;
+  balance: string;
+  unconfirmedBalance: string;
+  network: 'mainnet' | 'testnet';
+  addressType: AddressType;
   createdAt: number;
 }
 
-// Real Bitcoin address generation
-export class BitcoinAddressGenerator {
-  private network: typeof BITCOIN_NETWORKS.mainnet;
+export interface BitcoinTransaction {
+  txid: string;
+  amount: number;
+  confirmations: number;
+  blockHeight?: number;
+  timestamp: number;
+  type: 'send' | 'receive';
+  address: string;
+}
 
-  constructor(network: 'mainnet' | 'testnet' = 'mainnet') {
-    this.network = BITCOIN_NETWORKS[network];
+// Bitcoin network configuration
+const BITCOIN_NETWORKS = {
+  mainnet: {
+    apiUrl: 'https://blockstream.info/api',
+    explorerUrl: 'https://blockstream.info'
+  },
+  testnet: {
+    apiUrl: 'https://blockstream.info/testnet/api',
+    explorerUrl: 'https://blockstream.info/testnet'
   }
+};
 
-  // Generate Bitcoin private key
-  generatePrivateKey(): Buffer {
-    return randomBytes(32);
-  }
+// Derive Bitcoin account from seed phrase (simplified - for future implementation)
+export async function deriveBitcoinAccount(
+  seedPhrase: string,
+  derivationPath: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<BitcoinAccount> {
+  throw new Error('Bitcoin account derivation not yet implemented');
+}
 
-  // Get public key from private key
-  getPublicKey(privateKey: Buffer): Buffer {
-    import('secp256k1').then(secp256k1 => {
-      return secp256k1.publicKeyCreate(privateKey, true);
-    });
-    // Fallback implementation for browser compatibility
-    const hash = createHash('sha256').update(privateKey).digest();
-    return Buffer.concat([Buffer.from([0x04]), hash.slice(0, 32), hash.slice(32, 64)]);
-  }
-
-  // Generate legacy Bitcoin address
-  generateLegacyAddress(publicKey: Buffer): string {
-    const sha256 = createHash('sha256').update(publicKey).digest();
-    const ripemd160 = createHash('ripemd160').update(sha256).digest();
+// Get Bitcoin balance
+export async function getBitcoinBalance(
+  address: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<string> {
+  try {
+    const apiUrl = BITCOIN_NETWORKS[network].apiUrl;
+    const response = await fetch(`${apiUrl}/address/${address}`);
     
-    const versionedPayload = Buffer.concat([
-      Buffer.from([this.network.addressPrefix]),
-      ripemd160
-    ]);
-    
-    const doubleSha256 = createHash('sha256')
-      .update(createHash('sha256').update(versionedPayload).digest())
-      .digest();
-    
-    const checksum = doubleSha256.slice(0, 4);
-    const binaryAddr = Buffer.concat([versionedPayload, checksum]);
-    
-    return this.base58Encode(binaryAddr);
-  }
-
-  // Generate SegWit address
-  generateSegWitAddress(publicKey: Buffer): string {
-    const sha256 = createHash('sha256').update(publicKey).digest();
-    const ripemd160 = createHash('ripemd160').update(sha256).digest();
-    
-    const script = Buffer.concat([
-      Buffer.from([0x00, 0x14]), // OP_0 + 20 bytes
-      ripemd160
-    ]);
-    
-    const scriptHash = createHash('ripemd160')
-      .update(createHash('sha256').update(script).digest())
-      .digest();
-    
-    return this.bech32Encode(this.network.segwitPrefix, 0, scriptHash);
-  }
-
-  // Generate native SegWit address (bech32)
-  generateNativeSegWitAddress(publicKey: Buffer): string {
-    const sha256 = createHash('sha256').update(publicKey).digest();
-    const ripemd160 = createHash('ripemd160').update(sha256).digest();
-    
-    return this.bech32Encode(this.network.segwitPrefix, 0, ripemd160);
-  }
-
-  // Base58 encoding
-  private base58Encode(buffer: Buffer): string {
-    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    let num = BigInt('0x' + buffer.toString('hex'));
-    let str = '';
-    
-    while (num > 0) {
-      str = alphabet[Number(num % BigInt(58))] + str;
-      num = num / BigInt(58);
+    if (!response.ok) {
+      throw new Error('Failed to fetch Bitcoin balance');
     }
     
-    // Add leading zeros
-    for (let i = 0; i < buffer.length && buffer[i] === 0; i++) {
-      str = '1' + str;
-    }
+    const data = await response.json();
+    const balanceSatoshis = data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum;
+    const balanceBTC = balanceSatoshis / 100000000; // Convert satoshis to BTC
     
-    return str;
-  }
-
-  // Bech32 encoding for SegWit addresses
-  private bech32Encode(hrp: string, version: number, data: Buffer): string {
-    const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-    
-    let ret = hrp + '1';
-    let dataBits = 0;
-    let value = 0;
-    
-    for (let i = 0; i < data.length; i++) {
-      value = (value << 8) | data[i];
-      dataBits += 8;
-      
-      while (dataBits >= 5) {
-        dataBits -= 5;
-        ret += CHARSET[(value >> dataBits) & 31];
-      }
-    }
-    
-    if (dataBits > 0) {
-      ret += CHARSET[(value << (5 - dataBits)) & 31];
-    }
-    
-    return ret;
-  }
-
-  // Create WIF (Wallet Import Format) private key
-  createWIF(privateKey: Buffer, compressed: boolean = true): string {
-    const payload = compressed 
-      ? Buffer.concat([Buffer.from([this.network.wifPrefix]), privateKey, Buffer.from([0x01])])
-      : Buffer.concat([Buffer.from([this.network.wifPrefix]), privateKey]);
-    
-    const doubleSha256 = createHash('sha256')
-      .update(createHash('sha256').update(payload).digest())
-      .digest();
-    
-    const checksum = doubleSha256.slice(0, 4);
-    const binaryWif = Buffer.concat([payload, checksum]);
-    
-    return this.base58Encode(binaryWif);
-  }
-
-  // Generate Bitcoin wallet
-  generateWallet(name: string, addressType: AddressType = AddressType.NATIVE_SEGWIT): BitcoinWallet {
-    const privateKey = this.generatePrivateKey();
-    const publicKey = this.getPublicKey(privateKey);
-    
-    let address: string;
-    switch (addressType) {
-      case AddressType.LEGACY:
-        address = this.generateLegacyAddress(publicKey);
-        break;
-      case AddressType.SEGWIT:
-        address = this.generateSegWitAddress(publicKey);
-        break;
-      case AddressType.NATIVE_SEGWIT:
-      default:
-        address = this.generateNativeSegWitAddress(publicKey);
-        break;
-    }
-
-    return {
-      id: createHash('sha256').update(privateKey).digest('hex'),
-      name,
-      address,
-      publicKey: publicKey.toString('hex'),
-      privateKey: privateKey.toString('hex'),
-      addressType,
-      balance: 0,
-      unconfirmedBalance: 0,
-      network: this.network === BITCOIN_NETWORKS.mainnet ? 'mainnet' : 'testnet',
-      derivationPath: `m/44'/0'/0'/0/0`,
-      createdAt: Date.now()
-    };
+    return balanceBTC.toFixed(8);
+  } catch (error) {
+    console.error('Error fetching Bitcoin balance:', error);
+    return '0';
   }
 }
 
-// Bitcoin transaction utilities
-export class BitcoinTransactionUtils {
-  private network: typeof BITCOIN_NETWORKS.mainnet;
-
-  constructor(network: 'mainnet' | 'testnet' = 'mainnet') {
-    this.network = BITCOIN_NETWORKS[network];
-  }
-
-  // Estimate transaction fee
-  estimateFee(inputs: number, outputs: number, feeRate: number = 10): number {
-    // Rough estimation: 148 bytes per input + 34 bytes per output + 10 bytes overhead
-    const estimatedSize = (inputs * 148) + (outputs * 34) + 10;
-    return Math.ceil(estimatedSize * feeRate / 1000); // feeRate in satoshis per byte
-  }
-
-  // Create raw transaction
-  async createRawTransaction(
-    inputs: Array<{ txid: string; vout: number; scriptSig: string }>,
-    outputs: Array<{ address: string; value: number }>,
-    privateKey: string
-  ): Promise<string> {
-    // Create transaction structure
-    const tx = {
-      version: 1,
-      inputs: inputs.map(input => ({
-        txid: input.txid,
-        vout: input.vout,
-        scriptSig: input.scriptSig,
-        sequence: 0xffffffff
-      })),
-      outputs: outputs.map(output => ({
-        value: output.value,
-        scriptPubKey: this.addressToScriptPubKey(output.address)
-      })),
-      locktime: 0
-    };
-
-    // Sign transaction with fallback for browser compatibility
-    const privateKeyBuffer = Buffer.from(privateKey, 'hex');
-    const txData = Buffer.from(JSON.stringify(tx));
-    const signature = this.createSignature(txData, privateKeyBuffer);
+// Get Bitcoin transaction history
+export async function getBitcoinTransactions(
+  address: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<BitcoinTransaction[]> {
+  try {
+    const apiUrl = BITCOIN_NETWORKS[network].apiUrl;
+    const response = await fetch(`${apiUrl}/address/${address}/txs`);
     
-    return signature;
-  }
-
-  // Convert address to scriptPubKey
-  private addressToScriptPubKey(address: string): string {
-    if (address.startsWith('bc1') || address.startsWith('tb1')) {
-      // Native SegWit
-      return `0014${this.decodeBech32(address)}`;
-    } else if (address.startsWith('3')) {
-      // SegWit
-      return `a914${this.decodeBase58(address)}87`;
-    } else {
-      // Legacy
-      return `76a914${this.decodeBase58(address)}88ac`;
-    }
-  }
-
-  // Decode base58 address
-  private decodeBase58(address: string): string {
-    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    let num = BigInt(0);
-    let multi = BigInt(1);
-    
-    for (let i = address.length - 1; i >= 0; i--) {
-      const char = address[i];
-      const index = alphabet.indexOf(char);
-      if (index === -1) throw new Error('Invalid base58 character');
-      num += BigInt(index) * multi;
-      multi *= BigInt(58);
+    if (!response.ok) {
+      throw new Error('Failed to fetch Bitcoin transactions');
     }
     
-    return num.toString(16).padStart(40, '0');
-  }
-
-  // Decode bech32 address
-  private decodeBech32(address: string): string {
-    const parts = address.split('1');
-    if (parts.length !== 2) throw new Error('Invalid bech32 address');
+    const transactions = await response.json();
     
-    const hrp = parts[0];
-    const data = parts[1];
-    const CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
-    
-    let value = 0;
-    let dataBits = 0;
-    const result: number[] = [];
-    
-    for (let i = 0; i < data.length; i++) {
-      const char = data[i];
-      const index = CHARSET.indexOf(char);
-      if (index === -1) throw new Error('Invalid bech32 character');
-      
-      value = (value * 32) + index;
-      dataBits += 5;
-      
-      while (dataBits >= 8) {
-        dataBits -= 8;
-        result.push((value >> dataBits) & 0xff);
-      }
-    }
-    
-    return Buffer.from(result).toString('hex');
-  }
-
-  // Create signature for browser compatibility
-  private createSignature(data: Buffer, privateKey: Buffer): string {
-    try {
-      // Try to use secp256k1 if available
-      const secp256k1 = require('secp256k1');
-      const signature = secp256k1.sign(data, privateKey);
-      return signature.signature.toString('hex');
-    } catch (error) {
-      // Fallback implementation for browser compatibility
-      const hash = createHash('sha256').update(data).digest();
-      const signature = createHash('sha256').update(Buffer.concat([hash, privateKey])).digest();
-      return signature.toString('hex') + randomBytes(32).toString('hex');
-    }
+    return transactions.map((tx: any) => ({
+      txid: tx.txid,
+      amount: tx.vout.reduce((sum: number, output: any) => {
+        if (output.scriptpubkey_address === address) {
+          return sum + (output.value / 100000000);
+        }
+        return sum;
+      }, 0),
+      confirmations: tx.status.confirmed ? 1 : 0,
+      blockHeight: tx.status.block_height,
+      timestamp: tx.status.block_time || Date.now() / 1000,
+      type: 'receive', // Simplified - would need to check inputs for send transactions
+      address
+    }));
+  } catch (error) {
+    console.error('Error fetching Bitcoin transactions:', error);
+    return [];
   }
 }
 
-// Bitcoin API utilities for real blockchain interaction
-export class BitcoinAPI {
-  private baseUrl: string;
+// Create Bitcoin transaction (simplified - for future implementation)
+export async function createBitcoinTransaction(
+  fromAddress: string,
+  toAddress: string,
+  amount: number,
+  privateKey: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<string> {
+  throw new Error('Bitcoin transaction creation not yet implemented');
+}
 
-  constructor(network: 'mainnet' | 'testnet' = 'mainnet') {
-    const envUrl = (process as any)?.env?.ESPLORA_API_URL;
-    if (envUrl && typeof envUrl === 'string' && envUrl.trim().length > 0) {
-      this.baseUrl = envUrl.replace(/\/$/, '');
-    } else {
-      throw new Error('ESPLORA_API_URL is required but not set');
+// Validate Bitcoin address (simplified)
+export function validateBitcoinAddress(
+  address: string,
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): boolean {
+  // Basic Bitcoin address validation
+  const bitcoinAddressRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+  return bitcoinAddressRegex.test(address);
+}
+
+// Get Bitcoin network fee estimate
+export async function getBitcoinFeeEstimate(
+  network: 'mainnet' | 'testnet' = 'mainnet'
+): Promise<number> {
+  try {
+    const apiUrl = BITCOIN_NETWORKS[network].apiUrl;
+    const response = await fetch(`${apiUrl}/fee-estimates`);
+    
+    if (!response.ok) {
+      return 0.001; // Default fee
     }
+    
+    const feeEstimates = await response.json();
+    // Return fee for 1 block confirmation (sat/vB)
+    return (feeEstimates['1'] || 10) / 100000000; // Convert to BTC
+  } catch (error) {
+    console.error('Error fetching Bitcoin fee estimate:', error);
+    return 0.001; // Default fee
   }
+}
 
-  // Get address balance
-  async getBalance(address: string): Promise<{ confirmed: number; unconfirmed: number }> {
+// Bitcoin utilities object for compatibility with BitcoinScreen
+export const bitcoinUtils = {
+  // Generate a new Bitcoin wallet from seed phrase
+  generateWallet: async (seedPhrase: string, name: string, network: 'mainnet' | 'testnet', addressType: AddressType): Promise<BitcoinWallet> => {
     try {
-      const response = await fetch(`${this.baseUrl}/address/${address}`);
-      const data = await response.json();
+      // Import required crypto libraries
+      const bip39 = await import('bip39');
+      const { BIP32Factory } = await import('bip32');
+      const ecc = await import('tiny-secp256k1');
+      const bitcoin = await import('bitcoinjs-lib');
+      
+      // Initialize BIP32
+      const bip32 = BIP32Factory(ecc);
+      
+      // Generate seed from mnemonic
+      const seed = await bip39.mnemonicToSeed(seedPhrase);
+      
+      // Create master key
+      const root = bip32.fromSeed(seed, network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet);
+      
+      // Derive Bitcoin key using BIP44 path
+      const derivationPath = `m/44'/${network === 'mainnet' ? 0 : 1}'/0'/0/0`;
+      const child = root.derivePath(derivationPath);
+      
+      if (!child.privateKey) {
+        throw new Error('Failed to derive private key');
+      }
+      
+      // Generate address based on address type
+      let address: string;
+      const networkConfig = network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet;
+      
+      switch (addressType) {
+        case AddressType.LEGACY: // Legacy (1...)
+          address = bitcoin.payments.p2pkh({ pubkey: Buffer.from(child.publicKey), network: networkConfig }).address!;
+          break;
+        case AddressType.NESTED_SEGWIT: // Script Hash (3...)
+          address = bitcoin.payments.p2sh({
+            redeem: bitcoin.payments.p2wpkh({ pubkey: Buffer.from(child.publicKey), network: networkConfig }),
+            network: networkConfig
+          }).address!;
+          break;
+        case AddressType.NATIVE_SEGWIT: // Native SegWit (bc1...)
+        default:
+          address = bitcoin.payments.p2wpkh({ pubkey: Buffer.from(child.publicKey), network: networkConfig }).address!;
+          break;
+      }
+      
+      const id = `btc_${Date.now()}`;
       
       return {
-        confirmed: data.chain_stats.funded_txo_sum - data.chain_stats.spent_txo_sum,
-        unconfirmed: data.mempool_stats.funded_txo_sum - data.mempool_stats.spent_txo_sum
+        id,
+        name,
+        address,
+        privateKey: child.privateKey ? Buffer.from(child.privateKey).toString('hex') : '',
+        publicKey: child.publicKey ? Buffer.from(child.publicKey).toString('hex') : '',
+        derivationPath,
+        balance: '0',
+        unconfirmedBalance: '0',
+        network,
+        addressType,
+        createdAt: Date.now()
       };
     } catch (error) {
-      console.error('Error fetching Bitcoin balance:', error);
-      return { confirmed: 0, unconfirmed: 0 };
+      console.error('Error generating Bitcoin wallet:', error);
+      throw new Error(`Failed to generate Bitcoin wallet: ${error.message}`);
     }
-  }
+  },
 
-  // Get address transactions
-  async getTransactions(address: string): Promise<BitcoinTransaction[]> {
+  // Get balance for an address
+  getBalance: async (address: string, network: 'mainnet' | 'testnet'): Promise<{ confirmed: string; unconfirmed: string }> => {
     try {
-      const response = await fetch(`${this.baseUrl}/address/${address}/txs`);
-      const transactions = await response.json();
-      
-      return transactions.map((tx: any) => ({
-        txid: tx.txid,
-        blockHeight: tx.status.block_height,
-        confirmations: tx.status.confirmed ? 1 : 0,
-        timestamp: tx.status.block_time * 1000,
-        amount: tx.vout.reduce((sum: number, output: any) => {
-          if (output.scriptpubkey_address === address) {
-            return sum + output.value;
-          }
-          return sum;
-        }, 0),
-        fee: 0, // Would need to calculate from inputs/outputs
-        type: 'receive', // Simplified - would need to determine from inputs
-        address,
-        vout: 0,
-        vin: 0
-      }));
+      const confirmed = await getBitcoinBalance(address, network);
+      return {
+        confirmed,
+        unconfirmed: '0'
+      };
     } catch (error) {
-      console.error('Error fetching Bitcoin transactions:', error);
+      console.error('Error getting Bitcoin balance:', error);
+      return { confirmed: '0', unconfirmed: '0' };
+    }
+  },
+
+  // Get transactions for an address
+  getTransactions: async (address: string, network: 'mainnet' | 'testnet'): Promise<BitcoinTransaction[]> => {
+    try {
+      return await getBitcoinTransactions(address, network);
+    } catch (error) {
+      console.error('Error getting Bitcoin transactions:', error);
       return [];
     }
-  }
-
-  // Get current fee rates
-  async getFeeRates(): Promise<{ slow: number; medium: number; fast: number }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/fee-estimates`);
-      const fees = await response.json();
-      
-      return {
-        slow: fees['6'] || 5, // 6 blocks
-        medium: fees['3'] || 10, // 3 blocks
-        fast: fees['1'] || 20 // 1 block
-      };
-    } catch (error) {
-      console.error('Error fetching fee rates:', error);
-      return { slow: 5, medium: 10, fast: 20 };
-    }
-  }
-
-  // Broadcast transaction
-  async broadcastTransaction(hex: string): Promise<{ success: boolean; txid?: string; error?: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/tx`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: hex
-      });
-      
-      if (response.ok) {
-        const txid = await response.text();
-        return { success: true, txid };
-      } else {
-        const error = await response.text();
-        return { success: false, error };
-      }
-    } catch (error) {
-      console.error('Error broadcasting transaction:', error);
-      return { success: false, error: 'Network error' };
-    }
-  }
-}
-
-// Live transaction creation using bitcoinjs-lib
-import * as bitcoin from 'bitcoinjs-lib';
-import ECPairFactory from 'ecpair';
-import * as tinysecp from 'tiny-secp256k1';
-
-const ECPair = ECPairFactory(tinysecp);
-
-export async function createAndSignP2WPKHTransaction(params: {
-  fromAddress: string;
-  toAddress: string;
-  amountSats: number;
-  feeRate?: number; // sat/vB
-  wif?: string; // preferred
-  privateKeyHex?: string; // fallback
-  networkType?: 'mainnet' | 'testnet';
-}): Promise<string> {
-  const { fromAddress, toAddress, amountSats, feeRate = 5, wif, privateKeyHex, networkType = 'mainnet' } = params;
-
-  const api = new BitcoinAPI(networkType);
-  const network = ((): bitcoin.networks.Network => {
-    // Infer network by ESPLORA_API_URL when possible
-    const url = (process as any)?.env?.ESPLORA_API_URL || '';
-    if (/testnet/i.test(url)) return bitcoin.networks.testnet;
-    return bitcoin.networks.bitcoin;
-  })();
-
-  // 1) Fetch UTXOs
-  const utxoRes = await fetch(`${(api as any).baseUrl}/address/${fromAddress}/utxo`);
-  if (!utxoRes.ok) throw new Error(`Failed to fetch UTXOs: ${utxoRes.status}`);
-  const utxos: Array<{ txid: string; vout: number; value: number }> = await utxoRes.json();
-
-  // 2) Select UTXOs
-  let selected: Array<{ txid: string; vout: number; value: number }> = [];
-  let total = 0;
-  for (const u of utxos) {
-    selected.push(u);
-    total += u.value;
-    if (total >= amountSats) break;
-  }
-  if (total < amountSats) throw new Error('Insufficient balance');
-
-  // 3) Rough fee estimate: assume 2 outputs (to + change)
-  const inputCount = selected.length;
-  const outputCount = 2;
-  const vbytes = 10 + inputCount * 68 + outputCount * 31; // p2wpkh rough
-  const fee = Math.ceil(vbytes * feeRate);
-
-  const change = total - amountSats - fee;
-  if (change < 0) throw new Error('Insufficient funds for fee');
-
-  // 4) Key pair
-  const keyPair = wif
-    ? ECPair.fromWIF(wif, network)
-    : (() => {
-        if (!privateKeyHex) throw new Error('Missing WIF or privateKeyHex');
-        return ECPair.fromPrivateKey(Buffer.from(privateKeyHex, 'hex'));
-      })();
-
-  const psbt = new bitcoin.Psbt({ network });
-
-  // 5) Add inputs
-  for (const u of selected) {
-    // Fetch prev tx to obtain non-witness utxo for signing reliability
-    const prevTxRes = await fetch(`${(api as any).baseUrl}/tx/${u.txid}/hex`);
-    const prevTxHex = await prevTxRes.text();
-    psbt.addInput({
-      hash: u.txid,
-      index: u.vout,
-      witnessUtxo: undefined,
-      nonWitnessUtxo: Buffer.from(prevTxHex, 'hex')
-    });
-  }
-
-  // 6) Add outputs
-  psbt.addOutput({ address: toAddress, value: amountSats });
-  if (change > 0) {
-    psbt.addOutput({ address: fromAddress, value: change });
-  }
-
-  // 7) Sign
-  psbt.signAllInputs(keyPair);
-  psbt.finalizeAllInputs();
-  const txHex = psbt.extractTransaction().toHex();
-  return txHex;
-}
-
-// Export main utilities
-export const bitcoinUtils = {
-  generateWallet: (name: string, network: 'mainnet' | 'testnet' = 'mainnet', addressType: AddressType = AddressType.NATIVE_SEGWIT) => {
-    const generator = new BitcoinAddressGenerator(network);
-    return generator.generateWallet(name, addressType);
   },
-  
-  getBalance: async (address: string, network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const api = new BitcoinAPI(network);
-    return api.getBalance(address);
+
+  // Validate Bitcoin address
+  validateAddress: (address: string, network: 'mainnet' | 'testnet'): boolean => {
+    return validateBitcoinAddress(address, network);
   },
-  
-  getTransactions: async (address: string, network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const api = new BitcoinAPI(network);
-    return api.getTransactions(address);
+
+  // Create Bitcoin transaction
+  createTransaction: async (
+    fromAddress: string,
+    toAddress: string,
+    amount: number,
+    privateKey: string,
+    network: 'mainnet' | 'testnet'
+  ): Promise<string> => {
+    return await createBitcoinTransaction(fromAddress, toAddress, amount, privateKey, network);
   },
-  
-  getFeeRates: async (network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const api = new BitcoinAPI(network);
-    return api.getFeeRates();
-  },
-  
-  broadcastTransaction: async (hex: string, network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const api = new BitcoinAPI(network);
-    return api.broadcastTransaction(hex);
-  },
-  
-  estimateFee: (inputs: number, outputs: number, feeRate: number = 10) => {
-    const utils = new BitcoinTransactionUtils();
-    return utils.estimateFee(inputs, outputs, feeRate);
+
+  // Get fee estimate
+  getFeeEstimate: async (network: 'mainnet' | 'testnet'): Promise<number> => {
+    return await getBitcoinFeeEstimate(network);
   }
 };

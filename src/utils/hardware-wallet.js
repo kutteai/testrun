@@ -8,15 +8,31 @@ export class HardwareWalletManager {
         this.deviceType = null;
         this.connected = false;
         this.derivationPath = "m/44'/60'/0'/0/0";
+        this.detectedDevices = [];
         this.checkSupport();
     }
     // Check if hardware wallet support is available
     async checkSupport() {
         try {
-            // Check for WebUSB support
-            this.isSupported = 'usb' in navigator && 'getDevices' in navigator.usb;
-            if (!this.isSupported) {
-                console.warn('Hardware wallet support not available: WebUSB not supported');
+            // Check for WebUSB support (for Ledger)
+            const hasWebUSB = 'usb' in navigator && 'getDevices' in navigator.usb;
+            
+            // Check for secure context (required for hardware wallets)
+            const isSecureContext = window.isSecureContext || location.protocol === 'chrome-extension:';
+            
+            this.isSupported = hasWebUSB && isSecureContext;
+            
+            if (!hasWebUSB) {
+                console.warn('Hardware wallet support limited: WebUSB not supported');
+            }
+            
+            if (!isSecureContext) {
+                console.warn('Hardware wallet support requires HTTPS or chrome-extension context');
+            }
+            
+            // Check for connected devices
+            if (this.isSupported) {
+                await this.detectConnectedDevices();
             }
         }
         catch (error) {
@@ -24,6 +40,61 @@ export class HardwareWalletManager {
             this.isSupported = false;
         }
     }
+
+    // Detect already connected hardware wallets
+    async detectConnectedDevices() {
+        try {
+            const devices = await navigator.usb.getDevices();
+            const hardwareWallets = devices.filter(device => 
+                device.vendorId === 0x2c97 || // Ledger
+                device.vendorId === 0x2581 || // Ledger alternative
+                device.vendorId === 0x534c    // Trezor
+            );
+            
+            if (hardwareWallets.length > 0) {
+                console.log(`Found ${hardwareWallets.length} connected hardware wallet(s)`);
+                this.detectedDevices = hardwareWallets;
+                return hardwareWallets;
+            }
+            
+            return [];
+        } catch (error) {
+            console.error('Error detecting hardware wallets:', error);
+            return [];
+        }
+    }
+
+    // Get list of available hardware wallet types
+    getAvailableWalletTypes() {
+        const types = [];
+        
+        if (this.isSupported) {
+            types.push({
+                type: 'ledger',
+                name: 'Ledger',
+                supported: true,
+                detected: this.detectedDevices.some(d => d.vendorId === 0x2c97 || d.vendorId === 0x2581)
+            });
+            
+            types.push({
+                type: 'trezor',
+                name: 'Trezor',
+                supported: true,
+                detected: this.detectedDevices.some(d => d.vendorId === 0x534c)
+            });
+        }
+        
+        return types;
+    }
+
+    // Refresh device detection
+    async refreshDeviceDetection() {
+        if (this.isSupported) {
+            await this.detectConnectedDevices();
+        }
+        return this.getAvailableWalletTypes();
+    }
+
     // Real device connection implementation
     async connectToDevice(type) {
         try {

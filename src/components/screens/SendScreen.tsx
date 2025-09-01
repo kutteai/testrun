@@ -18,6 +18,7 @@ import {
 import { useWallet } from '../../store/WalletContext';
 import { useNetwork } from '../../store/NetworkContext';
 import { useTransaction } from '../../store/TransactionContext';
+import { useSend } from '../../store/SendContext';
 import { resolveENS, validateENSName } from '../../utils/ens-utils';
 import { addressBook, Contact } from '../../utils/address-book';
 import toast from 'react-hot-toast';
@@ -27,6 +28,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
   const { networkState } = useNetwork();
   const { addTransaction } = useTransaction();
+  const { selectedToken, isTokenTransfer, clearSelection } = useSend();
   
   const [toAddress, setToAddress] = useState('');
   const [resolvedAddress, setResolvedAddress] = useState('');
@@ -34,6 +36,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [password, setPassword] = useState('');
   const [gasPrice, setGasPrice] = useState('20');
   const [gasLimit, setGasLimit] = useState('21000');
+  const [isLoadingGas, setIsLoadingGas] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isValidAddress, setIsValidAddress] = useState(false);
@@ -47,14 +50,74 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load address book contacts
+  // Load address book contacts and gas prices
   useEffect(() => {
     const loadContacts = () => {
       const contacts = addressBook.getAllContacts();
       setAddressBookContacts(contacts);
     };
     loadContacts();
-  }, []);
+    
+    // Load real gas prices for current network
+    loadGasPrices();
+  }, [wallet?.currentNetwork]);
+
+  const loadGasPrices = async () => {
+    if (!wallet?.currentNetwork) return;
+    
+    setIsLoadingGas(true);
+    try {
+      const { getGasPrice } = await import('../../utils/web3-utils');
+      const currentGasPrice = await getGasPrice(wallet.currentNetwork);
+      
+      // Convert from wei to gwei
+      const gasPriceInGwei = Math.round(Number(currentGasPrice) / 1e9);
+      
+      // Set appropriate gas prices based on network
+      let adjustedGasPrice = gasPriceInGwei;
+      switch (wallet.currentNetwork) {
+        case 'ethereum':
+          adjustedGasPrice = Math.max(gasPriceInGwei, 5); // Min 5 gwei for ETH
+          break;
+        case 'bsc':
+          adjustedGasPrice = Math.max(gasPriceInGwei, 1); // Min 1 gwei for BSC
+          break;
+        case 'polygon':
+          adjustedGasPrice = Math.max(gasPriceInGwei, 1); // Min 1 gwei for Polygon
+          break;
+        default:
+          adjustedGasPrice = Math.max(gasPriceInGwei, 1);
+      }
+      
+      setGasPrice(adjustedGasPrice.toString());
+      
+      // Adjust gas limit for token transfers
+      if (isTokenTransfer) {
+        setGasLimit('65000');
+      } else {
+        setGasLimit('21000');
+      }
+      
+    } catch (error) {
+      console.error('Failed to load gas prices:', error);
+      // Keep default values but show network-appropriate defaults
+      switch (wallet.currentNetwork) {
+        case 'ethereum':
+          setGasPrice('15');
+          break;
+        case 'bsc':
+          setGasPrice('3');
+          break;
+        case 'polygon':
+          setGasPrice('2');
+          break;
+        default:
+          setGasPrice('10');
+      }
+    } finally {
+      setIsLoadingGas(false);
+    }
+  };
 
   // Validate and resolve ENS names
   useEffect(() => {
@@ -66,11 +129,11 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         return;
       }
 
-      // Check if it's an ENS name
-      if (toAddress.includes('.eth') || toAddress.includes('.crypto')) {
+      // Check if it's a domain name (.eth, .bnb, .crypto, etc.)
+      if (toAddress.includes('.') && !toAddress.includes('@')) {
         setIsResolving(true);
         try {
-          const resolved = await resolveENS(toAddress);
+          const resolved = await resolveENS(toAddress, wallet?.currentNetwork || 'ethereum');
           if (resolved) {
             setResolvedAddress(resolved);
             setResolvedENS(toAddress);
@@ -103,6 +166,15 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     return () => clearTimeout(debounceTimer);
   }, [toAddress]);
 
+  // Update gas limit when token transfer mode changes
+  useEffect(() => {
+    if (isTokenTransfer) {
+      setGasLimit('65000'); // Higher gas limit for token transfers
+    } else {
+      setGasLimit('21000'); // Standard gas limit for ETH transfers
+    }
+  }, [isTokenTransfer]);
+
   useEffect(() => {
     // Calculate estimated fee and total
     const gasPriceNum = parseFloat(gasPrice) || 0;
@@ -110,11 +182,14 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     const amountNum = parseFloat(amount) || 0;
     
     const fee = (gasPriceNum * gasLimitNum) / 1e9; // Convert from Gwei to ETH
-    const total = amountNum + fee;
+    
+    // For token transfers, only the gas fee affects ETH balance
+    // For ETH transfers, both amount and gas fee affect ETH balance
+    const total = isTokenTransfer ? fee : (amountNum + fee);
     
     setEstimatedFee(fee.toFixed(6));
     setTotalAmount(total.toFixed(6));
-  }, [gasPrice, gasLimit, amount]);
+  }, [gasPrice, gasLimit, amount, isTokenTransfer]);
 
   const handleSend = async () => {
     if (!isValidAddress || !resolvedAddress) {
@@ -132,19 +207,80 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return;
     }
 
+    // Validation for token transfers
+    if (isTokenTransfer && selectedToken) {
+      if (parseFloat(amount) > parseFloat(selectedToken.balance)) {
+        toast.error(`Insufficient ${selectedToken.symbol} balance`);
+        return;
+      }
+      
+      // Check if user has enough ETH for gas fees
+      if (parseFloat(estimatedFee) > parseFloat(wallet?.balance || '0')) {
+        toast.error('Insufficient ETH for gas fees');
+        return;
+      }
+    } else {
+      // ETH transfer validation
     if (parseFloat(totalAmount) > parseFloat(wallet?.balance || '0')) {
       toast.error('Insufficient balance');
       return;
+      }
     }
 
     setIsLoading(true);
 
     try {
-      // In a real implementation, you would send the actual transaction
-      // For now, we'll create a placeholder transaction
+      if (isTokenTransfer && selectedToken) {
+        // Token transfer using eth_sendTransaction with contract data
+        const tokenTransferData = `0xa9059cbb${resolvedAddress.slice(2).padStart(64, '0')}${Math.floor(parseFloat(amount) * Math.pow(10, selectedToken.decimals)).toString(16).padStart(64, '0')}`;
+        
+        const result = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: wallet?.address,
+            to: selectedToken.address,
+            data: tokenTransferData,
+            gas: `0x${parseInt(gasLimit).toString(16)}`,
+            gasPrice: `0x${Math.floor(parseFloat(gasPrice) * 1e9).toString(16)}`
+          }]
+        });
+
+        const transaction = {
+          id: Date.now().toString(),
+          hash: result,
+          from: wallet?.address || '',
+          to: resolvedAddress,
+          value: amount,
+          amount: amount,
+          network: networkState.currentNetwork?.symbol || 'ETH',
+          type: 'token_send' as const,
+          status: 'pending' as const,
+          timestamp: Date.now(),
+          nonce: 0,
+          ensName: resolvedENS || undefined,
+          tokenSymbol: selectedToken.symbol,
+          tokenName: selectedToken.name,
+          tokenAddress: selectedToken.address
+        };
+
+        addTransaction(transaction);
+        toast.success(`${selectedToken.symbol} transfer sent successfully!`);
+      } else {
+        // Native ETH transfer
+        const result = await window.ethereum.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: wallet?.address,
+            to: resolvedAddress,
+            value: `0x${Math.floor(parseFloat(amount) * 1e18).toString(16)}`,
+            gas: `0x${parseInt(gasLimit).toString(16)}`,
+            gasPrice: `0x${Math.floor(parseFloat(gasPrice) * 1e9).toString(16)}`
+          }]
+        });
+
       const transaction = {
         id: Date.now().toString(),
-        hash: '0x0000000000000000000000000000000000000000000000000000000000000000', // Placeholder hash
+          hash: result,
         from: wallet?.address || '',
         to: resolvedAddress,
         value: amount,
@@ -158,10 +294,15 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       };
 
       addTransaction(transaction);
-      toast.success('Transaction created! (Real implementation needed)');
+        toast.success('ETH transfer sent successfully!');
+      }
+      
+      // Clear the selected token after successful send
+      clearSelection();
       onNavigate('dashboard');
-    } catch (error) {
-      toast.error('Transaction failed');
+    } catch (error: any) {
+      console.error('Transaction failed:', error);
+      toast.error(`Transaction failed: ${error.message || 'Unknown error'}`);
     } finally {
       setIsLoading(false);
     }
@@ -219,8 +360,28 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-400 text-sm">Available Balance</p>
-              <p className="text-2xl font-bold">{formatBalance(wallet?.balance || '0')} {networkState.currentNetwork?.symbol || 'ETH'}</p>
+              <p className="text-slate-400 text-sm">
+                {isTokenTransfer ? `${selectedToken?.name} Balance` : 'Available Balance'}
+              </p>
+              <p className="text-2xl font-bold">
+                {isTokenTransfer 
+                  ? `${formatBalance(selectedToken?.balance || '0')} ${selectedToken?.symbol}`
+                  : `${formatBalance(wallet?.balance || '0')} ${networkState.currentNetwork?.symbol || 'ETH'}`
+                }
+              </p>
+              {isTokenTransfer && selectedToken && (
+                <div className="mt-2 flex items-center space-x-2">
+                  <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                    Token Transfer
+                  </span>
+                  <button
+                    onClick={clearSelection}
+                    className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-full hover:bg-red-500/30 transition-colors"
+                  >
+                    Send {networkState.currentNetwork?.symbol || 'ETH'} Instead
+                  </button>
+                </div>
+              )}
             </div>
             <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
               <Send className="w-6 h-6" />
@@ -286,7 +447,9 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         {/* Amount */}
         <div>
-          <label className="block text-sm font-medium mb-2">Amount</label>
+          <label className="block text-sm font-medium mb-2">
+            Amount {isTokenTransfer && selectedToken && `(${selectedToken.name})`}
+          </label>
           <div className="relative">
             <input
               type="number"
@@ -298,9 +461,16 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-              <span className="text-slate-400 text-sm">{networkState.currentNetwork?.symbol || 'ETH'}</span>
+              <span className="text-slate-400 text-sm">
+                {isTokenTransfer && selectedToken ? selectedToken.symbol : (networkState.currentNetwork?.symbol || 'ETH')}
+              </span>
             </div>
           </div>
+          {isTokenTransfer && selectedToken && (
+            <p className="text-xs text-slate-500 mt-1">
+              Contract: {selectedToken.address}
+            </p>
+          )}
         </div>
 
         {/* Gas Settings */}
