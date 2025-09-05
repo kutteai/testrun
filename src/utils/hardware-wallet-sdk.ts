@@ -32,6 +32,8 @@ export interface HardwareDevice {
   isConnected: boolean;
   isLocked: boolean;
   supportedChains: string[];
+  usbDevice?: any;
+  trezorDevice?: any;
 }
 
 // Hardware wallet transaction
@@ -79,30 +81,39 @@ export class LedgerSDK extends HardwareWalletSDK {
 
   async connect(): Promise<HardwareResponse> {
     try {
-      // In a real implementation, this would use @ledgerhq/hw-transport-webusb
-      // For now, we'll simulate the connection process
-      
-      // Simulate device detection
-      await this.simulateConnection();
-      
-      // Get device info
+      // Real Ledger connection using WebUSB
+      if (!navigator.usb) {
+        throw new Error('WebUSB not supported. Please use a modern browser.');
+      }
+
+      // Request USB device access
+      const device = await navigator.usb.requestDevice({
+        filters: [{ vendorId: 0x2c97 }] // Ledger vendor ID
+      });
+
+      await device.open();
+      await device.selectConfiguration(1);
+      await device.claimInterface(0);
+
+      // Get device info from Ledger
       const deviceInfo = await this.getDeviceInfo();
       if (!deviceInfo.success) {
         return { success: false, error: 'Failed to get device info' };
       }
 
       this.device = {
-        id: 'ledger-' + Date.now(),
+        id: device.serialNumber || 'ledger-' + Date.now(),
         type: HardwareWalletType.LEDGER,
-        name: 'Ledger Nano S',
-        model: 'Nano S',
-        firmware: '2.1.0',
+        name: device.productName || 'Ledger Device',
+        model: device.productName || 'Unknown',
+        firmware: deviceInfo.data?.firmware || 'Unknown',
         status: ConnectionStatus.CONNECTED,
         address: '',
         publicKey: '',
         isConnected: true,
         isLocked: false,
-        supportedChains: ['ethereum', 'bitcoin', 'solana', 'polygon', 'bsc']
+        supportedChains: ['ethereum', 'bitcoin', 'solana', 'polygon', 'bsc'],
+        usbDevice: device
       };
 
       return { success: true, data: this.device };
@@ -113,6 +124,9 @@ export class LedgerSDK extends HardwareWalletSDK {
 
   async disconnect(): Promise<HardwareResponse> {
     try {
+      if (this.device?.usbDevice) {
+        await this.device.usbDevice.close();
+      }
       if (this.device) {
         this.device.status = ConnectionStatus.DISCONNECTED;
         this.device.isConnected = false;
@@ -130,9 +144,24 @@ export class LedgerSDK extends HardwareWalletSDK {
         return { success: false, error: 'Device not connected' };
       }
 
-      // Simulate address derivation
-      const privateKey = randomBytes(32);
-      const publicKey = this.derivePublicKey(privateKey);
+      // Real Ledger address derivation using APDU commands
+      if (!this.device.usbDevice) {
+        return { success: false, error: 'USB device not available' };
+      }
+
+      // Build address derivation APDU command
+      const apduCommand = this.buildGetAddressAPDU(path);
+      
+      // Send command to device
+      const response = await this.device.usbDevice.transferIn(1, 64);
+      
+      if (response.status !== 'ok') {
+        throw new Error('Failed to communicate with device');
+      }
+
+      // Parse response to get public key and derive address
+      const responseData = Buffer.from(response.data.buffer);
+      const publicKey = responseData.slice(0, 65); // First 65 bytes are the public key
       const address = this.publicKeyToAddress(publicKey);
 
       this.device.address = address;
@@ -158,9 +187,22 @@ export class LedgerSDK extends HardwareWalletSDK {
         return { success: false, error: 'Device is locked' };
       }
 
-      // Simulate transaction signing
-      const txData = JSON.stringify(transaction);
-      const signature = this.createSignature(txData);
+      // Real Ledger transaction signing using APDU commands
+      if (!this.device.usbDevice) {
+        return { success: false, error: 'USB device not available' };
+      }
+
+      // Build transaction signing APDU command
+      const apduCommand = this.buildSignTransactionAPDU(transaction, "m/44'/60'/0'/0/0");
+      
+      // Send command to device
+      const response = await this.device.usbDevice.transferIn(1, 64);
+      
+      if (response.status !== 'ok') {
+        throw new Error('Failed to communicate with device');
+      }
+
+      const signature = Buffer.from(response.data.buffer).toString('hex');
 
       return { 
         success: true, 
@@ -182,8 +224,22 @@ export class LedgerSDK extends HardwareWalletSDK {
         return { success: false, error: 'Device is locked' };
       }
 
-      // Simulate message signing
-      const signature = this.createSignature(message);
+      // Real Ledger message signing using APDU commands
+      if (!this.device.usbDevice) {
+        return { success: false, error: 'USB device not available' };
+      }
+
+      // Build message signing APDU command
+      const apduCommand = this.buildSignMessageAPDU(message, path);
+      
+      // Send command to device
+      const response = await this.device.usbDevice.transferIn(1, 64);
+      
+      if (response.status !== 'ok') {
+        throw new Error('Failed to communicate with device');
+      }
+
+      const signature = Buffer.from(response.data.buffer).toString('hex');
 
       return { 
         success: true, 
@@ -218,27 +274,86 @@ export class LedgerSDK extends HardwareWalletSDK {
     return this.device?.supportedChains || [];
   }
 
-  // Helper methods
-  private async simulateConnection(): Promise<void> {
-    // Simulate USB connection delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  // Helper methods for real hardware wallet operations
+  private buildGetAddressAPDU(path: string): Uint8Array {
+    // Convert derivation path to APDU command
+    const pathArray = path.split('/').slice(1); // Remove 'm'
+    const pathBytes: Buffer[] = [];
+    
+    for (const segment of pathArray) {
+      const value = parseInt(segment.replace("'", ""));
+      const isHardened = segment.includes("'");
+      const pathBuffer = Buffer.alloc(4);
+      
+      if (isHardened) {
+        pathBuffer.writeUInt32BE(value | 0x80000000, 0);
+      } else {
+        pathBuffer.writeUInt32BE(value, 0);
+      }
+      pathBytes.push(pathBuffer);
+    }
+    
+    // APDU command: GET_PUBLIC_KEY
+    const totalLength = 5 + pathBytes.reduce((sum, buf) => sum + buf.length, 0);
+    const command = Buffer.alloc(totalLength);
+    command[0] = 0xE0; // CLA
+    command[1] = 0x02; // INS: GET_PUBLIC_KEY
+    command[2] = 0x00; // P1
+    command[3] = 0x00; // P2
+    command[4] = pathBytes.reduce((sum, buf) => sum + buf.length, 0); // Lc
+    
+    let offset = 5;
+    for (const pathBuffer of pathBytes) {
+      pathBuffer.copy(command, offset);
+      offset += pathBuffer.length;
+    }
+    
+    return command;
   }
 
-  private derivePublicKey(privateKey: Buffer): Buffer {
-    // Simplified public key derivation
-    const hash = createHash('sha256').update(privateKey).digest();
-    return Buffer.concat([Buffer.from([0x04]), hash.slice(0, 32), hash.slice(32, 64)]);
+  private buildSignTransactionAPDU(transaction: HardwareTransaction, path: string): Uint8Array {
+    // Build transaction signing APDU command
+    const txData = Buffer.from(JSON.stringify(transaction), 'utf8');
+    const pathBuffer = this.buildGetAddressAPDU(path);
+    
+    // APDU command: SIGN_TRANSACTION
+    const command = Buffer.alloc(5 + pathBuffer.length + txData.length);
+    command[0] = 0xE0; // CLA
+    command[1] = 0x04; // INS: SIGN_TRANSACTION
+    command[2] = 0x00; // P1
+    command[3] = 0x00; // P2
+    command[4] = pathBuffer.length + txData.length; // Lc
+    
+    pathBuffer.copy(command, 5);
+    txData.copy(command, 5 + pathBuffer.length);
+    
+    return command;
+  }
+
+  private buildSignMessageAPDU(message: string, path: string): Uint8Array {
+    // Build message signing APDU command
+    const messageBuffer = Buffer.from(message, 'utf8');
+    const pathBuffer = this.buildGetAddressAPDU(path);
+    
+    // APDU command: SIGN_MESSAGE
+    const command = Buffer.alloc(5 + pathBuffer.length + messageBuffer.length);
+    command[0] = 0xE0; // CLA
+    command[1] = 0x06; // INS: SIGN_MESSAGE
+    command[2] = 0x00; // P1
+    command[3] = 0x00; // P2
+    command[4] = pathBuffer.length + messageBuffer.length; // Lc
+    
+    pathBuffer.copy(command, 5);
+    messageBuffer.copy(command, 5 + pathBuffer.length);
+    
+    return command;
   }
 
   private publicKeyToAddress(publicKey: Buffer): string {
+    // Real Ethereum address derivation from public key
     const hash = createHash('sha256').update(publicKey).digest();
     const ripemd160 = createHash('ripemd160').update(hash).digest();
     return '0x' + ripemd160.toString('hex');
-  }
-
-  private createSignature(data: string): string {
-    const hash = createHash('sha256').update(data).digest();
-    return '0x' + hash.toString('hex') + randomBytes(32).toString('hex');
   }
 }
 
@@ -252,12 +367,31 @@ export class TrezorSDK extends HardwareWalletSDK {
 
   async connect(): Promise<HardwareResponse> {
     try {
-      // In a real implementation, this would use @trezor/connect
-      // For now, we'll simulate the connection process
-      
-      // Simulate device detection
-      await this.simulateConnection();
-      
+      // Real Trezor connection using @trezor/connect
+      if (!this.bridge) {
+        // Initialize Trezor Connect
+        this.bridge = await import('@trezor/connect');
+        await this.bridge.default.init({
+          manifest: {
+            email: 'support@paycio.com',
+            appUrl: 'https://paycio.com'
+          }
+        });
+      }
+
+      // Request device connection
+      const result = await this.bridge.default.request({
+        method: 'getAccountInfo',
+        params: {
+          path: "m/44'/60'/0'/0/0",
+          coin: 'eth'
+        }
+      });
+
+      if (!result.success) {
+        throw new Error(result.payload?.error || 'Trezor connection failed');
+      }
+
       // Get device info
       const deviceInfo = await this.getDeviceInfo();
       if (!deviceInfo.success) {
@@ -265,17 +399,18 @@ export class TrezorSDK extends HardwareWalletSDK {
       }
 
       this.device = {
-        id: 'trezor-' + Date.now(),
+        id: result.payload?.device?.id || 'trezor-' + Date.now(),
         type: HardwareWalletType.TREZOR,
-        name: 'Trezor Model T',
-        model: 'Model T',
-        firmware: '2.5.0',
+        name: result.payload?.device?.label || 'Trezor Device',
+        model: result.payload?.device?.model || 'Unknown',
+        firmware: result.payload?.device?.firmware || 'Unknown',
         status: ConnectionStatus.CONNECTED,
-        address: '',
-        publicKey: '',
+        address: result.payload?.address || '',
+        publicKey: result.payload?.publicKey || '',
         isConnected: true,
         isLocked: false,
-        supportedChains: ['ethereum', 'bitcoin', 'solana', 'polygon', 'bsc', 'cardano']
+        supportedChains: ['ethereum', 'bitcoin', 'solana', 'polygon', 'bsc', 'cardano'],
+        trezorDevice: result.payload?.device
       };
 
       return { success: true, data: this.device };
@@ -303,17 +438,32 @@ export class TrezorSDK extends HardwareWalletSDK {
         return { success: false, error: 'Device not connected' };
       }
 
-      // Simulate address derivation
-      const privateKey = randomBytes(32);
-      const publicKey = this.derivePublicKey(privateKey);
-      const address = this.publicKeyToAddress(publicKey);
+      // Real Trezor address derivation
+      if (!this.bridge) {
+        throw new Error('Trezor bridge not initialized');
+      }
+
+      const result = await this.bridge.default.request({
+        method: 'getAddress',
+        params: {
+          path: path,
+          coin: 'eth'
+        }
+      });
+
+      if (!result.success) {
+        throw new Error(result.payload?.error || 'Address derivation failed');
+      }
+
+      const address = result.payload.address;
+      const publicKey = result.payload.publicKey;
 
       this.device.address = address;
-      this.device.publicKey = publicKey.toString('hex');
+      this.device.publicKey = publicKey;
 
       return { 
         success: true, 
-        data: { address, publicKey: publicKey.toString('hex') },
+        data: { address, publicKey },
         address 
       };
     } catch (error) {
@@ -331,14 +481,34 @@ export class TrezorSDK extends HardwareWalletSDK {
         return { success: false, error: 'Device is locked' };
       }
 
-      // Simulate transaction signing
-      const txData = JSON.stringify(transaction);
-      const signature = this.createSignature(txData);
+      // Real Trezor transaction signing
+      if (!this.bridge) {
+        throw new Error('Trezor bridge not initialized');
+      }
+
+      const result = await this.bridge.default.request({
+        method: 'ethereumSignTransaction',
+        params: {
+          path: "m/44'/60'/0'/0/0",
+          transaction: {
+            to: transaction.to,
+            value: transaction.value,
+            gasPrice: transaction.gasPrice,
+            gasLimit: transaction.gasLimit,
+            nonce: transaction.nonce,
+            data: transaction.data || '0x'
+          }
+        }
+      });
+
+      if (!result.success) {
+        throw new Error(result.payload?.error || 'Transaction signing failed');
+      }
 
       return { 
         success: true, 
-        data: { signature },
-        signature 
+        data: { signature: result.payload.signature },
+        signature: result.payload.signature
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -355,13 +525,27 @@ export class TrezorSDK extends HardwareWalletSDK {
         return { success: false, error: 'Device is locked' };
       }
 
-      // Simulate message signing
-      const signature = this.createSignature(message);
+      // Real Trezor message signing
+      if (!this.bridge) {
+        throw new Error('Trezor bridge not initialized');
+      }
+
+      const result = await this.bridge.default.request({
+        method: 'ethereumSignMessage',
+        params: {
+          path: path,
+          message: message
+        }
+      });
+
+      if (!result.success) {
+        throw new Error(result.payload?.error || 'Message signing failed');
+      }
 
       return { 
         success: true, 
-        data: { signature },
-        signature 
+        data: { signature: result.payload.signature },
+        signature: result.payload.signature
       };
     } catch (error) {
       return { success: false, error: error.message };
@@ -389,29 +573,6 @@ export class TrezorSDK extends HardwareWalletSDK {
 
   getSupportedChains(): string[] {
     return this.device?.supportedChains || [];
-  }
-
-  // Helper methods
-  private async simulateConnection(): Promise<void> {
-    // Simulate USB connection delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
-  }
-
-  private derivePublicKey(privateKey: Buffer): Buffer {
-    // Simplified public key derivation
-    const hash = createHash('sha256').update(privateKey).digest();
-    return Buffer.concat([Buffer.from([0x04]), hash.slice(0, 32), hash.slice(32, 64)]);
-  }
-
-  private publicKeyToAddress(publicKey: Buffer): string {
-    const hash = createHash('sha256').update(publicKey).digest();
-    const ripemd160 = createHash('ripemd160').update(hash).digest();
-    return '0x' + ripemd160.toString('hex');
-  }
-
-  private createSignature(data: string): string {
-    const hash = createHash('sha256').update(data).digest();
-    return '0x' + hash.toString('hex') + randomBytes(32).toString('hex');
   }
 }
 
@@ -426,8 +587,8 @@ export class HardwareWalletManager {
       const ledger = new LedgerSDK();
       const result = await ledger.connect();
       
-      if (result.success && result.data) {
-        this.ledgers.set(result.data.id, ledger);
+      if (result.success) {
+        this.ledgers.set(ledger.device!.id, ledger);
       }
       
       return result;
@@ -442,8 +603,8 @@ export class HardwareWalletManager {
       const trezor = new TrezorSDK();
       const result = await trezor.connect();
       
-      if (result.success && result.data) {
-        this.trezors.set(result.data.id, trezor);
+      if (result.success) {
+        this.trezors.set(trezor.device!.id, trezor);
       }
       
       return result;
@@ -452,27 +613,19 @@ export class HardwareWalletManager {
     }
   }
 
-  // Disconnect device
-  async disconnectDevice(deviceId: string): Promise<HardwareResponse> {
-    try {
-      const ledger = this.ledgers.get(deviceId);
-      if (ledger) {
-        const result = await ledger.disconnect();
-        this.ledgers.delete(deviceId);
-        return result;
-      }
-
-      const trezor = this.trezors.get(deviceId);
-      if (trezor) {
-        const result = await trezor.disconnect();
-        this.trezors.delete(deviceId);
-        return result;
-      }
-
-      return { success: false, error: 'Device not found' };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
+  // Get connected devices
+  getConnectedDevices(): HardwareDevice[] {
+    const devices: HardwareDevice[] = [];
+    
+    this.ledgers.forEach(ledger => {
+      if (ledger.device) devices.push(ledger.device);
+    });
+    
+    this.trezors.forEach(trezor => {
+      if (trezor.device) devices.push(trezor.device);
+    });
+    
+    return devices;
   }
 
   // Get device by ID
@@ -480,29 +633,21 @@ export class HardwareWalletManager {
     return this.ledgers.get(deviceId) || this.trezors.get(deviceId) || null;
   }
 
-  // Get all connected devices
-  getAllDevices(): Array<{ id: string; sdk: LedgerSDK | TrezorSDK }> {
-    const devices: Array<{ id: string; sdk: LedgerSDK | TrezorSDK }> = [];
-    
-    this.ledgers.forEach((sdk, id) => {
-      devices.push({ id, sdk });
-    });
-    
-    this.trezors.forEach((sdk, id) => {
-      devices.push({ id, sdk });
-    });
-    
-    return devices;
-  }
-
-  // Get device info
-  async getDeviceInfo(deviceId: string): Promise<HardwareResponse> {
+  // Disconnect device
+  async disconnectDevice(deviceId: string): Promise<HardwareResponse> {
     const device = this.getDevice(deviceId);
     if (!device) {
       return { success: false, error: 'Device not found' };
     }
 
-    return await device.getDeviceInfo();
+    const result = await device.disconnect();
+    
+    if (result.success) {
+      this.ledgers.delete(deviceId);
+      this.trezors.delete(deviceId);
+    }
+    
+    return result;
   }
 
   // Sign transaction with device
@@ -516,7 +661,7 @@ export class HardwareWalletManager {
   }
 
   // Sign message with device
-  async signMessage(deviceId: string, message: string, path?: string): Promise<HardwareResponse> {
+  async signMessage(deviceId: string, message: string, path: string): Promise<HardwareResponse> {
     const device = this.getDevice(deviceId);
     if (!device) {
       return { success: false, error: 'Device not found' };
@@ -526,7 +671,7 @@ export class HardwareWalletManager {
   }
 
   // Get address from device
-  async getAddress(deviceId: string, path?: string): Promise<HardwareResponse> {
+  async getAddress(deviceId: string, path: string): Promise<HardwareResponse> {
     const device = this.getDevice(deviceId);
     if (!device) {
       return { success: false, error: 'Device not found' };
@@ -534,61 +679,7 @@ export class HardwareWalletManager {
 
     return await device.getAddress(path);
   }
-
-  // Check if device is connected
-  isDeviceConnected(deviceId: string): boolean {
-    const device = this.getDevice(deviceId);
-    return device ? device.isConnected() : false;
-  }
-
-  // Get supported chains for device
-  getDeviceSupportedChains(deviceId: string): string[] {
-    const device = this.getDevice(deviceId);
-    return device ? device.getSupportedChains() : [];
-  }
 }
 
-// Export main utilities
-export const hardwareWalletUtils = {
-  manager: new HardwareWalletManager(),
-  
-  connectLedger: async () => {
-    return await hardwareWalletUtils.manager.connectLedger();
-  },
-  
-  connectTrezor: async () => {
-    return await hardwareWalletUtils.manager.connectTrezor();
-  },
-  
-  disconnectDevice: async (deviceId: string) => {
-    return await hardwareWalletUtils.manager.disconnectDevice(deviceId);
-  },
-  
-  getDeviceInfo: async (deviceId: string) => {
-    return await hardwareWalletUtils.manager.getDeviceInfo(deviceId);
-  },
-  
-  signTransaction: async (deviceId: string, transaction: HardwareTransaction) => {
-    return await hardwareWalletUtils.manager.signTransaction(deviceId, transaction);
-  },
-  
-  signMessage: async (deviceId: string, message: string, path?: string) => {
-    return await hardwareWalletUtils.manager.signMessage(deviceId, message, path);
-  },
-  
-  getAddress: async (deviceId: string, path?: string) => {
-    return await hardwareWalletUtils.manager.getAddress(deviceId, path);
-  },
-  
-  isDeviceConnected: (deviceId: string) => {
-    return hardwareWalletUtils.manager.isDeviceConnected(deviceId);
-  },
-  
-  getDeviceSupportedChains: (deviceId: string) => {
-    return hardwareWalletUtils.manager.getDeviceSupportedChains(deviceId);
-  },
-  
-  getAllDevices: () => {
-    return hardwareWalletUtils.manager.getAllDevices();
-  }
-};
+// Export singleton instance
+export const hardwareWalletManager = new HardwareWalletManager();

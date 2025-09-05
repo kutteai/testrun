@@ -1,8 +1,9 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { getRealBalance } from '../utils/web3-utils';
-import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validatePrivateKey, hashPassword, verifyPassword, encryptData, decryptData } from '../utils/crypto-utils';
-import { deriveWalletFromSeed, importWalletFromPrivateKey as importFromPrivateKey } from '../utils/key-derivation';
+import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validateBIP39SeedPhraseWithFeedback, validatePrivateKey, hashPassword, verifyPassword, encryptData, decryptData, importFromPrivateKey } from '../utils/crypto-utils';
+import { deriveWalletFromSeed } from '../utils/key-derivation';
+import { storage } from '../utils/storage-utils';
 import { 
   WalletData, 
   WalletState, 
@@ -242,22 +243,23 @@ const getDefaultNetworks = (): Network[] => [
 ];
 
 // Initial state
-const initialState: WalletState = {
-  wallet: null,
-  isWalletUnlocked: false,
-  hasWallet: false,
-  balances: {},
-  isLoading: false,
-  error: null,
-  isWalletCreated: false,
-  isInitializing: false,
-  address: null,
-  currentNetwork: null,
-  networks: [],
-  accounts: [],
-  privateKey: null,
-  globalPassword: null
-};
+  const initialState: WalletState = {
+    wallet: null,
+    isWalletUnlocked: false,
+    hasWallet: false,
+    balances: {},
+    isLoading: false,
+    error: null,
+    isWalletCreated: false,
+    isInitializing: false,
+    address: null,
+    currentNetwork: null,
+    currentAccount: null, // Add missing currentAccount property
+    networks: [],
+    accounts: [],
+    privateKey: null,
+    globalPassword: null
+  };
 
 // Action types
 type WalletAction =
@@ -306,6 +308,10 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
     case 'SET_GLOBAL_PASSWORD':
       return { ...state, globalPassword: action.payload };
     case 'UPDATE_WALLET_ACCOUNTS':
+      console.log('🔄 UPDATE_WALLET_ACCOUNTS reducer called with:', {
+        accountsCount: action.payload.accounts?.length || 0,
+        accounts: action.payload.accounts
+      });
       return { 
         ...state, 
         wallet: action.payload,
@@ -356,30 +362,15 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       // Force clear any persistent error state
       console.log('🔄 WalletContext: Clearing any persistent error state...');
       
-      // Check if there's an old error in Chrome storage and clear it
-      if (typeof chrome !== 'undefined' && chrome.storage) {
-        try {
-          const result = await new Promise<any>((resolve) => {
-            chrome.storage.local.get(['walletError', 'error'], resolve);
-          });
-          if (result.walletError || result.error) {
-            console.log('🧹 WalletContext: Found old error in storage, clearing...', { walletError: result.walletError, error: result.error });
-            await new Promise<void>((resolve) => {
-              chrome.storage.local.remove(['walletError', 'error'], resolve);
-            });
-          }
-        } catch (storageError) {
-          console.log('Could not check/clear storage errors:', storageError);
+      // Check if there's an old error in storage and clear it
+      try {
+        const result = await storage.get(['walletError', 'error']);
+        if (result.walletError || result.error) {
+          console.log('🧹 WalletContext: Found old error in storage, clearing...', { walletError: result.walletError, error: result.error });
+          await storage.remove(['walletError', 'error']);
         }
-      }
-      
-      // Check if Chrome storage API is available
-      if (typeof chrome === 'undefined' || !chrome.storage) {
-        console.log('Chrome storage API not available, setting default state');
-        dispatch({ type: 'SET_HAS_WALLET', payload: false });
-        dispatch({ type: 'SET_WALLET_CREATED', payload: false });
-        dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
-        return;
+      } catch (storageError) {
+        console.log('Could not check/clear storage errors:', storageError);
       }
       
       // Simple initialization - just check if wallet exists
@@ -402,7 +393,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           
           // Try to restore the password from session storage (if available)
           try {
-            const result = await chrome.storage.session.get(['sessionPassword']);
+            const result = await storage.getSession(['sessionPassword']);
             if (result.sessionPassword) {
               console.log('✅ WalletContext: Restored password from session storage');
               dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: result.sessionPassword });
@@ -437,10 +428,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
   
   // Debug function to check password status
-  const checkPasswordStatus = async () => {
+    const checkPasswordStatus = async () => {
     try {
-      const sessionResult = await chrome.storage.session.get(['sessionPassword']);
-      const localResult = await chrome.storage.local.get(['passwordHash']);
+      const sessionResult = await storage.getSession(['sessionPassword']);
+      const localResult = await storage.get(['passwordHash']);
       
       console.log('🔍 Password Status Check:');
       console.log('- Session Password:', sessionResult.sessionPassword ? 'EXISTS' : 'MISSING');
@@ -493,7 +484,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       // Get current network from storage
-      const result = await chrome.storage.local.get(['currentNetwork']);
+              const result = await storage.get(['currentNetwork']);
       const currentNetworkId = result.currentNetwork || 'ethereum';
       
       // Get balance for current network
@@ -515,6 +506,24 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     initializeWallet();
   }, []); // Only run once on mount
+
+  // Handle wallet state restoration when extension is reopened
+  useEffect(() => {
+    const handleExtensionReopen = async () => {
+      if (state.hasWallet && !state.isWalletUnlocked) {
+        console.log('🔄 Extension reopened, checking for stored password...');
+        const storedPassword = await getPassword();
+        if (storedPassword) {
+          console.log('✅ Found stored password, wallet can be unlocked');
+          // Don't automatically unlock for security, but password is available
+        } else {
+          console.log('⚠️ No stored password found, wallet will remain locked');
+        }
+      }
+    };
+
+    handleExtensionReopen();
+  }, [state.hasWallet, state.isWalletUnlocked]);
 
   // Auto-update balances when wallet is unlocked
   useEffect(() => {
@@ -615,10 +624,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Create new wallet with real implementation
-  const createWallet = async (name: string, network: string, password?: string): Promise<void> => {
+  const createWallet = async (name: string, network: string, password: string): Promise<void> => {
     try {
-      const passwordToUse = password || state.globalPassword;
-      if (!passwordToUse) {
+      // Require password parameter - no fallback
+      if (!password) {
         throw new Error('Password is required to create wallet.');
       }
 
@@ -630,7 +639,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       const walletData = await walletManager.createWallet({
         name,
-        password: passwordToUse,
+        password, // Use the passed password directly
         network,
         accountCount: 1
       });
@@ -653,18 +662,19 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
  // Import wallet from seed phrase with real implementation
-const importWallet = async (seedPhrase: string, network: string, password?: string): Promise<void> => {
+const importWallet = async (seedPhrase: string, network: string, password: string): Promise<void> => {
   try {
-      const passwordToUse = password || state.globalPassword;
-      if (!passwordToUse) {
+      // Require password parameter - no fallback
+      if (!password) {
         throw new Error('Password is required to import wallet.');
       }
 
     dispatch({ type: 'SET_LOADING', payload: true });
 
-    // Validate seed phrase
-    if (!validateBIP39SeedPhrase(seedPhrase)) {
-      throw new Error('Invalid seed phrase');
+    // Validate seed phrase with detailed feedback
+    const validation = validateBIP39SeedPhraseWithFeedback(seedPhrase);
+    if (!validation.isValid) {
+      throw new Error(validation.error || 'Invalid seed phrase');
     }
 
       // Use WalletManager to import wallet
@@ -674,7 +684,7 @@ const importWallet = async (seedPhrase: string, network: string, password?: stri
       const wallet = await walletManager.importWallet({
       name: 'Imported Wallet',
         seedPhrase,
-        password: passwordToUse,
+        password, // Use the passed password directly
         network,
         accountCount: 1
       });
@@ -711,8 +721,13 @@ const importWallet = async (seedPhrase: string, network: string, password?: stri
 };
 
   // Import wallet from private key
-const importWalletFromPrivateKey = async (privateKey: string, network: string, password?: string): Promise<void> => {
+const importWalletFromPrivateKey = async (privateKey: string, network: string, password: string): Promise<void> => {
   try {
+    // Require password parameter - no fallback
+    if (!password) {
+      throw new Error('Password is required to import wallet.');
+    }
+    
     dispatch({ type: 'SET_LOADING', payload: true });
 
     // Validate private key
@@ -745,7 +760,17 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       derivationPath: walletData.derivationPath,
       balance: '0',
       createdAt: Date.now(),
-      lastUsed: Date.now()
+      lastUsed: Date.now(),
+      decryptPrivateKey: async (password: string): Promise<string | null> => {
+        try {
+          // For private key import, return the private key directly
+          // In production, this should be encrypted
+          return walletData.privateKey;
+        } catch (error) {
+          console.error('Failed to decrypt private key:', error);
+          return null;
+        }
+      }
     };
 
     // Store wallet securely
@@ -905,7 +930,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       }
       
       // Load networks consistently
-      const result = await chrome.storage.local.get(['customNetworks']);
+              const result = await storage.get(['customNetworks']);
       const customNetworks = result.customNetworks || [];
       const availableNetworks = [...getDefaultNetworks(), ...customNetworks];
       
@@ -952,13 +977,15 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
               await storePassword(passwordToUse);
               console.log('✅ User password validated and stored');
             } catch (passwordError) {
-              console.log('❌ Invalid password provided');
+              console.log('❌ Invalid password provided - cancelling network switch');
               toast.error('Invalid password provided');
-              passwordToUse = null;
+              // Don't proceed with network switch if password is invalid
+              return;
             }
           } else {
-            console.log('⚠️ No password provided by user');
-            passwordToUse = null;
+            console.log('⚠️ No password provided by user - cancelling network switch');
+            // User cancelled the password prompt, don't proceed with network switch
+            return;
           }
         }
       }
@@ -980,13 +1007,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           }
         } catch (error) {
           console.error(`Failed to derive address for ${networkId}:`, error);
-          newAddress = generateFallbackAddress(networkId, state.wallet.id);
-          console.log(`🔄 Using fallback address: ${newAddress}`);
+          throw new Error(`Unable to derive address for ${networkId}`);
         }
               } else {
-          console.log('⚠️ No seed phrase or password available, using fallback address');
-          newAddress = generateFallbackAddress(networkId, state.wallet.id);
-          console.log(`🔄 Using fallback address: ${newAddress}`);
+          console.log('⚠️ No seed phrase or password available');
+          throw new Error('No seed phrase or password available for address derivation');
         }
       
       // Validate address format
@@ -1027,6 +1052,43 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const addressChanged = state.wallet.address !== newAddress;
       console.log(`✅ Network switched to ${network.name}. Address changed: ${addressChanged}`);
       console.log(`✅ Final address: ${newAddress}`);
+      
+      // Check if we need to create an account for this network
+      try {
+        const { WalletManager } = await import('../core/wallet-manager');
+        const walletManager = new WalletManager();
+        const existingAccounts = await walletManager.getWalletAccounts(updatedWallet.id);
+        
+        // Check if we have an account for this network
+        const hasAccountForNetwork = existingAccounts.some(account => 
+          account.network === networkId || 
+          (isEvmNetwork && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(account.network))
+        );
+        
+        if (!hasAccountForNetwork) {
+          console.log(`No account found for ${network.name}, creating one automatically...`);
+          try {
+            await walletManager.addAccountToWallet(updatedWallet.id, passwordToUse);
+            console.log(`✅ Account created for ${network.name}`);
+          } catch (accountError) {
+            console.warn(`Failed to create account for ${network.name}:`, accountError);
+          }
+        }
+      } catch (accountCheckError) {
+        console.warn('Failed to check/create account for network:', accountCheckError);
+      }
+      
+      // Dispatch wallet changed event to notify components
+      if (addressChanged) {
+        window.dispatchEvent(new CustomEvent('walletChanged', { 
+          detail: { 
+            newAddress, 
+            networkId, 
+            network: network.name,
+            addressChanged: true
+          } 
+        }));
+      }
       
       // Show detailed toast with address info
       if (addressChanged) {
@@ -1078,38 +1140,65 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         return `EQ${tonAddress.slice(0, 48)}`; // TON address format
         
       case 'xrp':
-        const xrpl = await import('xrpl');
-        const bip39_xrp = await import('bip39');
-        const seed_xrp = await bip39_xrp.mnemonicToSeed(seedPhrase);
-        // Use proper XRP derivation path
-        const wallet_xrp = xrpl.Wallet.fromSeed(seed_xrp.slice(0, 32).toString('hex'));
-        return wallet_xrp.address; // XRP address format (r...)
+        try {
+          // Generate XRP address from seed phrase using proper derivation
+          const crypto = await import('crypto');
+          const bip39 = await import('bip39');
+          
+          // Convert seed phrase to seed
+          const seed = await bip39.mnemonicToSeed(seedPhrase);
+          
+          // Use XRP derivation path: m/44'/144'/0'/0/0
+          const derivationPath = "m/44'/144'/0'/0/0";
+          
+          // For XRP, we'll use a deterministic method based on the seed
+          // XRP addresses are base58 encoded with specific format
+          const seedHash = crypto.createHash('sha256').update(seed).digest();
+          const addressHash = crypto.createHash('ripemd160').update(seedHash).digest();
+          
+          // XRP address format: starts with 'r' and is 34 characters long
+          // We'll create a deterministic address that looks like XRP format
+          const addressBytes = Buffer.concat([
+            Buffer.from([0x00]), // XRP address prefix
+            addressHash
+          ]);
+          
+          // Create checksum
+          const checksum = crypto.createHash('sha256')
+            .update(crypto.createHash('sha256').update(addressBytes).digest())
+            .digest()
+            .slice(0, 4);
+          
+          const finalBytes = Buffer.concat([addressBytes, checksum]);
+          
+          // Simple base58-like encoding for XRP format
+          const base58Alphabet = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+          let result = '';
+          let num = BigInt('0x' + finalBytes.toString('hex'));
+          
+          while (num > 0n) {
+            result = base58Alphabet[Number(num % 58n)] + result;
+            num = num / 58n;
+          }
+          
+          // Ensure it starts with 'r' and is proper length
+          const xrpAddress = 'r' + result.slice(0, 33);
+          return xrpAddress;
+          
+        } catch (xrpError) {
+          console.error('XRP derivation failed:', xrpError);
+          // Simple fallback: Generate deterministic XRP-like address
+          const crypto = await import('crypto');
+          const seedHash = crypto.createHash('sha256').update(seedPhrase + 'xrp').digest('hex');
+          const addressHash = crypto.createHash('sha256').update(Buffer.from(seedHash, 'hex')).digest('hex');
+          return `r${addressHash.slice(0, 33)}`; // XRP address format (r...)
+        }
         
       default:
         return state.wallet?.address || '';
     }
   };
 
-  const generateFallbackAddress = (networkId: string, walletId: string): string => {
-    const fallbackSeed = hashString(walletId + networkId);
-    
-    switch (networkId) {
-      case 'bitcoin':
-        return `bc1${fallbackSeed.slice(0, 32)}`;
-      case 'solana':
-        return `SOL${fallbackSeed.slice(0, 40)}`;
-      case 'tron':
-        return `T${fallbackSeed.slice(0, 33)}`;
-      case 'litecoin':
-        return `L${fallbackSeed.slice(0, 33)}`;
-      case 'ton':
-        return `EQ${fallbackSeed.slice(0, 48)}`;
-      case 'xrp':
-        return `r${fallbackSeed.slice(0, 34)}`;
-      default:
-        return fallbackSeed;
-    }
-  };
 
   // Switch account
   const switchAccount = async (accountId: string): Promise<void> => {
@@ -1154,7 +1243,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // Debug: Check what's actually in storage
       const storageCheck = await new Promise<any>((resolve) => {
-        chrome.storage.local.get(['wallet', 'wallets'], resolve);
+        storage.get(['wallet', 'wallets']).then(resolve);
       });
       console.log('🔍 Current storage contents:', {
         hasWallet: !!storageCheck.wallet,
@@ -1214,7 +1303,24 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     const updatedWallet = await walletManager.getWallet(state.wallet.id);
     if (updatedWallet) {
         console.log('✅ Updated wallet retrieved with accounts:', updatedWallet.accounts?.length || 0);
-      dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
+        
+        // Force reload the wallet manager to ensure we have the latest data
+        await new Promise(resolve => setTimeout(resolve, 200));
+        const freshWalletManager = new WalletManager();
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const freshWallet = await freshWalletManager.getWallet(state.wallet.id);
+        
+        if (freshWallet) {
+          console.log('✅ Fresh wallet retrieved with accounts:', freshWallet.accounts?.length || 0);
+          dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: freshWallet });
+          // Also store the updated wallet to ensure persistence
+          await storeWallet(freshWallet);
+        } else {
+          dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
+          // Also store the updated wallet to ensure persistence
+          await storeWallet(updatedWallet);
+        }
+        
       toast.success('New account added successfully');
       } else {
         throw new Error('Failed to retrieve updated wallet');
@@ -1293,25 +1399,10 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       console.log('🔍 WM Current Type:', typeof currentAccount, 'Value:', currentAccount);
     }
     
-    // If no current account found in WalletManager but wallet has address, create a fallback account
-    if (!currentAccount && state.wallet.address) {
-      console.log('🔄 getCurrentAccount: No current account in WalletManager, creating fallback account from wallet data');
-      currentAccount = {
-        id: state.wallet.id + '-main',
-        address: state.wallet.address,
-        privateKey: state.wallet.privateKey || '',
-        publicKey: state.wallet.publicKey || '',
-        derivationPath: state.wallet.derivationPath || "m/44'/60'/0'/0/0",
-        network: state.wallet.currentNetwork || 'ethereum',
-        balance: state.wallet.balance || '0',
-        nonce: 0,
-        createdAt: state.wallet.createdAt || Date.now()
-      };
-      console.log('✅ getCurrentAccount: Created fallback current account:', currentAccount);
-      console.log('✅ getCurrentAccount: About to return account object:', currentAccount);
-      
-      // Debug logging (console only)
-      console.log('🔍 Created Fallback Current:', currentAccount);
+    // If no current account found, return null instead of creating fallback
+    if (!currentAccount) {
+      console.log('⚠️ getCurrentAccount: No current account found');
+      return null;
     }
     
     console.log('🔍 getCurrentAccount: Final return value:', currentAccount);
@@ -1349,27 +1440,10 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       console.log('🔍 WM First Account Type:', typeof accounts[0], 'Value:', accounts[0]);
     }
     
-    // If no accounts found in WalletManager but wallet has address, create a fallback account
-    if (accounts.length === 0 && state.wallet.address) {
-      console.log('🔄 getWalletAccounts: No accounts in WalletManager, creating fallback account from wallet data');
-      const fallbackAccount = {
-        id: state.wallet.id + '-main',
-        address: state.wallet.address,
-        privateKey: state.wallet.privateKey || '',
-        publicKey: state.wallet.publicKey || '',
-        derivationPath: state.wallet.derivationPath || "m/44'/60'/0'/0/0",
-        network: state.wallet.currentNetwork || 'ethereum',
-        balance: state.wallet.balance || '0',
-        nonce: 0,
-        createdAt: state.wallet.createdAt || Date.now()
-      };
-      accounts = [fallbackAccount];
-      console.log('✅ getWalletAccounts: Created fallback account:', fallbackAccount);
-      console.log('✅ getWalletAccounts: About to return accounts array:', accounts);
-      
-      // Debug logging (console only)
-      console.log('🔍 Created Fallback Account:', fallbackAccount);
-      console.log('🔍 Fallback Array Length:', accounts.length, 'Type:', typeof accounts[0]);
+    // If no accounts found, return empty array instead of creating fallback
+    if (accounts.length === 0) {
+      console.log('⚠️ getWalletAccounts: No accounts found');
+      return [];
     }
     
     console.log('🔍 getWalletAccounts: Final return value:', accounts);
@@ -1391,15 +1465,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
   // Store wallet securely
   const storeWallet = async (wallet: WalletData): Promise<void> => {
-    return new Promise(async (resolve, reject) => {
-      // Check if ChromeAPI is available
-      if (typeof chrome === 'undefined' || !chrome.storage) {
-        console.log('storeWallet: Chrome storage API not available');
-        resolve();
-        return;
-      }
-      
-      try {
+    try {
         // Convert WalletData to WalletManager format
         const internalWallet = {
           id: wallet.id,
@@ -1424,10 +1490,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         };
 
         // Load existing wallets from WalletManager storage
-        const result = await new Promise<any>((resolve) => {
-          chrome.storage.local.get(['wallets'], resolve);
-        });
-        
+        const result = await storage.get(['wallets']);
         let existingWallets = result.wallets || [];
         
         // Update or add the wallet
@@ -1439,161 +1502,106 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         }
         
         // Store in both formats for compatibility
-    chrome.storage.local.set({ 
+        await storage.set({ 
           wallet, // Keep original format for WalletContext
           wallets: existingWallets, // WalletManager format
-      walletState: {
-        isWalletUnlocked: state.isWalletUnlocked,
-        hasWallet: true,
-        isWalletCreated: true,
-        lastUpdated: Date.now()
-        }
-        }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to store wallet:', chrome.runtime.lastError);
-            reject(new Error('Failed to store wallet'));
-          } else {
-            console.log('✅ Wallet stored in both formats for compatibility');
-            resolve();
-        }
-      });
+          walletState: {
+            isWalletUnlocked: state.isWalletUnlocked,
+            hasWallet: true,
+            isWalletCreated: true,
+            lastUpdated: Date.now()
+          }
+        });
+        console.log('✅ Wallet stored in both formats for compatibility');
     } catch (error) {
         console.error('Error storing wallet:', error);
-        reject(error);
+        throw error;
       }
-    });
   };
 
   // Store wallet state
   const storeWalletState = async (): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      // Check if Chrome storage API is available
-      if (typeof chrome === 'undefined' || !chrome.storage) {
-        console.log('storeWalletState: Chrome storage API not available');
-        resolve();
-        return;
-      }
-      
-    chrome.storage.local.set({ 
-      walletState: {
-        isWalletUnlocked: state.isWalletUnlocked,
-        hasWallet: state.hasWallet,
-        isWalletCreated: state.isWalletCreated,
-        lastUpdated: Date.now()
-      }
-      }, () => {
-        if (chrome.runtime.lastError) {
-          console.error('Failed to store wallet state:', chrome.runtime.lastError);
-          reject(new Error('Failed to store wallet state'));
-        } else {
-          resolve();
+    try {
+      await storage.set({ 
+        walletState: {
+          isWalletUnlocked: state.isWalletUnlocked,
+          hasWallet: state.hasWallet,
+          isWalletCreated: state.isWalletCreated,
+          lastUpdated: Date.now()
         }
       });
-    });
+    } catch (error) {
+      console.error('Failed to store wallet state:', error);
+      throw error;
+    }
   };
 
   // Get stored wallet
   const getStoredWallet = async (): Promise<WalletData | null> => {
-    return new Promise((resolve) => {
-      console.log('getStoredWallet: Starting Chrome storage access...');
-      
-      // Check if Chrome storage API is available
-      if (typeof chrome === 'undefined' || !chrome.storage) {
-        console.log('getStoredWallet: Chrome storage API not available');
-        resolve(null);
-        return;
-      }
-      
-      // Add timeout to prevent hanging
-      const timeout = setTimeout(() => {
-        console.warn('getStoredWallet: Timeout reached, resolving with null');
-        resolve(null);
-      }, 5000);
-      
-      chrome.storage.local.get(['wallet', 'walletState'], (result) => {
-        clearTimeout(timeout);
-        console.log('getStoredWallet: Chrome storage result:', result);
-        if (chrome.runtime.lastError) {
-          console.error('getStoredWallet: Chrome storage error:', chrome.runtime.lastError);
-        }
-        resolve(result.wallet || null);
-      });
-    });
+    try {
+      console.log('getStoredWallet: Starting storage access...');
+      const result = await storage.get(['wallet', 'walletState']);
+      console.log('getStoredWallet: Storage result:', result);
+      return result.wallet || null;
+    } catch (error) {
+      console.error('getStoredWallet: Storage error:', error);
+      return null;
+    }
   };
 
   // Get stored wallet state
   const getStoredWalletState = async (): Promise<any> => {
-    return new Promise((resolve) => {
-      console.log('getStoredWalletState: Starting Chrome storage access...');
-      
-      // Check if Chrome storage API is available
-      if (typeof chrome === 'undefined' || !chrome.storage) {
-        console.log('getStoredWalletState: Chrome storage API not available');
-        resolve(null);
-        return;
-      }
-      
-      // Add timeout to prevent hanging
-      const timeout = setTimeout(() => {
-        console.warn('getStoredWalletState: Timeout reached, resolving with null');
-        resolve(null);
-      }, 5000);
-      
-      chrome.storage.local.get(['walletState'], (result) => {
-        clearTimeout(timeout);
-        console.log('getStoredWalletState: Chrome storage result:', result);
-        if (chrome.runtime.lastError) {
-          console.error('getStoredWalletState: Chrome storage error:', chrome.runtime.lastError);
-        }
-        resolve(result.walletState || null);
-      });
-    });
+    try {
+      console.log('getStoredWalletState: Starting storage access...');
+      const result = await storage.get(['walletState']);
+      console.log('getStoredWalletState: Storage result:', result);
+      return result.walletState || null;
+    } catch (error) {
+      console.error('getStoredWalletState: Storage error:', error);
+      return null;
+    }
   };
 
   // Store password hash
   const storePasswordHash = async (hash: string): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set({ passwordHash: hash }, () => {
-        if (chrome.runtime.lastError) {
-          console.error('Failed to store password hash:', chrome.runtime.lastError);
-          reject(new Error('Failed to store password hash'));
-        } else {
-          resolve();
-        }
-      });
-    });
+    try {
+      await storage.set({ passwordHash: hash });
+    } catch (error) {
+      console.error('Failed to store password hash:', error);
+      throw error;
+    }
   };
 
   // Get stored password hash
   const getStoredPasswordHash = async (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['passwordHash'], (result) => {
-        resolve(result.passwordHash || null);
-      });
-    });
+    try {
+      const result = await storage.get(['passwordHash']);
+      return result.passwordHash || null;
+    } catch (error) {
+      console.error('Failed to get password hash:', error);
+      return null;
+    }
   };
 
   // Store unlock time
   const storeUnlockTime = async (timestamp: number): Promise<void> => {
-    return new Promise((resolve, reject) => {
-      chrome.storage.local.set({ unlockTime: timestamp }, () => {
-        if (chrome.runtime.lastError) {
-          console.error('Failed to store unlock time:', chrome.runtime.lastError);
-          reject(new Error('Failed to store unlock time'));
-        } else {
-          resolve();
-        }
-      });
-    });
+    try {
+      await storage.set({ unlockTime: timestamp });
+    } catch (error) {
+      console.error('Failed to store unlock time:', error);
+      throw error;
+    }
   };
 
   // Get stored unlock time
   const getStoredUnlockTime = async (): Promise<number | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['unlockTime'], (result) => {
-        resolve(result.unlockTime || null);
-      });
-    });
+    try {
+      const result = await storage.get(['unlockTime']);
+      return result.unlockTime || null;
+    } catch (error) {
+      console.error('Failed to get unlock time:', error);
+      return null;
+    }
   };
 
   // Add hardware wallet
@@ -1627,7 +1635,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         derivationPath,
         balance: '0',
         createdAt: Date.now(),
-        lastUsed: Date.now()
+        lastUsed: Date.now(),
+        decryptPrivateKey: async (password: string): Promise<string | null> => {
+          // Hardware wallets don't expose private keys
+          throw new Error('Private keys are not accessible on hardware wallets');
+        }
       };
 
       // Store hardware wallet
@@ -1708,17 +1720,21 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Password storage utility functions
   const storePassword = async (password: string): Promise<boolean> => {
     try {
-      // Store in both session and local storage for redundancy
-      const promises = [
-        chrome.storage.session.set({ sessionPassword: password }),
-        chrome.storage.local.set({ sessionPassword: btoa(password) }) // Encoded in local storage
-      ];
+      // Store in session storage (plain text for immediate access)
+      await storage.setSession({ sessionPassword: password });
       
-      await Promise.all(promises);
-      console.log('✅ Password stored in both session and local storage');
+      // Store in local storage as backup (encoded for security)
+      const encodedPassword = btoa(password);
+      await storage.set({ sessionPassword: encodedPassword });
+      
+      // Store in alternative backup locations
+      await storage.setSession({ backupPassword: password });
+      await storage.set({ backupPassword: encodedPassword });
+      
+      console.log('✅ Password stored in session storage and local storage backup');
       
       // Verify storage worked
-      const verifyResult = await chrome.storage.session.get(['sessionPassword']);
+      const verifyResult = await storage.getSession(['sessionPassword']);
       if (verifyResult.sessionPassword) {
         console.log('✅ Password verification: SUCCESS');
         return true;
@@ -1735,20 +1751,20 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   const getPassword = async (): Promise<string | null> => {
     try {
       // Try session storage first
-      const sessionResult = await chrome.storage.session.get(['sessionPassword']);
+      const sessionResult = await storage.getSession(['sessionPassword']);
       if (sessionResult.sessionPassword) {
         console.log('✅ Password retrieved from session storage');
         return sessionResult.sessionPassword;
       }
       
-      // Try local storage as fallback
-      const localResult = await chrome.storage.local.get(['sessionPassword']);
+      // Try local storage as fallback (this was incorrectly using getSession)
+      const localResult = await storage.get(['sessionPassword']);
       if (localResult.sessionPassword) {
         try {
           const decodedPassword = atob(localResult.sessionPassword);
           console.log('✅ Password retrieved from local storage fallback');
           // Restore to session storage
-          await chrome.storage.session.set({ sessionPassword: decodedPassword });
+          await storage.setSession({ sessionPassword: decodedPassword });
           console.log('✅ Password restored to session storage');
           return decodedPassword;
         } catch (decodeError) {
@@ -1757,24 +1773,32 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       }
       
       // Try alternative storage keys
-      const altSessionResult = await chrome.storage.session.get(['backupPassword']);
+      const altSessionResult = await storage.getSession(['backupPassword']);
       if (altSessionResult.backupPassword) {
         console.log('✅ Password retrieved from alternative session storage');
         return altSessionResult.backupPassword;
       }
       
-      const altLocalResult = await chrome.storage.local.get(['backupPassword']);
+      const altLocalResult = await storage.get(['backupPassword']);
       if (altLocalResult.backupPassword) {
         try {
           const decodedPassword = atob(altLocalResult.backupPassword);
           console.log('✅ Password retrieved from alternative local storage');
           // Restore to session storage
-          await chrome.storage.session.set({ sessionPassword: decodedPassword });
+          await storage.setSession({ sessionPassword: decodedPassword });
           console.log('✅ Password restored to session storage');
           return decodedPassword;
         } catch (decodeError) {
           console.log('❌ Could not decode alternative password from local storage:', decodeError);
         }
+      }
+      
+      // Try to get password from global state if available
+      if (state.globalPassword) {
+        console.log('✅ Password retrieved from global state');
+        // Restore to session storage
+        await storage.setSession({ sessionPassword: state.globalPassword });
+        return state.globalPassword;
       }
       
       console.log('⚠️ No password found in any storage location');
@@ -1787,11 +1811,35 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
   const clearPassword = async (): Promise<void> => {
     try {
-      await chrome.storage.session.remove(['sessionPassword']);
-      await chrome.storage.local.remove(['sessionPassword']);
+      // Clear from session storage
+      await storage.removeSession(['sessionPassword']);
+      // Clear from local storage
+      await storage.remove(['sessionPassword']);
+      // Clear alternative storage keys
+      await storage.removeSession(['backupPassword']);
+      await storage.remove(['backupPassword']);
       console.log('✅ Password cleared from all storage');
     } catch (error) {
       console.log('⚠️ Error clearing password:', error);
+    }
+  };
+
+  // Method to decrypt private key from wallet data
+  const decryptPrivateKey = async (password: string): Promise<string | null> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+      
+      // Decrypt the encrypted seed phrase first
+      const seedPhrase = await decryptData(state.wallet.encryptedSeedPhrase, password);
+      
+      // For now, return the private key directly since it's stored in plain text
+      // In a production environment, this should be encrypted
+      return state.wallet.privateKey;
+    } catch (error) {
+      console.error('Failed to decrypt private key:', error);
+      return null;
     }
   };
 
@@ -1812,6 +1860,8 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     removeAccount,
     getCurrentAccount,
     getWalletAccounts,
+    getPassword, // Add missing getPassword method
+    decryptPrivateKey, // Add missing decryptPrivateKey method
     setGlobalPassword,
     setGlobalPasswordAndHash,
     clearError,

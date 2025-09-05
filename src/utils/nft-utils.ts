@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { storage } from './storage-utils';
 
 // ERC-721 NFT ABI
 const ERC721_ABI = [
@@ -284,13 +285,13 @@ function generateDemoNFTs(walletAddress: string, network: string): NFT[] {
 // Set NFT as profile picture
 export async function setNFTAsProfilePicture(nft: NFT): Promise<void> {
   try {
-    const result = await chrome.storage.local.get(['profilePicture']);
+    const result = await storage.get(['profilePicture']);
     const profilePicture = {
       nft,
       setAt: new Date().toISOString()
     };
     
-    await chrome.storage.local.set({ profilePicture });
+    await storage.set({ profilePicture });
     console.log('✅ NFT set as profile picture:', nft.metadata.name);
   } catch (error) {
     console.error('Error setting NFT as profile picture:', error);
@@ -301,7 +302,7 @@ export async function setNFTAsProfilePicture(nft: NFT): Promise<void> {
 // Get current profile picture
 export async function getProfilePicture(): Promise<NFT | null> {
   try {
-    const result = await chrome.storage.local.get(['profilePicture']);
+    const result = await storage.get(['profilePicture']);
     return result.profilePicture?.nft || null;
   } catch (error) {
     console.error('Error getting profile picture:', error);
@@ -312,7 +313,7 @@ export async function getProfilePicture(): Promise<NFT | null> {
 // Remove profile picture
 export async function removeProfilePicture(): Promise<void> {
   try {
-    await chrome.storage.local.remove(['profilePicture']);
+    await storage.remove(['profilePicture']);
     console.log('✅ Profile picture removed');
   } catch (error) {
     console.error('Error removing profile picture:', error);

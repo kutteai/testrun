@@ -1,317 +1,352 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { validateBIP39SeedPhrase, validatePrivateKey } from '../../utils/crypto-utils';
+import { 
+  ArrowLeft, 
+  Plus, 
+  ChevronRight,
+  Grid3X3,
+  Shield,
+  Usb,
+  Globe,
+  Loader,
+  CheckCircle,
+  AlertCircle
+} from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
+import { ethers } from 'ethers';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const [importMethod, setImportMethod] = useState<'seed' | 'privateKey'>('seed');
-  const [seedPhrase, setSeedPhrase] = useState('');
-  const [privateKey, setPrivateKey] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [showSeedPhrase, setShowSeedPhrase] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [isValid, setIsValid] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [accountName, setAccountName] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [createStatus, setCreateStatus] = useState<'idle' | 'creating' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [selectedAccountType, setSelectedAccountType] = useState<string>('');
+  const [existingAccounts, setExistingAccounts] = useState<any[]>([]);
+  
+  const { wallet } = useWallet();
 
-  const { importWallet, importWalletFromPrivateKey, isWalletUnlocked, hasWallet } = useWallet();
-
-  const handleSeedPhraseChange = (value: string) => {
-    setSeedPhrase(value);
-    const isValid = validateBIP39SeedPhrase(value);
-    setIsValid(isValid);
-    
-    // Debug logging
-    console.log('Seed phrase validation:', {
-      phrase: value,
-      wordCount: value.trim().split(/\s+/).length,
-      isValid: isValid,
-      trimmed: value.trim()
-    });
-  };
-
-  const handlePrivateKeyChange = (value: string) => {
-    setPrivateKey(value);
-    const isValidKey = validatePrivateKey(value);
-    setIsValid(isValidKey);
-    
-    if (value.trim() && !isValidKey) {
-      console.log('Invalid private key format. Expected: 64 character hex string (with or without 0x prefix)');
+  // Load existing accounts from storage
+  const loadExistingAccounts = async (): Promise<void> => {
+    try {
+      const existingAccounts = await storage.get(['accounts']);
+      if (existingAccounts.accounts) {
+        setExistingAccounts(existingAccounts.accounts);
+      }
+    } catch (error) {
+      console.error('Failed to load existing accounts:', error);
     }
   };
 
-  const handleImport = async () => {
-    if (!isValid) {
-      toast.error('Please enter a valid seed phrase or private key');
-      return;
+  // Save accounts to storage
+  const saveAccounts = async (accounts: any[]): Promise<void> => {
+    try {
+      await storage.set({ accounts });
+      await storage.set({
+        currentAccount: accounts[0]?.address || null
+      });
+    } catch (error) {
+      console.error('Failed to save accounts:', error);
     }
+  };
 
-    // Check if we need a password
-    const needsPassword = !isWalletUnlocked && !hasWallet;
-    if (needsPassword && !password.trim()) {
-      toast.error('Please enter a password to encrypt your imported wallet');
-      return;
+  const createAccountOptions = [
+    {
+      id: 'ethereum',
+      name: 'Ethereum account',
+      logo: '🔷',
+      action: 'create'
+    },
+    {
+      id: 'solana',
+      name: 'Solana account',
+      logo: '🟣',
+      action: 'create'
     }
+  ];
+
+  const importOptions = [
+    {
+      id: 'seed-phrase',
+      name: 'Seed phrase',
+      icon: Grid3X3,
+      action: 'import-seed-phrase'
+    },
+    {
+      id: 'private-key',
+      name: 'Private key',
+      icon: Shield,
+      action: 'import-private-key'
+    },
+    {
+      id: 'hardware-wallet',
+      name: 'Hardware wallet',
+      icon: Usb,
+      action: 'hardware-wallet'
+    },
+    {
+      id: 'google',
+      name: 'Google',
+      icon: Globe,
+      action: 'google'
+    }
+  ];
+
+  const handleCreateAccount = (accountType: string) => {
+    setSelectedAccountType(accountType);
+    setShowNameModal(true);
+  };
+
+  const handleImportOption = (action: string) => {
+    onNavigate(action as any);
+  };
+
+  const handleAddAccount = async () => {
+    if (!accountName.trim() || !selectedAccountType) return;
+    
+    setIsCreating(true);
+    setCreateStatus('creating');
+    setErrorMessage('');
 
     try {
-      console.log('Importing wallet...');
+      // Generate new account based on type
+      let newAccount;
       
-      if (importMethod === 'privateKey') {
-        console.log('Importing from private key...');
-        // Validate the private key again
-        if (!validatePrivateKey(privateKey)) {
-          toast.error('Invalid private key format. Please check your MetaMask private key.');
-          return;
-        }
-        
-        // Import wallet from private key
-        await importWalletFromPrivateKey(privateKey, 'ethereum', password || undefined);
-        console.log('Private key import successful');
+      if (selectedAccountType === 'ethereum') {
+        // Generate Ethereum account
+        const walletInstance = ethers.Wallet.createRandom();
+        newAccount = {
+          id: `eth_${Date.now()}`,
+          name: accountName.trim(),
+          address: walletInstance.address,
+          privateKey: walletInstance.privateKey,
+          type: 'ethereum',
+          network: 'ethereum',
+          createdAt: Date.now(),
+          isEnabled: true
+        };
+      } else if (selectedAccountType === 'solana') {
+        // Generate Solana account (placeholder - would need @solana/web3.js)
+        const randomBytes = new Uint8Array(32);
+        crypto.getRandomValues(randomBytes);
+        newAccount = {
+          id: `sol_${Date.now()}`,
+          name: accountName.trim(),
+          address: `Solana_${randomBytes.slice(0, 8).reduce((a, b) => a + b.toString(16).padStart(2, '0'), '')}`,
+          privateKey: Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join(''),
+          type: 'solana',
+          network: 'solana',
+          createdAt: Date.now(),
+          isEnabled: true
+        };
       } else {
-        console.log('Importing from seed phrase...');
-        // Validate the seed phrase
-        if (!validateBIP39SeedPhrase(seedPhrase)) {
-          toast.error('Invalid seed phrase. Please check your 12 or 24 word phrase.');
-          return;
-        }
-        
-        // Import wallet from seed phrase
-        await importWallet(seedPhrase, 'ethereum', password || undefined);
-        console.log('Seed phrase import successful');
+        throw new Error('Unsupported account type');
       }
+
+      // Save account to Chrome storage
+      const existingAccounts = await storage.get(['accounts']);
+      const accounts = existingAccounts.accounts || [];
+      accounts.push(newAccount);
+      await storage.set({ accounts });
+
+      // Also save to wallet accounts if wallet exists
+      if (wallet) {
+        const walletAccounts = wallet.accounts || [];
+        walletAccounts.push(newAccount);
+        await storage.set({ 
+          wallet: { ...wallet, accounts: walletAccounts }
+        });
+      }
+
+      toast.success(`Account "${accountName.trim()}" created successfully!`);
+      setCreateStatus('success');
       
-      toast.success('Wallet imported successfully!');
-      onNavigate('dashboard');
+      // Close modal and navigate after success
+      setTimeout(() => {
+        setShowNameModal(false);
+        setCreateStatus('idle');
+        onNavigate('dashboard');
+      }, 1500);
+
     } catch (error) {
-      console.error('Import failed:', error);
-      toast.error(`Failed to import wallet: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Account creation failed:', error);
+      setErrorMessage('Failed to create account. Please try again.');
+      setCreateStatus('error');
+      toast.error('Failed to create account. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="h-full flex flex-col bg-white"
+    >
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 pb-4"
-      >
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-[#180CB2] text-white px-6 py-4">
+        <div className="flex items-center">
           <button
-            onClick={() => onNavigate('welcome')}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            onClick={() => onNavigate('create')}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
-              </svg>
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Import Wallet</h1>
-              <p className="text-slate-400 text-sm">Import existing wallet</p>
-            </div>
-          </div>
-          <div className="w-10"></div>
+          <h1 className="flex-1 text-center text-xl font-bold">
+            Import wallet
+          </h1>
         </div>
-      </motion.div>
+      </div>
 
-      {/* Content */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-6 flex-1"
-      >
-
-        {/* Import Method Selection */}
-        <div className="mb-6">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setImportMethod('seed')}
-              className={`p-3 rounded-lg border-2 transition-colors ${
-                importMethod === 'seed'
-                  ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                  : 'border-white/20 bg-white/10 text-white hover:border-white/30'
-              }`}
-            >
-              <div className="text-sm font-medium">Seed Phrase</div>
-              <div className="text-xs text-slate-400 mt-1">12 or 24 words</div>
-            </button>
-            <button
-              onClick={() => setImportMethod('privateKey')}
-              className={`p-3 rounded-lg border-2 transition-colors ${
-                importMethod === 'privateKey'
-                  ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                  : 'border-white/20 bg-white/10 text-white hover:border-white/30'
-              }`}
-            >
-              <div className="text-sm font-medium">Private Key</div>
-              <div className="text-xs text-slate-400 mt-1">64 character hex</div>
-            </button>
-          </div>
-        </div>
-
-        {/* Import Form */}
+      {/* Main Content */}
+      <div className="flex-1 bg-white rounded-t-3xl px-6 py-6 pb-20">
+        {/* Create a new account */}
         <motion.div
-          key={importMethod}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8"
         >
-          {importMethod === 'seed' ? (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Seed Phrase
-                </label>
-                <div className="relative">
-                  <textarea
-                    value={showSeedPhrase ? seedPhrase : seedPhrase.split(' ').map(() => '••••••••').join(' ')}
-                    onChange={(e) => handleSeedPhraseChange(e.target.value)}
-                    placeholder="Enter your 12 or 24 word seed phrase"
-                    className="w-full h-24 px-3 py-2 pr-10 border border-white/20 bg-white/10 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-white placeholder-slate-400"
-                  />
-                  <button
-                    onClick={() => setShowSeedPhrase(!showSeedPhrase)}
-                    className="absolute right-3 top-3 p-1 rounded hover:bg-white/10"
-                  >
-                    {showSeedPhrase ? (
-                      <EyeOff className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-slate-400" />
-                    )}
-                  </button>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Create a new account</h2>
+          <div className="space-y-3">
+            {createAccountOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => handleCreateAccount(option.id)}
+                className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+                    <span className="text-lg">{option.logo}</span>
+                  </div>
+                  <span className="font-medium text-gray-900">{option.name}</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Separate words with spaces
-                </p>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Private Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPrivateKey ? 'text' : 'password'}
-                    value={privateKey}
-                    onChange={(e) => handlePrivateKeyChange(e.target.value)}
-                    placeholder="Enter your private key (0x...)"
-                    className="w-full px-3 py-2 pr-10 border border-white/20 bg-white/10 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400"
-                  />
-                  <button
-                    onClick={() => setShowPrivateKey(!showPrivateKey)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1 rounded hover:bg-white/10"
-                  >
-                    {showPrivateKey ? (
-                      <EyeOff className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <Eye className="w-4 h-4 text-slate-400" />
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 mt-1">
-                  Your private key should be 64 characters long (with or without 0x prefix)
-                </p>
-                <p className="text-xs text-blue-400 mt-1">
-                  💡 For MetaMask: Export your private key from MetaMask settings
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Password input - only show if wallet is not unlocked and no wallet exists */}
-          {!isWalletUnlocked && !hasWallet && (
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-slate-300">
-                Wallet Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter a password to encrypt your wallet"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-400 pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4 text-slate-400" />
-                  ) : (
-                    <Eye className="h-4 w-4 text-slate-400" />
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-slate-400">
-                This password will be used to encrypt and protect your imported wallet
-              </p>
-            </div>
-          )}
-
-          {/* Validation Status */}
-          {seedPhrase || privateKey ? (
-            <div className={`p-3 rounded-lg ${
-              isValid 
-                ? 'bg-green-500/20 border border-green-400/20' 
-                : 'bg-red-500/20 border border-red-400/20'
-            }`}>
-              <div className="flex items-center">
-                <div className={`w-2 h-2 rounded-full mr-2 ${
-                  isValid ? 'bg-green-400' : 'bg-red-400'
-                }`} />
-                <span className={`text-sm ${
-                  isValid ? 'text-green-300' : 'text-red-300'
-                }`}>
-                  {isValid ? 'Valid format' : 'Invalid format'}
-                </span>
-              </div>
-            </div>
-          ) : null}
+                <Plus className="w-5 h-5 text-[#180CB2]" />
+              </button>
+            ))}
+          </div>
         </motion.div>
 
-        {/* Security Warning */}
-        <div className="bg-yellow-500/10 border border-yellow-400/20 rounded-lg p-4 mb-6">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-yellow-300">Security Notice</h3>
-              <div className="mt-2 text-sm text-yellow-200">
-                <p>Never share your seed phrase or private key with anyone. This information gives full access to your wallet.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Import Button */}
-        <motion.button
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          onClick={handleImport}
-          disabled={!isValid}
-          className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-            isValid
-              ? 'bg-blue-600 hover:bg-blue-700 text-white'
-              : 'bg-slate-600 text-slate-400 cursor-not-allowed'
-          }`}
+        {/* Import a wallet or account */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
         >
-          Import Wallet
-        </motion.button>
-      </motion.div>
-    </div>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Import a wallet or account</h2>
+          <div className="space-y-3">
+            {importOptions.map((option) => (
+              <button
+                key={option.id}
+                onClick={() => handleImportOption(option.action)}
+                className="w-full flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+                    <option.icon className="w-5 h-5 text-[#180CB2]" />
+                  </div>
+                  <span className="font-medium text-gray-900">{option.name}</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Account Name Modal */}
+      {showNameModal && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-2xl p-6 w-80 mx-4"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {selectedAccountType === 'ethereum' ? 'Ethereum' : 'Solana'} account
+              </h3>
+              <button
+                onClick={() => setShowNameModal(false)}
+                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <span className="text-2xl text-gray-400 hover:text-gray-600">×</span>
+              </button>
+            </div>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Account name
+              </label>
+              <input
+                type="text"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+                placeholder="Enter your account name"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] transition-colors"
+              />
+            </div>
+            
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowNameModal(false)}
+                className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddAccount}
+                disabled={!accountName.trim() || isCreating}
+                className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+                  accountName.trim() && !isCreating
+                    ? 'bg-[#180CB2] text-white hover:bg-[#140a8f]'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                {isCreating ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span>Creating...</span>
+                  </div>
+                ) : createStatus === 'success' ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <CheckCircle className="w-4 h-4" />
+                    <span>Created!</span>
+                  </div>
+                ) : (
+                  'Add account'
+                )}
+              </button>
+            </div>
+            
+            {/* Error Message */}
+            {createStatus === 'error' && (
+              <motion.div
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg"
+              >
+                <div className="flex items-start space-x-3">
+                  <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-red-800">
+                    <p className="font-medium">Account Creation Failed</p>
+                    <p className="text-red-700">{errorMessage}</p>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </motion.div>
+        </motion.div>
+      )}
+    </motion.div>
   );
 };
 

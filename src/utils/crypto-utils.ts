@@ -100,6 +100,90 @@ export function validateBIP39SeedPhrase(seedPhrase: string): boolean {
   }
 }
 
+// Enhanced validation with detailed error feedback
+export function validateBIP39SeedPhraseWithFeedback(seedPhrase: string): {
+  isValid: boolean;
+  error?: string;
+  wordCount: number;
+  supportedLengths: number[];
+} {
+  try {
+    const trimmed = seedPhrase.trim();
+    
+    // Check if empty
+    if (!trimmed) {
+      return {
+        isValid: false,
+        error: 'Seed phrase cannot be empty',
+        wordCount: 0,
+        supportedLengths: Object.values(BIP39_ENTROPY_LENGTHS)
+      };
+    }
+    
+    const words = trimmed.split(/\s+/);
+    const wordCount = words.length;
+    const supportedWordCounts = Object.values(BIP39_ENTROPY_LENGTHS);
+    
+    // Check word count
+    if (!supportedWordCounts.includes(wordCount as WordCount)) {
+      return {
+        isValid: false,
+        error: `Invalid word count: ${wordCount}. Supported lengths: ${supportedWordCounts.join(', ')} words`,
+        wordCount,
+        supportedLengths: supportedWordCounts
+      };
+    }
+    
+    // Check for empty words
+    if (words.some(word => word.length === 0)) {
+      return {
+        isValid: false,
+        error: 'Seed phrase contains empty words. Please check for extra spaces.',
+        wordCount,
+        supportedLengths: supportedWordCounts
+      };
+    }
+    
+    // Validate with BIP39
+    const isValid = bip39.validateMnemonic(trimmed);
+    
+    if (!isValid) {
+      // Try to provide more specific feedback
+      const invalidWords = words.filter(word => !bip39.wordlists.english.includes(word));
+      if (invalidWords.length > 0) {
+        return {
+          isValid: false,
+          error: `Invalid words found: ${invalidWords.join(', ')}. Please check spelling.`,
+          wordCount,
+          supportedLengths: supportedWordCounts
+        };
+      }
+      
+      return {
+        isValid: false,
+        error: 'Invalid seed phrase. Please check the order and spelling of all words.',
+        wordCount,
+        supportedLengths: supportedWordCounts
+      };
+    }
+    
+    return {
+      isValid: true,
+      wordCount,
+      supportedLengths: supportedWordCounts
+    };
+    
+  } catch (error) {
+    console.error('Seed phrase validation error:', error);
+    return {
+      isValid: false,
+      error: 'Failed to validate seed phrase. Please try again.',
+      wordCount: 0,
+      supportedLengths: Object.values(BIP39_ENTROPY_LENGTHS)
+    };
+  }
+}
+
 // Get description for word count
 export function getWordCountDescription(wordCount: number): string {
   switch (wordCount) {
@@ -140,6 +224,38 @@ export function getSecurityLevelDescription(wordCount: number): string {
 export function getEntropyBits(wordCount: number): number | null {
   const entropyLength = getEntropyFromWordCount(wordCount);
   return entropyLength || null;
+}
+
+// Helper function to provide user-friendly guidance for seed phrase issues
+export function getSeedPhraseGuidance(validation: {
+  isValid: boolean;
+  error?: string;
+  wordCount: number;
+  supportedLengths: number[];
+}): string {
+  if (validation.isValid) {
+    return 'Your seed phrase is valid and ready to use.';
+  }
+
+  const { error, wordCount, supportedLengths } = validation;
+  
+  if (error?.includes('word count')) {
+    return `Your seed phrase has ${wordCount} words, but it needs exactly ${supportedLengths.join(', ')} words. Please check that you have the correct number of words.`;
+  }
+  
+  if (error?.includes('empty words')) {
+    return 'Your seed phrase contains empty words. Please remove any extra spaces between words.';
+  }
+  
+  if (error?.includes('Invalid words found')) {
+    return 'Some words in your seed phrase are not valid. Please check the spelling of each word against the BIP39 word list.';
+  }
+  
+  if (error?.includes('Invalid seed phrase')) {
+    return 'Your seed phrase is not valid. Please double-check that all words are spelled correctly and in the right order.';
+  }
+  
+  return 'Please check your seed phrase and try again.';
 }
 
 // Generate wallet address from public key for specific network (real implementation)
@@ -344,4 +460,77 @@ export function generateChecksum(data: string): string {
 // Verify checksum
 export function verifyChecksum(data: string, checksum: string): boolean {
   return generateChecksum(data) === checksum;
+} 
+
+// Import wallet from private key (real implementation)
+export function importFromPrivateKey(privateKey: string, network: string = 'ethereum'): {
+  address: string;
+  privateKey: string;
+  publicKey: string;
+  derivationPath: string;
+} {
+  try {
+    // Validate private key
+    if (!validatePrivateKey(privateKey)) {
+      throw new Error('Invalid private key format');
+    }
+
+    // Clean the private key
+    const cleanKey = privateKey.trim();
+    const processedKey = cleanKey.startsWith('0x') ? cleanKey : '0x' + cleanKey;
+
+    // Create wallet from private key
+    const wallet = new ethers.Wallet(processedKey);
+    
+    // Get public key - use the correct property for ethers v6
+    const publicKey = wallet.signingKey.publicKey;
+    
+    // Derive address
+    const address = wallet.address;
+    
+    // Use standard derivation path for the network
+    const derivationPath = getDerivationPath(network);
+    
+    return {
+      address,
+      privateKey: processedKey,
+      publicKey,
+      derivationPath
+    };
+  } catch (error) {
+    console.error('Failed to import from private key:', error);
+    throw new Error('Failed to import wallet from private key');
+  }
+}
+
+// Get derivation path for specific network
+export function getDerivationPath(network: string): string {
+  switch (network.toLowerCase()) {
+    case 'ethereum':
+    case 'polygon':
+    case 'bsc':
+    case 'avalanche':
+    case 'arbitrum':
+    case 'optimism':
+      return "m/44'/60'/0'/0/0"; // BIP44 for Ethereum-based networks
+    case 'bitcoin':
+      return "m/44'/0'/0'/0/0"; // BIP44 for Bitcoin
+    case 'litecoin':
+      return "m/44'/2'/0'/0/0"; // BIP44 for Litecoin
+    case 'solana':
+      return "m/44'/501'/0'/0/0"; // BIP44 for Solana
+    case 'tron':
+      return "m/44'/195'/0'/0/0"; // BIP44 for TRON
+    case 'ton':
+      return "m/44'/396'/0'/0/0"; // BIP44 for TON
+    case 'xrp':
+      return "m/44'/144'/0'/0/0"; // BIP44 for XRP
+    default:
+      return "m/44'/60'/0'/0/0"; // Default to Ethereum
+  }
+}
+
+// Hash string for fallback address generation
+export function hashString(input: string): string {
+  return CryptoJS.SHA256(input).toString().slice(0, 40);
 } 

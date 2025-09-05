@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
+import { storage } from '../utils/storage-utils';
 
 
 interface Network {
@@ -273,25 +274,38 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
 
   // Load custom networks from storage
   useEffect(() => {
-    chrome.storage.local.get(['customNetworks', 'currentNetwork'], (result) => {
-      const customNetworks = result.customNetworks || [];
-      const allNetworks = [...defaultNetworks, ...customNetworks];
-      
-      const currentNetworkId = result.currentNetwork || 'ethereum';
-      const currentNetwork = allNetworks.find(n => n.id === currentNetworkId) || allNetworks[0];
-      
-      setNetworkState(prev => ({
-        ...prev,
-        networks: allNetworks,
-        currentNetwork
-      }));
-    });
+    const loadCustomNetworks = async () => {
+      try {
+        const result = await storage.get(['customNetworks', 'currentNetwork']);
+        if (result.customNetworks) {
+          setNetworkState(prev => ({
+            ...prev,
+            networks: [...defaultNetworks, ...result.customNetworks]
+          }));
+        }
+        if (result.currentNetwork) {
+          const currentNetworkId = result.currentNetwork;
+          const currentNetwork = networkState.networks.find(n => n.id === currentNetworkId) || networkState.networks[0];
+          setNetworkState(prev => ({
+            ...prev,
+            currentNetwork
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load custom networks:', error);
+      }
+    };
+    loadCustomNetworks();
   }, []);
 
   // Save networks to storage
-  const saveNetworks = (networks: Network[]) => {
+  const saveNetworks = async (networks: Network[]) => {
     const customNetworks = networks.filter(n => n.isCustom);
-    chrome.storage.local.set({ customNetworks });
+    try {
+      await storage.set({ customNetworks });
+    } catch (error) {
+      console.error('Failed to save custom networks:', error);
+    }
   };
 
     // Test network connection
@@ -538,7 +552,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
       }));
 
       // Save current network to storage
-      chrome.storage.local.set({ currentNetwork: networkId });
+      await storage.set({ currentNetwork: networkId });
 
       // Trigger a custom event to notify other contexts about network change
       window.dispatchEvent(new CustomEvent('networkChanged', { 

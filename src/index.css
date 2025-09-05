@@ -5,6 +5,13 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+/* Custom CSS Variables */
+:root {
+  --primary-color: #180CB2;
+  --primary-dark: #140a8f;
+  --primary-light: #2a1dd4;
+}
+
 /* Custom base styles */
 @layer base {
   * {
@@ -14,6 +21,343 @@
   body {
     @apply bg-background text-foreground font-sans;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  
+  /* Base typography for dashboard and related pages */
+  .dashboard-typography {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-style: normal;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0%;
+    text-align: right;
+    vertical-align: middle;
+  }
+  
+  /* Override for specific text elements */
+  .dashboard-text {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: 0%;
+  }
+  
+  /* Apply typography to all text elements within dashboard screens */
+  .dashboard-typography * {
+    font-family: 'Inter', sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
+    letter-spacing: 0% !important;
+  }
+  
+  /* Override for specific elements that need different alignment and sizing */
+  .dashboard-typography h1,
+  .dashboard-typography h2,
+  .dashboard-typography h3,
+  .dashboard-typography h4,
+  .dashboard-typography h5,
+  .dashboard-typography h6 {
+    text-align: left !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 600 !important;
+  }
+  
+  .dashboard-typography button {
+    text-align: center !important;
+    font-size: 10px !important;
+    line-height: 12px !important;
+    font-weight: 500 !important;
+    padding: 4px 8px !important;
+  }
+  
+  .dashboard-typography input,
+  .dashboard-typography textarea {
+    text-align: left !important;
+    font-size: 11px !important;
+    line-height: 14px !important;
+  }
+  
+  /* Make small text even smaller */
+  .dashboard-typography .text-xs,
+  .dashboard-typography .text-sm {
+    font-size: 9px !important;
+    line-height: 12px !important;
+  }
+  
+  /* Compact spacing for better density */
+  .dashboard-typography .space-y-1 > * + * {
+    margin-top: 2px !important;
+  }
+  
+  .dashboard-typography .space-y-2 > * + * {
+    margin-top: 4px !important;
+  }
+  
+  .dashboard-typography .space-y-3 > * + * {
+    margin-top: 6px !important;
+  }
+  
+  .dashboard-typography .space-y-4 > * + * {
+    margin-top: 8px !important;
+  }
+  
+  /* Compact UI elements */
+  .dashboard-typography .p-4,
+  .dashboard-typography .p-6 {
+    padding: 8px !important;
+  }
+  
+  .dashboard-typography .py-4,
+  .dashboard-typography .py-6 {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  
+  .dashboard-typography .px-4,
+  .dashboard-typography .px-6 {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+  
+  .dashboard-typography .mb-4,
+  .dashboard-typography .mb-6 {
+    margin-bottom: 8px !important;
+  }
+  
+  .dashboard-typography .mt-4,
+  .dashboard-typography .mt-6 {
+    margin-top: 8px !important;
+  }
+  
+  .dashboard-typography .space-x-2 > * + * {
+    margin-left: 4px !important;
+  }
+  
+  .dashboard-typography .space-x-3 > * + * {
+    margin-left: 6px !important;
+  }
+  
+  .dashboard-typography .space-x-4 > * + * {
+    margin-left: 8px !important;
+  }
+  
+  /* Compact cards and containers */
+  .dashboard-typography .rounded-xl,
+  .dashboard-typography .rounded-2xl {
+    border-radius: 6px !important;
+  }
+  
+  .dashboard-typography .rounded-lg {
+    border-radius: 4px !important;
+  }
+  
+  /* Compact quick actions */
+  .dashboard-typography .w-10,
+  .dashboard-typography .h-10 {
+    width: 24px !important;
+    height: 24px !important;
+  }
+  
+  .dashboard-typography .w-12,
+  .dashboard-typography .h-12 {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  
+  /* Compact icons */
+  .dashboard-typography .w-4,
+  .dashboard-typography .h-4 {
+    width: 12px !important;
+    height: 12px !important;
+  }
+  
+  .dashboard-typography .w-5,
+  .dashboard-typography .h-5 {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  .dashboard-typography .w-6,
+  .dashboard-typography .h-6 {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  
+  /* Fix dropdown z-index and animations */
+  .dashboard-typography .dropdown-container {
+    position: relative !important;
+    z-index: 99999 !important;
+  }
+  
+  .dashboard-typography .dropdown-container > div {
+    z-index: 99999 !important;
+    position: absolute !important;
+    animation: dropdownFadeIn 0.2s ease-out !important;
+  }
+  
+  .dashboard-typography .dropdown-container button {
+    transition: all 0.2s ease !important;
+  }
+  
+  .dashboard-typography .dropdown-container button:hover {
+    transform: scale(1.02) !important;
+  }
+  
+  /* Dropdown animations */
+  @keyframes dropdownFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-10px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  
+  /* Ensure all dropdowns are on top */
+  .dashboard-typography [class*="absolute"] {
+    z-index: 99999 !important;
+  }
+  
+  .dashboard-typography [class*="fixed"] {
+    z-index: 99999 !important;
+  }
+  
+  /* Specific dropdown styling */
+  .dashboard-typography .dropdown-container .absolute {
+    z-index: 99999 !important;
+    position: absolute !important;
+    animation: dropdownSlideIn 0.2s ease-out !important;
+  }
+  
+  .dashboard-typography .dropdown-container .fixed {
+    z-index: 99998 !important;
+    position: fixed !important;
+  }
+  
+  /* Dropdown slide animation */
+  @keyframes dropdownSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Chevron rotation animation */
+  .dashboard-typography .transition-transform {
+    transition: transform 0.2s ease !important;
+  }
+  
+  /* Dropdown backdrop */
+  .dashboard-typography .dropdown-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99998 !important;
+    background: transparent !important;
+  }
+  
+  /* Force dropdown positioning */
+  .dashboard-typography .dropdown-container .absolute.top-10,
+  .dashboard-typography .dropdown-container .absolute.top-12 {
+    z-index: 99999 !important;
+    position: absolute !important;
+  }
+  
+  /* Ensure dropdown content is visible */
+  .dashboard-typography .dropdown-container .bg-white {
+    background-color: white !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+    border: 1px solid #e5e7eb !important;
+  }
+  
+  /* Dropdown item hover effects */
+  .dashboard-typography .dropdown-container button:hover {
+    background-color: #f3f4f6 !important;
+    transition: background-color 0.15s ease !important;
+  }
+  
+  /* Force dropdown above white sections */
+  .dashboard-typography .bg-white {
+    z-index: 1 !important;
+  }
+  
+  .dashboard-typography .rounded-t-3xl {
+    z-index: 1 !important;
+  }
+  
+  /* Ensure dropdown is above everything */
+  .dashboard-typography .dropdown-container .absolute,
+  .dashboard-typography .dropdown-container .fixed {
+    z-index: 99999 !important;
+    position: absolute !important;
+  }
+  
+  /* Override any conflicting z-index */
+  .dashboard-typography *[class*="z-"] {
+    z-index: 1 !important;
+  }
+  
+  .dashboard-typography .dropdown-container *[class*="z-"] {
+    z-index: 99999 !important;
+  }
+
+  /* Globe Dropdown Z-Index */
+  .dashboard-typography .globe-dropdown-container {
+    position: relative !important;
+    z-index: 99999 !important;
+  }
+  
+  .dashboard-typography .globe-dropdown-container > div {
+    z-index: 99999 !important;
+    position: absolute !important;
+    animation: dropdownFadeIn 0.2s ease-out !important;
+  }
+  
+  .dashboard-typography .globe-dropdown-container .absolute {
+    z-index: 99999 !important;
+    position: absolute !important;
+    animation: dropdownSlideIn 0.2s ease-out !important;
+  }
+  
+  .dashboard-typography .globe-dropdown-container .fixed {
+    z-index: 99998 !important;
+    position: fixed !important;
+  }
+  
+  .dashboard-typography .globe-dropdown-container *[class*="z-"] {
+    z-index: 99999 !important;
+  }
+  
+  /* Ensure all screen containers have white background */
+  #root, .screen-container {
+    @apply bg-white min-h-screen;
+  }
+  
+  /* Override any inherited background colors */
+  .bg-inherit {
+    background-color: white !important;
+  }
+  
+  /* Ensure all screen containers have white background */
+  .screen-bg-white {
+    @apply bg-white;
+  }
+  
+  /* Extension popup specific background override */
+  .extension-popup {
+    background-color: white !important;
   }
   
   /* Extension popup specific styles */
@@ -38,7 +382,7 @@
   
   /* Focus styles */
   *:focus-visible {
-    @apply outline-none ring-2 ring-primary-500 ring-offset-2;
+    @apply outline-none ring-2 ring-[#180CB2] ring-offset-2;
   }
 }
 
@@ -49,7 +393,7 @@
   }
   
   .btn-primary {
-    @apply btn bg-gradient-to-r from-primary-600 to-primary-700 text-white hover:from-primary-700 hover:to-primary-800 focus:ring-primary-500 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5;
+    @apply btn bg-[#180CB2] text-white hover:bg-[#140a8f] focus:ring-[#180CB2] shadow-lg hover:shadow-xl transform hover:-translate-y-0.5;
   }
   
   .btn-secondary {
@@ -65,7 +409,7 @@
   }
   
   .input {
-    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-500 focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500 transition-colors;
+    @apply w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm placeholder-gray-500 focus:border-[#180CB2] focus:outline-none focus:ring-1 focus:ring-[#180CB2] transition-colors;
   }
   
   .card {
@@ -81,11 +425,11 @@
   }
   
   .gradient-text {
-    @apply bg-gradient-to-r from-primary-600 to-secondary-600 bg-clip-text text-transparent;
+    @apply bg-gradient-to-r from-[#180CB2] to-[#140a8f] bg-clip-text text-transparent;
   }
   
   .loading-spinner {
-    @apply animate-spin rounded-full border-2 border-gray-300 border-t-primary-600;
+    @apply animate-spin rounded-full border-2 border-gray-300 border-t-[#180CB2];
   }
   
   .fade-in {
@@ -153,7 +497,7 @@
 
 /* Network-specific gradients */
 .gradient-ethereum {
-  background: linear-gradient(135deg, #627eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #180CB2 0%, #4F46E5 100%);
 }
 
 .gradient-bitcoin {
@@ -161,7 +505,7 @@
 }
 
 .gradient-solana {
-  background: linear-gradient(135deg, #9945ff 0%, #14f195 100%);
+  background: linear-gradient(135deg, #180CB2 0%, #14f195 100%);
 }
 
 .gradient-tron {
@@ -169,7 +513,7 @@
 }
 
 .gradient-polygon {
-  background: linear-gradient(135deg, #8247e5 0%, #a855f7 100%);
+  background: linear-gradient(135deg, #180CB2 0%, #4F46E5 100%);
 }
 
 .gradient-bsc {
@@ -220,7 +564,7 @@
 }
 
 .network-solana {
-  @apply network-badge bg-purple-100 text-purple-800;
+  @apply network-badge bg-[#180CB2]/20 text-[#180CB2];
 }
 
 .network-tron {
@@ -228,7 +572,7 @@
 }
 
 .network-polygon {
-  @apply network-badge bg-purple-100 text-purple-800;
+  @apply network-badge bg-[#180CB2]/20 text-[#180CB2];
 }
 
 .network-bsc {

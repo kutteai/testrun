@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { NETWORKS } from '../utils/web3-utils';
+import { storage } from '../utils/storage-utils';
 
 export interface NFT {
   id: string;
@@ -55,14 +56,13 @@ export class NFTManager {
   // Load NFT data from storage
   private async loadNFTData(): Promise<void> {
     try {
-      chrome.storage.local.get(['nfts', 'nftCollections'], (result) => {
+      const result = await storage.get(['nfts', 'nftCollections']);
       if (result.nfts) {
         this.nfts = result.nfts;
       }
-        if (result.nftCollections) {
-          this.collections = result.nftCollections;
-        }
-      });
+      if (result.nftCollections) {
+        this.collections = result.nftCollections;
+      }
     } catch (error) {
       console.error('Failed to load NFT data:', error);
     }
@@ -71,7 +71,7 @@ export class NFTManager {
   // Save NFT data to storage
   private async saveNFTData(): Promise<void> {
     try {
-      chrome.storage.local.set({
+      await storage.set({
         nfts: this.nfts,
         nftCollections: this.collections
       });
@@ -82,11 +82,13 @@ export class NFTManager {
 
   // Get wallet from storage
   private async getWalletFromStorage(): Promise<any> {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['wallet'], (result) => {
-        resolve(result.wallet || null);
-      });
-    });
+    try {
+      const result = await storage.get(['wallet']);
+      return result.wallet || null;
+    } catch (error) {
+      console.error('Failed to get wallet from storage:', error);
+      return null;
+    }
   }
 
   // Import NFTs for a wallet address

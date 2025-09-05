@@ -2,7 +2,7 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Eye, EyeOff } from 'lucide-react';
-import { validateBIP39SeedPhrase, validatePrivateKey } from '../../utils/crypto-utils';
+import { validateBIP39SeedPhrase, validateBIP39SeedPhraseWithFeedback, validatePrivateKey } from '../../utils/crypto-utils';
 import toast from 'react-hot-toast';
 const ImportWalletScreen = ({ onNavigate }) => {
     const [importMethod, setImportMethod] = useState('seed');
@@ -20,8 +20,16 @@ const ImportWalletScreen = ({ onNavigate }) => {
     };
     const handleImport = () => {
         if (!isValid) {
-            toast.error('Please enter a valid seed phrase or private key');
-            return;
+            if (importMethod === 'seed' && seedPhrase.trim()) {
+                const validation = validateBIP39SeedPhraseWithFeedback(seedPhrase);
+                if (!validation.isValid) {
+                    toast.error(validation.error || 'Invalid seed phrase');
+                    return;
+                }
+            } else {
+                toast.error('Please enter a valid seed phrase or private key');
+                return;
+            }
         }
         try {
             // In a real implementation, you would import the wallet here

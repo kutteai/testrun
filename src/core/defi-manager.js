@@ -107,18 +107,44 @@ export class DeFiManager {
     }
     // Refresh positions
     async refreshPositions() {
-        // In a real implementation, this would fetch updated data from DeFi protocols
-        // For now, we'll simulate some updates
-        this.positions.forEach(position => {
-            // Simulate APY changes
-            position.apy += (Math.random() - 0.5) * 2; // ±1% change
-            // Simulate value changes
-            const valueChange = (Math.random() - 0.5) * 0.1; // ±5% change
-            position.valueUSD *= (1 + valueChange);
-            // Update timestamp
-            position.timestamp = Date.now();
-        });
-        await this.saveDeFiData();
+        try {
+            // Real DeFi protocol API calls
+            for (const position of this.positions) {
+                try {
+                    // Get updated APY from protocol
+                    const apyResponse = await fetch(`${this.getProtocolAPI(position.protocol)}/apy/${position.tokenAddress}`);
+                    if (apyResponse.ok) {
+                        const apyData = await apyResponse.json();
+                        position.apy = apyData.apy || position.apy;
+                    }
+                    
+                    // Get updated token price
+                    const priceResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${this.getCoinGeckoId(position.tokenSymbol)}&vs_currencies=usd`);
+                    if (priceResponse.ok) {
+                        const priceData = await priceResponse.json();
+                        const newPrice = priceData[this.getCoinGeckoId(position.tokenSymbol)]?.usd;
+                        if (newPrice) {
+                            position.valueUSD = position.balance * newPrice;
+                        }
+                    }
+                    
+                    // Get updated rewards
+                    const rewardsResponse = await fetch(`${this.getProtocolAPI(position.protocol)}/rewards/${position.id}`);
+                    if (rewardsResponse.ok) {
+                        const rewardsData = await rewardsResponse.json();
+                        position.rewards = rewardsData.rewards || position.rewards;
+                    }
+                    
+                    position.timestamp = Date.now();
+                } catch (error) {
+                    console.warn(`Failed to update position ${position.id}:`, error);
+                }
+            }
+            
+            await this.saveDeFiData();
+        } catch (error) {
+            console.error('Failed to refresh DeFi positions:', error);
+        }
     }
     // Get DeFi statistics
     getDeFiStatistics() {
@@ -143,5 +169,34 @@ export class DeFiManager {
         return this.positions.filter(pos => pos.protocol.toLowerCase().includes(lowerQuery) ||
             pos.tokenSymbol.toLowerCase().includes(lowerQuery) ||
             pos.network.toLowerCase().includes(lowerQuery));
+    }
+
+    // Helper methods for real API calls
+    getProtocolAPI(protocol) {
+        const protocolAPIs = {
+            'aave': 'https://api.aave.com/v3',
+            'compound': 'https://api.compound.finance/api/v2',
+            'uniswap': 'https://api.uniswap.org/v3',
+            'curve': 'https://api.curve.fi/api',
+            'yearn': 'https://api.yearn.finance/v1',
+            'balancer': 'https://api.balancer.fi/v2'
+        };
+        return protocolAPIs[protocol] || 'https://api.defi.com';
+    }
+
+    getCoinGeckoId(symbol) {
+        const coinGeckoMap = {
+            'USDT': 'tether',
+            'USDC': 'usd-coin',
+            'DAI': 'dai',
+            'WETH': 'weth',
+            'WBTC': 'wrapped-bitcoin',
+            'UNI': 'uniswap',
+            'LINK': 'chainlink',
+            'AAVE': 'aave',
+            'COMP': 'compound-governance-token',
+            'CRV': 'curve-dao-token'
+        };
+        return coinGeckoMap[symbol.toUpperCase()] || symbol.toLowerCase();
     }
 }

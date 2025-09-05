@@ -1,5 +1,8 @@
-// PayCio Wallet Content Script - Simple Version
+// PayCio Wallet Content Script - Cross-Browser Compatible
 console.log('🔍 PayCio content script starting...');
+
+import { storage } from '../utils/storage-utils';
+import { runtime, safeSendMessage } from '../utils/runtime-utils';
 
 // Set up the window object
 (window as any).paycioWalletContentScript = {
@@ -14,7 +17,7 @@ function injectScript() {
   console.log('Injecting PayCio Wallet script using web accessible resource...');
   
   const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('injected.js');
+  script.src = runtime.getURL('injected.js');
   script.onload = () => {
     console.log('✅ PayCio Wallet injected script loaded successfully');
     script.remove();
@@ -61,7 +64,6 @@ function addIndicator() {
 }
 
 // Function to handle messages from injected script
-// Function to handle messages from injected script
 function handlePageMessages(event: MessageEvent) {
   if (event.source !== window) return;
   
@@ -69,18 +71,8 @@ function handlePageMessages(event: MessageEvent) {
     case 'PAYCIO_GET_WALLET_ADDRESS':
       console.log('PayCio: Received wallet address request from page');
       
-      // Get wallet address from Chrome storage
-      chrome.storage.local.get(['wallet'], (result) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error getting wallet from storage:', chrome.runtime.lastError);
-          window.postMessage({
-            type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
-            id: event.data.id,
-            address: null
-          }, '*');
-          return;
-        }
-        
+      // Get wallet address from storage
+      storage.get(['wallet']).then((result) => {
         const address = result.wallet && result.wallet.address ? result.wallet.address : null;
         console.log('PayCio: Sending wallet address response:', address);
         
@@ -89,6 +81,13 @@ function handlePageMessages(event: MessageEvent) {
           id: event.data.id,
           address: address
         }, '*');
+      }).catch((error) => {
+        console.error('Error getting wallet from storage:', error);
+        window.postMessage({
+          type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
+          id: event.data.id,
+          address: null
+        }, '*');
       });
       break;
 
@@ -96,17 +95,7 @@ function handlePageMessages(event: MessageEvent) {
       console.log('PayCio: Received wallet status check from page');
       
       // Check wallet unlock status
-      chrome.storage.local.get(['walletState'], (result) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error checking wallet status:', chrome.runtime.lastError);
-          window.postMessage({
-            type: 'PAYCIO_WALLET_STATUS_RESPONSE',
-            id: event.data.id,
-            isUnlocked: false
-          }, '*');
-          return;
-        }
-        
+      storage.get(['walletState']).then((result) => {
         const isUnlocked = result.walletState?.isWalletUnlocked || false;
         console.log('PayCio: Sending wallet status response:', isUnlocked);
         
@@ -115,6 +104,13 @@ function handlePageMessages(event: MessageEvent) {
           id: event.data.id,
           isUnlocked: isUnlocked
         }, '*');
+      }).catch((error) => {
+        console.error('Error checking wallet status:', error);
+        window.postMessage({
+          type: 'PAYCIO_WALLET_STATUS_RESPONSE',
+          id: event.data.id,
+          isUnlocked: false
+        }, '*');
       });
       break;
 
@@ -122,19 +118,9 @@ function handlePageMessages(event: MessageEvent) {
       console.log('PayCio: Received show unlock popup request from page');
       
       // Send message to background script to open popup
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'SHOW_WALLET_UNLOCK_POPUP'
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error showing unlock popup:', chrome.runtime.lastError);
-          window.postMessage({
-            type: 'PAYCIO_UNLOCK_POPUP_RESPONSE',
-            id: event.data.id,
-            success: false
-          }, '*');
-          return;
-        }
-        
+      }).then((response) => {
         const success = response?.success || false;
         console.log('PayCio: Sending unlock popup response:', success);
         
@@ -143,6 +129,13 @@ function handlePageMessages(event: MessageEvent) {
           id: event.data.id,
           success: success
         }, '*');
+      }).catch((error) => {
+        console.error('Error showing unlock popup:', error);
+        window.postMessage({
+          type: 'PAYCIO_UNLOCK_POPUP_RESPONSE',
+          id: event.data.id,
+          success: false
+        }, '*');
       });
       break;
 
@@ -150,22 +143,11 @@ function handlePageMessages(event: MessageEvent) {
       console.log('PayCio: Received wallet request from page:', event.data.method);
       
       // Send message to background script to process wallet request
-      chrome.runtime.sendMessage({
+      safeSendMessage({
         type: 'WALLET_REQUEST',
         method: event.data.method,
         params: event.data.params
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.error('Error processing wallet request:', chrome.runtime.lastError);
-          window.postMessage({
-            type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
-            id: event.data.id,
-            success: false,
-            error: chrome.runtime.lastError.message
-          }, '*');
-          return;
-        }
-        
+      }).then((response) => {
         if (response?.success) {
           window.postMessage({
             type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
@@ -181,24 +163,60 @@ function handlePageMessages(event: MessageEvent) {
             error: response?.error || 'Unknown error'
           }, '*');
         }
+      }).catch((error) => {
+        console.error('Error processing wallet request:', error);
+        window.postMessage({
+          type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
+          id: event.data.id,
+          success: false,
+          error: error.message || 'Unknown error'
+        }, '*');
       });
       break;
   }
 }
 
-// Listen for wallet unlock status changes and forward to injected script
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.walletState) {
-    const newUnlockStatus = changes.walletState.newValue?.isWalletUnlocked || false;
-    const oldUnlockStatus = changes.walletState.oldValue?.isWalletUnlocked || false;
-    
-    console.log('PayCio: Wallet status changed from', oldUnlockStatus, 'to', newUnlockStatus);
-    
-    // Forward the change to the injected script
-    window.postMessage({
-      type: 'PAYCIO_WALLET_STATUS_CHANGED',
-      oldStatus: oldUnlockStatus,
-      newStatus: newUnlockStatus
-    }, '*');
+// Note: Storage change listeners are not available in cross-browser storage utility
+// Wallet status changes will be handled through other mechanisms
+
+// Initialize the content script
+console.log('🚀 PayCio: Initializing content script...');
+
+// Wait for DOM to be ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('✅ PayCio: DOM loaded, starting content script');
+    injectScript();
+    addIndicator();
+  });
+} else {
+  console.log('✅ PayCio: DOM already ready, starting content script');
+  injectScript();
+  addIndicator();
+}
+
+// Listen for messages from the page
+window.addEventListener('message', handlePageMessages);
+
+// Listen for messages from the extension
+runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('PayCio: Received message from extension:', message);
+  
+  switch (message.type) {
+    case 'WALLET_STATUS_CHANGED':
+      // Handle wallet status changes
+      console.log('PayCio: Wallet status changed:', message.isUnlocked);
+      break;
+      
+    case 'WALLET_ADDRESS_CHANGED':
+      // Handle wallet address changes
+      console.log('PayCio: Wallet address changed:', message.address);
+      break;
+      
+    default:
+      console.log('PayCio: Unknown message type:', message.type);
+      break;
   }
 });
+
+console.log('✅ PayCio: Content script initialization complete');

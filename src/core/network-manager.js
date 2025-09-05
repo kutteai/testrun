@@ -1,4 +1,5 @@
 import { getBalance, getGasPrice, estimateGas, NETWORKS } from '../utils/web3-utils';
+import { storage } from '../utils/storage-utils';
 export class NetworkManager {
     constructor() {
         this.currentNetwork = null;
@@ -14,7 +15,7 @@ export class NetworkManager {
     // Load networks from storage
     async loadNetworks() {
         try {
-            const result = await chrome.storage.local.get(['networks', 'currentNetwork']);
+            const result = await storage.get(['networks', 'currentNetwork']);
             if (result.networks) {
                 this.networks = result.networks;
             }
@@ -29,7 +30,7 @@ export class NetworkManager {
     // Save networks to storage
     async saveNetworks() {
         try {
-            await chrome.storage.local.set({
+            await storage.set({
                 networks: this.networks,
                 currentNetwork: this.currentNetwork
             });

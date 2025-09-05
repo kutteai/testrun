@@ -141,7 +141,7 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-[#180CB2] to-gray-900 text-white">
       {/* Header */}
       <div className="bg-white/5 backdrop-blur-xl border-b border-white/10 p-4">
         <div className="flex items-center justify-between">
@@ -190,7 +190,7 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
               onClick={() => setFilter(tab)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 filter === tab
-                  ? 'bg-purple-600 text-white'
+                  ? 'bg-[#180CB2] text-white'
                   : 'bg-white/5 text-gray-300 hover:bg-white/10'
               }`}
             >
@@ -203,7 +203,7 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
         <div className="space-y-3">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-8 h-8 border-2 border-[#180CB2] border-t-transparent rounded-full animate-spin"></div>
             </div>
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-8">
@@ -270,7 +270,7 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
                     {(tx.txid || tx.hash) && (
                       <button
                         onClick={() => openExplorer(tx.txid || tx.hash!)}
-                        className="flex items-center space-x-1 text-purple-400 hover:text-purple-300 transition-colors"
+                        className="flex items-center space-x-1 text-[#180CB2] hover:text-[#140a8f] transition-colors"
                       >
                         <span>View</span>
                         <ExternalLink className="w-3 h-3" />

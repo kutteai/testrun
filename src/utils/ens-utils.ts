@@ -5,11 +5,16 @@ function getConfig() {
   if (typeof window !== 'undefined' && window.CONFIG) {
     return window.CONFIG;
   }
-  // Fallback for build time
-  return {
-    ENS_RPC_URL: 'https://mainnet.infura.io/v3/YOUR_INFURA_KEY',
-    INFURA_PROJECT_ID: 'YOUR_INFURA_KEY'
+  
+  // Use environment variables or fallback to public endpoints
+  const config = {
+    ENS_RPC_URL: process.env.INFURA_PROJECT_ID 
+      ? `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
+      : 'https://ethereum.publicnode.com',
+    INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID || ''
   };
+  
+  return config;
 }
 
 // ENS Registry Contract Address
@@ -102,13 +107,8 @@ async function resolveBNBDomain(domain: string): Promise<string | null> {
 // Resolve Unstoppable Domains
 async function resolveUnstoppableDomain(domain: string): Promise<string | null> {
   try {
-    // Unstoppable Domains API
-    const response = await fetch(`https://resolve.unstoppabledomains.com/domains/${domain}`, {
-      headers: {
-        'Authorization': `Bearer ${process.env.UNSTOPPABLE_DOMAINS_API_KEY || ''}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    // Unstoppable Domains public resolution endpoint (no API key required)
+    const response = await fetch(`https://resolve.unstoppabledomains.com/domains/${domain}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -141,13 +141,15 @@ async function resolveSolanaDomain(domain: string): Promise<string | null> {
 // Resolve Avalanche domains
 async function resolveAvalancheDomain(domain: string): Promise<string | null> {
   try {
-    const provider = new ethers.JsonRpcProvider('https://api.avax.network/ext/bc/C/rpc');
+    // AVVY Domains public resolution endpoint
+    const response = await fetch(`https://api.avvy.domains/v1/resolve/${domain}`);
     
-    // AVVY Domains contract on Avalanche
-    const AVVY_CONTRACT = '0x1111111111111111111111111111111111111111'; // Placeholder
-    // Implementation would require actual AVVY contract address and ABI
+    if (response.ok) {
+      const data = await response.json();
+      return data.address || null;
+    }
     
-    return null; // Placeholder - needs actual implementation
+    return null;
   } catch (error) {
     console.error('Avalanche domain resolution failed:', error);
     return null;
@@ -179,19 +181,37 @@ export async function checkDomainAvailability(domainName: string): Promise<boole
   }
 }
 
-// Get domain registration price (simplified)
+// Get domain registration price from ENS Registrar
 export async function getDomainPrice(domainName: string): Promise<number> {
   try {
-    const length = domainName.replace('.eth', '').length;
+    const config = getConfig();
+    const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
     
-    // Simplified pricing logic
-    if (length === 1) return 640; // 1 character
-    if (length === 2) return 160; // 2 characters
-    if (length === 3) return 40;  // 3 characters
-    if (length === 4) return 10;  // 4 characters
-    return 5; // 5+ characters
+    // ENS Base Registrar Contract (for .eth domains)
+    const BASE_REGISTRAR_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
+    const BASE_REGISTRAR_ABI = [
+      'function rentPrice(string name, uint256 duration) view returns (uint256 base, uint256 premium)',
+      'function available(uint256 id) view returns (bool)'
+    ];
+    
+    const baseName = domainName.replace('.eth', '');
+    const nameHash = ethers.keccak256(ethers.toUtf8Bytes(baseName));
+    
+    const registrar = new ethers.Contract(BASE_REGISTRAR_ADDRESS, BASE_REGISTRAR_ABI, provider);
+    
+    // Get rent price for 1 year (31536000 seconds)
+    const [basePrice, premium] = await registrar.rentPrice(baseName, 31536000);
+    
+    // Convert from wei to ETH
+    const priceInEth = parseFloat(ethers.formatEther(basePrice));
+    
+    return priceInEth;
+    
   } catch (error) {
-    return 5; // Default price
+    console.error('Failed to get domain price from contract:', error);
+    
+    // Throw error instead of fallback pricing
+    throw new Error('Failed to get domain price from contract and fallback pricing unavailable');
   }
 }
 
@@ -324,5 +344,191 @@ export async function getENSRecords(ensName: string): Promise<{
   } catch (error) {
     console.error('ENS records fetch failed:', error);
     return {};
+  }
+}
+
+// Real ENS domain registration
+export async function registerENSDomain(
+  domainName: string, 
+  ownerAddress: string, 
+  duration: number = 31536000, // 1 year in seconds
+  signer: any
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const config = getConfig();
+    const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
+    
+    // ENS Base Registrar Contract
+    const BASE_REGISTRAR_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
+    const BASE_REGISTRAR_ABI = [
+      'function register(string name, address owner, uint256 duration) external payable',
+      'function rentPrice(string name, uint256 duration) view returns (uint256 base, uint256 premium)',
+      'function available(uint256 id) view returns (bool)'
+    ];
+    
+    const baseName = domainName.replace('.eth', '');
+    const nameHash = ethers.keccak256(ethers.toUtf8Bytes(baseName));
+    
+    // Check if domain is available
+    const registrar = new ethers.Contract(BASE_REGISTRAR_ADDRESS, BASE_REGISTRAR_ABI, provider);
+    const isAvailable = await registrar.available(nameHash);
+    
+    if (!isAvailable) {
+      return { success: false, error: 'Domain is not available for registration' };
+    }
+    
+    // Get registration price
+    const [basePrice, premium] = await registrar.rentPrice(baseName, duration);
+    const totalPrice = basePrice + premium;
+    
+    // Create contract instance with signer
+    const registrarWithSigner = new ethers.Contract(BASE_REGISTRAR_ADDRESS, BASE_REGISTRAR_ABI, signer);
+    
+    // Register the domain
+    const tx = await registrarWithSigner.register(baseName, ownerAddress, duration, {
+      value: totalPrice
+    });
+    
+    // Wait for transaction confirmation
+    const receipt = await tx.wait();
+    
+    return { 
+      success: true, 
+      txHash: receipt.transactionHash 
+    };
+    
+  } catch (error) {
+    console.error('ENS domain registration failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Registration failed' 
+    };
+  }
+}
+
+// Real ENS domain renewal
+export async function renewENSDomain(
+  domainName: string,
+  duration: number = 31536000, // 1 year in seconds
+  signer: any
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const config = getConfig();
+    const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
+    
+    // ENS Base Registrar Contract
+    const BASE_REGISTRAR_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
+    const BASE_REGISTRAR_ABI = [
+      'function renew(string name, uint256 duration) external payable'
+    ];
+    
+    const baseName = domainName.replace('.eth', '');
+    const nameHash = ethers.keccak256(ethers.toUtf8Bytes(baseName));
+    
+    // Get renewal price
+    const registrar = new ethers.Contract(BASE_REGISTRAR_ADDRESS, BASE_REGISTRAR_ABI, provider);
+    const [basePrice] = await registrar.rentPrice(baseName, duration);
+    
+    // Create contract instance with signer
+    const registrarWithSigner = new ethers.Contract(BASE_REGISTRAR_ADDRESS, BASE_REGISTRAR_ABI, signer);
+    
+    // Renew the domain
+    const tx = await registrarWithSigner.renew(baseName, duration, {
+      value: basePrice
+    });
+    
+    // Wait for transaction confirmation
+    const receipt = await tx.wait();
+    
+    return { 
+      success: true, 
+      txHash: receipt.transactionHash 
+    };
+    
+  } catch (error) {
+    console.error('ENS domain renewal failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Renewal failed' 
+    };
+  }
+}
+
+// Real ENS resolver setup
+export async function setupENSResolver(
+  domainName: string,
+  resolverAddress: string,
+  signer: any
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const config = getConfig();
+    const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
+    
+    // ENS Registry Contract
+    const ENS_REGISTRY_ABI = [
+      'function setResolver(bytes32 node, address resolver) external'
+    ];
+    
+    const node = namehash(domainName);
+    const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, ENS_REGISTRY_ABI, signer);
+    
+    // Set resolver
+    const tx = await registry.setResolver(node, resolverAddress);
+    const receipt = await tx.wait();
+    
+    return { 
+      success: true, 
+      txHash: receipt.transactionHash 
+    };
+    
+  } catch (error) {
+    console.error('ENS resolver setup failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Resolver setup failed' 
+    };
+  }
+}
+
+// Real ENS text record setting
+export async function setENSTextRecord(
+  domainName: string,
+  key: string,
+  value: string,
+  signer: any
+): Promise<{ success: boolean; txHash?: string; error?: string }> {
+  try {
+    const config = getConfig();
+    const provider = new ethers.JsonRpcProvider(config.ENS_RPC_URL);
+    
+    // Get resolver contract
+    const resolver = await provider.getResolver(domainName);
+    if (!resolver) {
+      return { success: false, error: 'No resolver set for this domain' };
+    }
+    
+    // Create resolver contract instance with signer for write operations
+    const RESOLVER_ABI = [
+      'function setText(bytes32 node, string key, string value) external'
+    ];
+    
+    const node = namehash(domainName);
+    const resolverContract = new ethers.Contract(resolver.address, RESOLVER_ABI, signer);
+    
+    // Set text record
+    const tx = await resolverContract.setText(node, key, value);
+    const receipt = await tx.wait();
+    
+    return { 
+      success: true, 
+      txHash: receipt.transactionHash 
+    };
+    
+  } catch (error) {
+    console.error('ENS text record setting failed:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Text record setting failed' 
+    };
   }
 }

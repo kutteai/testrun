@@ -27,10 +27,10 @@ const Header = ({ title, onBack, canGoBack, currentNetwork }) => {
         const colors = {
             ethereum: 'bg-blue-500',
             bsc: 'bg-yellow-500',
-            polygon: 'bg-purple-500',
+            polygon: 'bg-[#180CB2]',
             avalanche: 'bg-red-500',
             bitcoin: 'bg-orange-500',
-            solana: 'bg-purple-500',
+            solana: 'bg-[#180CB2]',
             tron: 'bg-red-500'
         };
         return colors[network] || 'bg-gray-500';

@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { estimateGas, getTransactionReceipt, NETWORKS } from '../utils/web3-utils';
 import { WalletManager } from './wallet-manager';
+import { storage } from '../utils/storage-utils';
 export class TransactionManager {
     constructor() {
         this.transactions = [];
@@ -13,11 +14,10 @@ export class TransactionManager {
     // Load transactions from storage
     async loadTransactions() {
         try {
-            chrome.storage.local.get(['transactions'], (result) => {
-                if (result.transactions) {
-                    this.transactions = result.transactions;
-                }
-            });
+            const result = await storage.get(['transactions']);
+            if (result.transactions) {
+                this.transactions = result.transactions;
+            }
         }
         catch (error) {
             console.error('Failed to load transactions:', error);
@@ -26,7 +26,7 @@ export class TransactionManager {
     // Save transactions to storage
     async saveTransactions() {
         try {
-            chrome.storage.local.set({ transactions: this.transactions });
+            await storage.set({ transactions: this.transactions });
         }
         catch (error) {
             console.error('Failed to save transactions:', error);
@@ -35,7 +35,7 @@ export class TransactionManager {
     // Save pending transactions to storage
     async savePendingTransactions() {
         try {
-            chrome.storage.local.set({ pendingTransactions: this.pendingTransactions });
+            await storage.set({ pendingTransactions: this.pendingTransactions });
         }
         catch (error) {
             console.error('Failed to save pending transactions:', error);
@@ -43,11 +43,14 @@ export class TransactionManager {
     }
     // Get wallet from storage
     async getWalletFromStorage() {
-        return new Promise((resolve) => {
-            chrome.storage.local.get(['wallet'], (result) => {
-                resolve(result.wallet || null);
-            });
-        });
+        try {
+            const result = await storage.get(['wallet']);
+            return result.wallet || null;
+        }
+        catch (error) {
+            console.error('Failed to get wallet from storage:', error);
+            return null;
+        }
     }
     // Send transaction with real implementation
     async sendTransaction(to, value, network) {

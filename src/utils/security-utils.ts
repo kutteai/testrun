@@ -1,5 +1,6 @@
 import { createHash, randomBytes, pbkdf2Sync, createCipher, createDecipher } from 'crypto-browserify';
 import { Buffer } from 'buffer';
+import { storage } from './storage-utils';
 
 // Enhanced security utilities for wallet protection
 
@@ -238,8 +239,8 @@ export class SecureStorage {
       const dataString = JSON.stringify(data);
       const encrypted = await encryptDataSecurely(dataString, password);
       
-      // Store in chrome.storage.local
-      await chrome.storage.local.set({
+              // Store in cross-browser storage
+      await storage.set({
         [key]: encrypted
       });
   } catch (error) {
@@ -251,7 +252,7 @@ export class SecureStorage {
   // Securely retrieve data
   async secureRetrieve(key: string, password: string): Promise<any> {
     try {
-      const result = await chrome.storage.local.get([key]);
+      const result = await storage.get([key]);
       const encrypted = result[key];
       
       if (!encrypted) {
@@ -269,7 +270,7 @@ export class SecureStorage {
   // Clear secure data
   async secureClear(key: string): Promise<void> {
     try {
-      await chrome.storage.local.remove([key]);
+      await storage.remove([key]);
   } catch (error) {
       console.error('Secure clear error:', error);
       throw new Error('Failed to clear data securely');

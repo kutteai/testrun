@@ -1,4 +1,5 @@
 import { resolveENS, lookupENS } from './ens-utils';
+import { storage } from './storage-utils';
 
 export interface Contact {
   id: string;
@@ -313,21 +314,28 @@ export class AddressBook {
   }
 
   // Load contacts from storage
-  private loadContacts(): void {
-    chrome.storage.local.get(['addressBook'], (result) => {
+  private async loadContacts(): Promise<void> {
+    try {
+      const result = await storage.get(['addressBook']);
       if (result.addressBook) {
         const contacts = JSON.parse(result.addressBook);
         contacts.forEach((contact: Contact) => {
           this.contacts.set(contact.id, contact);
         });
       }
-    });
+    } catch (error) {
+      console.error('Failed to load contacts from storage:', error);
+    }
   }
 
   // Save contacts to storage
-  private saveContacts(): void {
+  private async saveContacts(): Promise<void> {
     const contacts = this.getAllContacts();
-    chrome.storage.local.set({ addressBook: JSON.stringify(contacts) });
+    try {
+      await storage.set({ addressBook: JSON.stringify(contacts) });
+    } catch (error) {
+      console.error('Failed to save contacts to storage:', error);
+    }
   }
 
   // Export contacts

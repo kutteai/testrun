@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import { tonUtils, TonWallet, TonTransaction, TonJetton } from '../../utils/ton-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -31,25 +32,25 @@ const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   }, [selectedWallet]);
 
-  const loadTonWallets = async () => {
+  // Load TON wallets from storage
+  const loadTonWallets = async (): Promise<void> => {
     try {
-      const stored = await chrome.storage.local.get(['tonWallets']);
+      const stored = await storage.get(['tonWallets']);
       if (stored.tonWallets) {
         setTonWallets(stored.tonWallets);
-        if (stored.tonWallets.length > 0) {
-          setSelectedWallet(stored.tonWallets[0]);
-        }
       }
     } catch (error) {
-      console.error('Error loading TON wallets:', error);
+      console.error('Failed to load TON wallets:', error);
     }
   };
 
-  const saveTonWallets = async (wallets: TonWallet[]) => {
+  // Save TON wallets to storage
+  const saveTonWallets = async (wallets: any[]): Promise<void> => {
     try {
-      await chrome.storage.local.set({ tonWallets: wallets });
+      await storage.set({ tonWallets: wallets });
+      setTonWallets(wallets);
     } catch (error) {
-      console.error('Error saving TON wallets:', error);
+      console.error('Failed to save TON wallets:', error);
     }
   };
 
@@ -145,7 +146,7 @@ const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

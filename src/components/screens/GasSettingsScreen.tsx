@@ -113,7 +113,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

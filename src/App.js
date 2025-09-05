@@ -86,7 +86,7 @@ const App = () => {
     return (_jsxs("div", { className: "h-full bg-gray-50", children: [_jsx(AnimatePresence, { mode: "wait", children: _jsx(motion.div, { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 }, transition: { duration: 0.3 }, className: "h-full", children: renderScreen() }, currentScreen) }), _jsx(Toaster, { position: "top-center", toastOptions: {
                     duration: 4000,
                     style: {
-                        background: '#363636',
+                        background: '#180CB2',
                         color: '#fff',
                     },
                 } })] }));

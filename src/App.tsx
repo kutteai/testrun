@@ -21,7 +21,7 @@ import NetworksScreen from './components/screens/NetworksScreen';
 import AccountsScreen from './components/screens/AccountsScreen';
 import TokensScreen from './components/screens/TokensScreen';
 import ENSScreen from './components/screens/ENSScreen';
-import HardwareWalletScreen from './components/screens/HardwareWalletScreen.js';
+import HardwareWalletScreen from './components/screens/HardwareWalletScreen';
 import GasSettingsScreen from './components/screens/GasSettingsScreen.js';
 import NFTsScreen from './components/screens/NFTsScreen';
 import BitcoinScreen from './components/screens/BitcoinScreen';
@@ -34,12 +34,37 @@ import { WalletConnectScreen } from './components/screens/WalletConnectScreen';
 import PortfolioScreen from './components/screens/PortfolioScreen';
 import TransactionsScreen from './components/screens/TransactionsScreen';
 import TransactionHistoryScreen from './components/screens/TransactionHistoryScreen';
+import SplashScreen from './components/screens/SplashScreen';
+import TermsScreen from './components/screens/TermsScreen';
+import CreateUCPIScreen from './components/screens/CreateUCPIScreen';
+import CreatePasswordScreen from './components/screens/CreatePasswordScreen';
+import RecoveryPhraseScreen from './components/screens/RecoveryPhraseScreen';
+import VerifyPhraseScreen from './components/screens/VerifyPhraseScreen';
+import CreateWalletSetupScreen from './components/screens/CreateWalletSetupScreen';
+import ImportSeedPhraseScreen from './components/screens/ImportSeedPhraseScreen';
+import ImportPrivateKeyScreen from './components/screens/ImportPrivateKeyScreen';
+import AddAccountScreen from './components/screens/AddAccountScreen';
+import WalletDetailsScreen from './components/screens/WalletDetailsScreen';
+import ManageCryptoScreen from './components/screens/ManageCryptoScreen';
+import ManageWalletScreen from './components/screens/ManageWalletScreen';
+import ReviewSendScreen from './components/screens/ReviewSendScreen';
+import SwapScreen from './components/screens/SwapScreen';
+import BuySellScreen from './components/screens/BuySellScreen';
+import OptionsMenuScreen from './components/screens/OptionsMenuScreen';
+import PreferencesScreen from './components/screens/PreferencesScreen';
+import WalletSecurityScreen from './components/screens/WalletSecurityScreen';
+import MoreScreen from './components/screens/MoreScreen';
+import AccountDetailsScreen from './components/screens/AccountDetailsScreen';
+import ManageNetworksScreen from './components/screens/ManageNetworksScreen';
+import AddCustomNetworkScreen from './components/screens/AddCustomNetworkScreen';
 
 import type { ScreenId } from './types/index';
 
 const App: React.FC = () => {
   const [currentScreen, setCurrentScreen] = useState<ScreenId>('welcome');
+  const [navigationHistory, setNavigationHistory] = useState<ScreenId[]>(['welcome']);
   const [isAppInitialized, setIsAppInitialized] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
 
   const { 
     wallet, 
@@ -52,6 +77,11 @@ const App: React.FC = () => {
   const { currentNetwork } = useNetwork();
   const { pendingTransactions } = useTransaction();
   const { portfolioValue } = usePortfolio();
+
+  // Handle splash screen completion
+  const handleSplashComplete = () => {
+    setShowSplash(false);
+  };
 
   // Initialize app and determine initial screen - DISABLED
   useEffect(() => {
@@ -103,6 +133,17 @@ const App: React.FC = () => {
     }
   }, [hasWallet, isWalletUnlocked, isAppInitialized, isInitializing, currentScreen]);
 
+  // Go back to previous screen
+  const handleGoBack = () => {
+    if (navigationHistory.length > 1) {
+      const newHistory = [...navigationHistory];
+      newHistory.pop(); // Remove current screen
+      const previousScreen = newHistory[newHistory.length - 1];
+      setNavigationHistory(newHistory);
+      setCurrentScreen(previousScreen);
+    }
+  };
+
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
     console.log('🔀 App.tsx: handleNavigate called with screen:', screen);
@@ -134,6 +175,8 @@ const App: React.FC = () => {
       toast.success('🎯 Navigating to accounts screen', { duration: 3000 });
     }
     
+    // Update navigation history
+    setNavigationHistory(prev => [...prev, screen]);
     setCurrentScreen(screen);
   };
 
@@ -162,58 +205,104 @@ const App: React.FC = () => {
             isWalletUnlocked={isWalletUnlocked}
           />
         );
+      case 'terms':
+        return <TermsScreen onNavigate={handleNavigate} />;
       case 'create':
         return <CreateWalletScreen onNavigate={handleNavigate} />;
+      case 'create-wallet-setup':
+        return <CreateWalletSetupScreen onNavigate={handleNavigate} />;
+      case 'create-ucpi':
+        return <CreateUCPIScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'create-password':
+        return <CreatePasswordScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'recovery-phrase':
+        return <RecoveryPhraseScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'verify-phrase':
+        return <VerifyPhraseScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'import':
-        return <ImportWalletScreen onNavigate={handleNavigate} />;
-      case 'verify':
-        return <VerifySeedScreen onNavigate={handleNavigate} />;
-      case 'dashboard':
-        return <DashboardScreen onNavigate={handleNavigate} />;
+        return <ImportWalletScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'import-seed-phrase':
+        return <ImportSeedPhraseScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'import-private-key':
+        return <ImportPrivateKeyScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'hardware-wallet':
+        return <HardwareWalletScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'add-account':
+        return <AddAccountScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'wallet-details':
+        return <WalletDetailsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'manage-crypto':
+        return <ManageCryptoScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'manage-wallet':
+        return <ManageWalletScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'send':
-        return <SendScreen onNavigate={handleNavigate} />;
+        return <SendScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'review-send':
+        return <ReviewSendScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'swap':
+        return <SwapScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'buy-sell':
+        return <BuySellScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'options':
+        return <OptionsMenuScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'preferences':
+        return <PreferencesScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'wallet-security':
+        return <WalletSecurityScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'more':
+        return <MoreScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'account-details':
+        return <AccountDetailsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'manage-networks':
+        return <ManageNetworksScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'add-custom-network':
+        return <AddCustomNetworkScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'verify':
+        return <VerifyPhraseScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'dashboard':
+        return <DashboardScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'receive':
-        return <ReceiveScreen onNavigate={handleNavigate} />;
+        return <ReceiveScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'settings':
-        return <SettingsScreen onNavigate={handleNavigate} />;
+        return <SettingsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'security':
-        return <SecurityScreen onNavigate={handleNavigate} />;
+        return <SecurityScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'networks':
-        return <NetworksScreen onNavigate={handleNavigate} />;
+        return <NetworksScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'accounts':
-        return <AccountsScreen onNavigate={handleNavigate} />;
+        return <AccountsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'tokens':
-        return <TokensScreen onNavigate={handleNavigate} />;
+        return <TokensScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'ens':
-        return <ENSScreen onNavigate={handleNavigate} />;
+        return <ENSScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'address-book':
-          return <AddressBookScreen onNavigate={handleNavigate} />;
+          return <AddressBookScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'hardware':
-        return <HardwareWalletScreen onNavigate={handleNavigate} />;
+        return <HardwareWalletScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'gas':
-        return <GasSettingsScreen onNavigate={handleNavigate} />;
+        return <GasSettingsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'bitcoin':
-        return <BitcoinScreen onNavigate={handleNavigate} />;
+        return <BitcoinScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'solana':
-        return <SolanaScreen onNavigate={handleNavigate} />;
+        return <SolanaScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'tron':
-        return <TronScreen onNavigate={handleNavigate} />;
+        return <TronScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'litecoin':
-        return <LitecoinScreen onNavigate={handleNavigate} />;
+        return <LitecoinScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'ton':
-        return <TonScreen onNavigate={handleNavigate} />;
+        return <TonScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'xrp':
-        return <XrpScreen onNavigate={handleNavigate} />;
+        return <XrpScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'walletconnect':
         return <WalletConnectScreen />;
       case 'nfts':
-        return <NFTsScreen onNavigate={handleNavigate} />;
+        return <NFTsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'portfolio':
-        return <PortfolioScreen onNavigate={handleNavigate} />;
+        return <PortfolioScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'transactions':
-        return <TransactionsScreen onNavigate={handleNavigate} />;
+        return <TransactionsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'transaction-history':
-        return <TransactionHistoryScreen onNavigate={handleNavigate} />;
+        return <TransactionHistoryScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       default:
         return (
           <WelcomeScreen 
@@ -225,8 +314,13 @@ const App: React.FC = () => {
     }
   };
 
+  // Show splash screen on first load
+  if (showSplash) {
+    return <SplashScreen onComplete={handleSplashComplete} />;
+  }
+
   return (
-    <div className="h-full bg-gray-50">
+    <div className="h-full bg-white screen-bg-white">
       <AnimatePresence mode="wait">
         <motion.div
           key={currentScreen}
@@ -234,7 +328,7 @@ const App: React.FC = () => {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -20 }}
           transition={{ duration: 0.3 }}
-          className="h-full"
+          className="h-full screen-bg-white"
         >
           {renderScreen()}
         </motion.div>
@@ -245,7 +339,7 @@ const App: React.FC = () => {
         toastOptions={{
           duration: 4000,
           style: {
-            background: '#363636',
+            background: '#180CB2',
             color: '#fff',
           },
         }}

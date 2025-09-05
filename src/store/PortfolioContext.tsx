@@ -5,6 +5,7 @@ import { NETWORKS } from '../utils/web3-utils';
 import { PortfolioManager } from '../core/portfolio-manager';
 import { getRealBalance, getMultipleTokenPrices } from '../utils/web3-utils';
 import type { PortfolioValue, PortfolioState, PortfolioContextType } from '../types';
+import { storage } from '../utils/storage-utils';
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
@@ -54,21 +55,43 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
 
   // Load portfolio from storage
   useEffect(() => {
-    chrome.storage.local.get(['portfolioValue'], (result) => {
-      if (result.portfolioValue) {
-        setPortfolioState(prev => ({
-          ...prev,
-          portfolioValue: result.portfolioValue
-        }));
+    const loadPortfolioData = async () => {
+      try {
+        const result = await storage.get(['portfolioValue']);
+        if (result.portfolioValue) {
+          setPortfolioState(prev => ({
+            ...prev,
+            portfolioValue: result.portfolioValue
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load portfolio data:', error);
       }
-    });
+    };
+    loadPortfolioData();
   }, []);
 
-        // Save portfolio to storage
-      const savePortfolio = (portfolioValue: PortfolioValue) => {
-        chrome.storage.local.set({ portfolioValue });
-        console.log('Portfolio saved to storage:', portfolioValue);
-      };
+  const savePortfolioData = async (data: PortfolioValue) => {
+    try {
+      await storage.set({ portfolioValue: data });
+      setPortfolioState(prev => ({
+        ...prev,
+        portfolioValue: data
+      }));
+    } catch (error) {
+      console.error('Failed to save portfolio data:', error);
+    }
+  };
+
+  const getWalletData = async () => {
+    try {
+      const result = await storage.get(['wallet']);
+      return result.wallet || null;
+    } catch (error) {
+      console.error('Failed to get wallet data:', error);
+      return null;
+    }
+  };
 
   // Update portfolio with real data
   const updatePortfolio = async () => {
@@ -80,11 +103,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
 
     try {
       // Get wallet address from storage
-      const walletData = await new Promise<any>((resolve) => {
-        chrome.storage.local.get(['wallet'], (result) => {
-          resolve(result.wallet);
-        });
-      });
+      const walletData = await getWalletData();
 
       if (!walletData?.address) {
         throw new Error('No wallet found');
@@ -174,7 +193,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
         isLoading: false
       }));
 
-      savePortfolio(portfolioValue);
+      savePortfolioData(portfolioValue);
     } catch (error) {
       setPortfolioState(prev => ({
         ...prev,

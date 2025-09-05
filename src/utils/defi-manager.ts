@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { getRealBalance, getTokenBalance } from './web3-utils';
+import { storage } from './storage-utils';
 
 export interface DeFiProtocol {
   id: string;
@@ -351,22 +352,27 @@ export class DeFiManager {
   }
 
   // Save positions to storage
-  private savePositions(): void {
-    const positions = Array.from(this.positions.values());
-    chrome.storage.local.set({ defiPositions: JSON.stringify(positions) });
-  }
+  private savePositions = async (positions: any[]): Promise<void> => {
+    try {
+      await storage.set({ defiPositions: JSON.stringify(positions) });
+    } catch (error) {
+      console.error('Failed to save DeFi positions:', error);
+    }
+  };
 
   // Load positions from storage
-  loadPositions(): void {
-    chrome.storage.local.get(['defiPositions'], (result) => {
+  private loadPositions = async (): Promise<any[]> => {
+    try {
+      const result = await storage.get(['defiPositions']);
       if (result.defiPositions) {
-        const positions = JSON.parse(result.defiPositions);
-        positions.forEach((position: DeFiPosition) => {
-          this.positions.set(position.id, position);
-        });
+        return JSON.parse(result.defiPositions);
       }
-    });
-  }
+      return [];
+    } catch (error) {
+      console.error('Failed to load DeFi positions:', error);
+      return [];
+    }
+  };
 
   // Get DeFi statistics
   getStatistics(): {

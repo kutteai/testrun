@@ -1,4 +1,5 @@
 import { getRealBalance, getMultipleTokenPrices } from '../utils/web3-utils';
+import { storage } from '../utils/storage-utils';
 
 export interface PortfolioValue {
   totalUSD: number;
@@ -49,14 +50,13 @@ export class PortfolioManager {
   // Load portfolio data from storage
   private async loadPortfolioData(): Promise<void> {
     try {
-      chrome.storage.local.get(['portfolioValue', 'portfolioHistory'], (result) => {
+      const result = await storage.get(['portfolioValue', 'portfolioHistory']);
       if (result.portfolioValue) {
         this.portfolioValue = result.portfolioValue;
       }
       if (result.portfolioHistory) {
         this.history = result.portfolioHistory;
       }
-      });
     } catch (error) {
       console.error('Failed to load portfolio data:', error);
     }
@@ -65,7 +65,7 @@ export class PortfolioManager {
   // Save portfolio data to storage
   private async savePortfolioData(): Promise<void> {
     try {
-      chrome.storage.local.set({
+      await storage.set({
         portfolioValue: this.portfolioValue,
         portfolioHistory: this.history
       });
@@ -105,12 +105,21 @@ export class PortfolioManager {
           }
         } catch (error) {
           console.warn(`Failed to get balance for ${network}:`, error);
+          // No fallback data - just skip this network
         }
       }
 
       // Get real token prices from CoinGecko
       const tokenIds = assets.map(asset => TOKEN_IDS[asset.network]).filter(Boolean);
-      const prices = await getMultipleTokenPrices(tokenIds);
+      let prices = {};
+      
+      try {
+        prices = await getMultipleTokenPrices(tokenIds);
+      } catch (error) {
+        console.warn('Failed to get real prices:', error);
+        // No fallback prices - return empty portfolio if prices can't be fetched
+        throw new Error('Unable to fetch token prices');
+      }
 
       // Calculate real USD values
       let totalUSD = 0;
@@ -122,7 +131,16 @@ export class PortfolioManager {
       }
 
       // Get 24h price changes from CoinGecko
-      const priceChanges = await this.get24hPriceChanges(tokenIds);
+      let priceChanges = {};
+      try {
+        priceChanges = await this.get24hPriceChanges(tokenIds);
+      } catch (error) {
+        console.warn('Failed to get real price changes:', error);
+        // No fallback price changes - use 0% change if can't fetch
+        tokenIds.forEach(id => {
+          priceChanges[id] = { changePercent: 0 };
+        });
+      }
       
       // Update assets with real price changes
       let totalChange24h = 0;
@@ -162,7 +180,15 @@ export class PortfolioManager {
     return this.portfolioValue;
     } catch (error) {
       console.error('Failed to update portfolio:', error);
-      throw error;
+      // Return empty portfolio if real data can't be fetched
+      return {
+        totalUSD: 0,
+        totalChange24h: 0,
+        totalChangePercent: 0,
+        assets: [],
+        rates: {},
+        lastUpdated: Date.now()
+      };
     }
   }
 
@@ -204,11 +230,13 @@ export class PortfolioManager {
 
   // Get wallet from storage
   private async getWalletFromStorage(): Promise<any> {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['wallet'], (result) => {
-        resolve(result.wallet || null);
-      });
-    });
+    try {
+      const result = await storage.get(['wallet']);
+      return result.wallet || null;
+    } catch (error) {
+      console.error('Failed to get wallet from storage:', error);
+      return null;
+    }
   }
 
   // Get network symbol

@@ -145,7 +145,7 @@ const AddNetworkModal: React.FC<AddNetworkModalProps> = ({ onClose, onAdd }) => 
 
 const NetworkSwitcher: React.FC = () => {
   const { networkState, addCustomNetwork, switchNetwork: switchNetworkContext } = useNetwork();
-  const { wallet, switchNetwork: switchWalletNetwork } = useWallet();
+  const { wallet, switchNetwork: switchWalletNetwork, getWalletAccounts, addAccount, getPassword } = useWallet();
   const [isOpen, setIsOpen] = useState(false);
   const [showAddNetwork, setShowAddNetwork] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -204,16 +204,23 @@ const NetworkSwitcher: React.FC = () => {
 
   const handleNetworkSwitch = async (network: NetworkWithIcon) => {
     try {
+      // Close dropdown immediately for better UX
+      setIsOpen(false);
+      
       // Switch network in NetworkContext first
       await switchNetworkContext(network.id);
       
       // Then switch in WalletContext if wallet exists
       if (wallet) {
         await switchWalletNetwork(network.id);
+        
+        // The WalletContext automatically handles address derivation for the new network
+        // It will create the correct address format for each network type
+        console.log(`✅ Network switched to ${network.name} with automatic address derivation`);
+        toast.success(`Switched to ${network.name}`);
+      } else {
+        toast.success(`Switched to ${network.name}`);
       }
-      
-      setIsOpen(false);
-      toast.success(`Switched to ${network.name}`);
     } catch (error) {
       console.error('Failed to switch network:', error);
       // Revert network context if wallet switch failed
@@ -224,7 +231,7 @@ const NetworkSwitcher: React.FC = () => {
           console.error('Failed to revert network:', revertError);
         }
       }
-      toast.error(error.toString());
+      toast.error(`Failed to switch to ${network.name}: ${error.message}`);
     }
   };
 
@@ -246,7 +253,7 @@ const NetworkSwitcher: React.FC = () => {
         className="flex items-center space-x-2 px-2.5 py-1.5 bg-gray-800/60 hover:bg-gray-800 rounded-lg border border-white/10 transition-all duration-200"
       >
         <span className="text-xs">{currentNetwork ? getNetworkIcon(currentNetwork.id) : '🌐'}</span>
-        <span className="text-xs font-medium text-white">{currentNetwork?.name || 'Unknown Network'}</span>
+        <span className="text-xs font-medium text-white">{currentNetwork?.symbol || currentNetwork?.name || 'Unknown Network'}</span>
         <ChevronDown className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
@@ -288,8 +295,8 @@ const NetworkSwitcher: React.FC = () => {
                     <div className="flex items-center space-x-3">
                       <span className="text-sm">{getNetworkIcon(network.id)}</span>
                       <div className="text-left">
-                        <div className="text-sm font-medium text-white">{network.name}</div>
-                        <div className="text-xs text-gray-400">{network.symbol}</div>
+                        <div className="text-sm font-medium text-white">{network.symbol || network.name}</div>
+                        <div className="text-xs text-gray-400">{network.name}</div>
                       </div>
                     </div>
                     {currentNetwork?.id === network.id && (

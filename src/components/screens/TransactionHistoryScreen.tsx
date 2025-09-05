@@ -199,7 +199,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -214,7 +214,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-[#180CB2] rounded-xl flex items-center justify-center">
               <Activity className="w-6 h-6" />
             </div>
             <div>
@@ -282,7 +282,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <button
               onClick={handleRefresh}
               disabled={isLoading}
-              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:opacity-50"
+              className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] disabled:opacity-50"
             >
               {isLoading ? 'Loading...' : 'Load Transactions'}
             </button>
@@ -414,7 +414,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 <button
                   onClick={loadMore}
                   disabled={isLoadingMore}
-                  className="px-6 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 disabled:opacity-50"
+                  className="px-6 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] disabled:opacity-50"
                 >
                   {isLoadingMore ? (
                     <div className="flex items-center space-x-2">

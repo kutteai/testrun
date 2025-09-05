@@ -2,7 +2,17 @@
 
 export type ScreenId = 
   | 'welcome'
+  | 'terms'
   | 'create'
+  | 'create-wallet-setup'
+  | 'create-ucpi'
+  | 'create-password'
+  | 'recovery-phrase'
+  | 'verify-phrase'
+  | 'import-seed-phrase'
+  | 'import-private-key'
+  | 'import-google'
+  | 'hardware-wallet'
   | 'import'
   | 'verify'
   | 'dashboard'
@@ -28,8 +38,28 @@ export type ScreenId =
   | 'transactions'
   | 'transaction-history'
   | 'walletconnect'
+  | 'swap'
+  | 'buy-sell'
+  | 'add-account'
+  | 'wallet-details'
+  | 'manage-crypto'
+  | 'manage-wallet'
+  | 'send'
+  | 'review-send'
+  | 'swap'
+  | 'buy-sell'
+  | 'options'
+  | 'notifications'
+  | 'notification-settings'
+  | 'enable-notifications'
+  | 'preferences'
+  | 'wallet-security'
+  | 'more'
+  | 'account-details'
+  | 'manage-networks'
+  | 'add-custom-network'
+  | 'expand-view'
   | 'loading'
-  | 'address-book' 
   | 'error';
 
 export interface WalletData {
@@ -46,6 +76,7 @@ export interface WalletData {
   balance: string;
   createdAt: number;
   lastUsed: number;
+  decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
 }
 
 // Alias for backward compatibility
@@ -133,6 +164,7 @@ export interface WalletState {
   isInitializing: boolean;
   address: string | null;
   currentNetwork: Network | null;
+  currentAccount: any; // Add missing currentAccount property
   networks: Network[];
   accounts: string[];
   privateKey: string | null;
@@ -194,14 +226,15 @@ export interface WalletContextType {
   isInitializing: boolean;
   address: string | null;
   currentNetwork: Network | null;
+  currentAccount: any; // Add missing currentAccount property
   networks: Network[];
   accounts: string[];
   privateKey: string | null;
 
   globalPassword: string | null;
-  createWallet: (name: string, network: string) => Promise<void>;
-  importWallet: (seedPhrase: string, network: string, password?: string) => Promise<void>;
-importWalletFromPrivateKey: (privateKey: string, network: string, password?: string) => Promise<void>;
+  createWallet: (name: string, network: string, password: string) => Promise<void>;
+  importWallet: (seedPhrase: string, network: string, password: string) => Promise<void>;
+  importWalletFromPrivateKey: (privateKey: string, network: string, password: string) => Promise<void>;
   unlockWallet: (password: string) => Promise<boolean>;
   lockWallet: () => void;
   switchNetwork: (networkId: string) => Promise<void>;
@@ -214,6 +247,8 @@ importWalletFromPrivateKey: (privateKey: string, network: string, password?: str
   removeAccount: (accountId: string) => Promise<void>;
   getCurrentAccount: () => Promise<any>;
   getWalletAccounts: () => Promise<any[]>;
+  getPassword: () => Promise<string | null>; // Add missing getPassword method
+  decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
   setGlobalPassword: (password: string) => void;
   setGlobalPasswordAndHash: (password: string) => Promise<void>;
   clearError: () => void;
@@ -285,6 +320,7 @@ export interface PortfolioContextType {
 // Component prop types
 export interface ScreenProps {
   onNavigate: (screen: ScreenId) => void;
+  onGoBack?: () => void;
 }
 
 export interface DashboardScreenProps {

@@ -187,9 +187,9 @@ export const WalletConnectScreen: React.FC = () => {
                 {walletConnectManager.isConnected() ? 'Connected' : 'Disconnected'}
               </p>
             </div>
-            <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-              <Settings className="w-4 h-4 text-purple-600" />
-            </div>
+                    <div className="w-8 h-8 bg-[#180CB2]/20 rounded-lg flex items-center justify-center">
+          <Settings className="w-4 h-4 text-[#180CB2]" />
+        </div>
           </div>
         </div>
       </div>

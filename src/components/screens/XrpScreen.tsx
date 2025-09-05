@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import { xrpUtils, XrpWallet, XrpTransaction, XrpToken } from '../../utils/xrp-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -30,25 +31,25 @@ const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   }, [selectedWallet]);
 
-  const loadXrpWallets = async () => {
+  // Load XRP wallets from storage
+  const loadXrpWallets = async (): Promise<void> => {
     try {
-      const stored = await chrome.storage.local.get(['xrpWallets']);
+      const stored = await storage.get(['xrpWallets']);
       if (stored.xrpWallets) {
         setXrpWallets(stored.xrpWallets);
-        if (stored.xrpWallets.length > 0) {
-          setSelectedWallet(stored.xrpWallets[0]);
-        }
       }
     } catch (error) {
-      console.error('Error loading XRP wallets:', error);
+      console.error('Failed to load XRP wallets:', error);
     }
   };
 
-  const saveXrpWallets = async (wallets: XrpWallet[]) => {
+  // Save XRP wallets to storage
+  const saveXrpWallets = async (wallets: any[]): Promise<void> => {
     try {
-      await chrome.storage.local.set({ xrpWallets: wallets });
+      await storage.set({ xrpWallets: wallets });
+      setXrpWallets(wallets);
     } catch (error) {
-      console.error('Error saving XRP wallets:', error);
+      console.error('Failed to save XRP wallets:', error);
     }
   };
 
@@ -146,7 +147,7 @@ const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

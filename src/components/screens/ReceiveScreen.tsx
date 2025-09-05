@@ -112,11 +112,11 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Check if wallet is loading or initializing
   if (isLoading || isInitializing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400 mx-auto mb-4"></div>
-          <div className="text-slate-400 mb-4">Loading wallet...</div>
-          <div className="text-xs text-slate-500">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#180CB2] mx-auto mb-4"></div>
+          <div className="text-gray-600 mb-4 text-[13px]">Loading wallet...</div>
+          <div className="text-[13px] text-gray-500">
             Debug: isLoading={isLoading}, isInitializing={isInitializing}
           </div>
         </div>
@@ -127,12 +127,12 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Check if wallet exists
   if (!wallet) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-slate-400 mb-4">No wallet found</div>
+          <div className="text-gray-600 mb-4 text-[13px]">No wallet found</div>
           <button
             onClick={() => onNavigate('welcome')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+            className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
           >
             Create Wallet
           </button>
@@ -144,17 +144,17 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Check if wallet is locked or has no address
   if (!isWalletUnlocked || !wallet?.address) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-slate-400 mb-4">
+          <div className="text-gray-600 mb-4 text-[13px]">
             {!wallet?.address ? 'Wallet not properly initialized' : 'Wallet is locked'}
           </div>
-          <div className="text-xs text-slate-500 mb-4">
+          <div className="text-[13px] text-gray-500 mb-4">
             Debug: isWalletUnlocked={isWalletUnlocked?.toString()}, hasAddress={!!wallet?.address}
           </div>
           <button
             onClick={() => onNavigate('dashboard')}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+            className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
           >
             Go to Dashboard
           </button>
@@ -166,12 +166,12 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Error state
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-400 mb-4">Error: {error}</div>
+          <div className="text-red-600 mb-4 text-[13px]">Error: {error}</div>
           <button
             onClick={() => setError(null)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+            className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
           >
             Try Again
           </button>
@@ -182,7 +182,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   try {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+      <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -201,8 +201,8 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <QrCode className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">Receive</h1>
-              <p className="text-slate-400 text-sm">Get crypto</p>
+              <h1 className="text-xl font-bold text-gray-900">Receive</h1>
+              <p className="text-gray-600 text-[13px]">Get crypto</p>
             </div>
           </div>
           <div className="w-10"></div>
@@ -216,10 +216,10 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         className="px-6 space-y-6"
       >
         {/* QR Code */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
+        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
           <div className="text-center mb-6">
-            <h2 className="text-lg font-semibold mb-2">Your Address</h2>
-            <p className="text-slate-400 text-sm">
+            <h2 className="text-lg font-semibold mb-2 text-gray-900">Your Address</h2>
+            <p className="text-gray-600 text-[13px]">
               Share this QR code or address to receive {currentNetwork?.symbol || 'ETH'}
             </p>
           </div>
@@ -240,7 +240,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                <span className="text-sm font-mono">{formatAddress(wallet?.address || '')}</span>
+                <span className="text-[13px] font-mono">{formatAddress(wallet?.address || '')}</span>
               </div>
               <button
                 onClick={copyAddress}
@@ -262,7 +262,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-center space-x-2">
               <Share2 className="w-5 h-5" />
-              <span className="text-sm font-medium">Share</span>
+              <span className="text-[13px] font-medium">Share</span>
             </div>
           </motion.button>
 
@@ -274,7 +274,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           >
             <div className="flex items-center justify-center space-x-2">
               <Download className="w-5 h-5" />
-              <span className="text-sm font-medium">Download</span>
+              <span className="text-[13px] font-medium">Download</span>
             </div>
           </motion.button>
         </div>
@@ -283,12 +283,12 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         <div className="bg-white/5 rounded-xl p-4 border border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium">Network</p>
-              <p className="text-slate-400 text-sm">{currentNetwork?.name || 'Ethereum'}</p>
+              <p className="text-[13px] font-medium">Network</p>
+              <p className="text-slate-400 text-[13px]">{currentNetwork?.name || 'Ethereum'}</p>
             </div>
             <div className="text-right">
-              <p className="text-sm font-medium">Symbol</p>
-              <p className="text-slate-400 text-sm">{currentNetwork?.symbol || 'ETH'}</p>
+              <p className="text-[13px] font-medium">Symbol</p>
+              <p className="text-slate-400 text-[13px]">{currentNetwork?.symbol || 'ETH'}</p>
             </div>
           </div>
         </div>
@@ -300,8 +300,8 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <div className="w-2 h-2 bg-white rounded-full"></div>
             </div>
             <div>
-              <h3 className="text-sm font-medium text-blue-300 mb-1">Security Note</h3>
-              <p className="text-blue-200 text-sm">
+              <h3 className="text-[13px] font-medium text-blue-300 mb-1">Security Note</h3>
+              <p className="text-blue-200 text-[13px]">
                 Only send {currentNetwork?.symbol || 'ETH'} to this address. Sending other cryptocurrencies may result in permanent loss.
               </p>
             </div>
@@ -314,12 +314,12 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     console.error('ReceiveScreen Error:', err);
     setError(err instanceof Error ? err.message : 'Unknown error occurred');
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex items-center justify-center">
+      <div className="min-h-screen bg-white text-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <div className="text-red-400 mb-4">Error: {err instanceof Error ? err.message : 'Unknown error occurred'}</div>
+          <div className="text-red-600 mb-4 text-[13px]">Error: {err instanceof Error ? err.message : 'Unknown error occurred'}</div>
           <button
             onClick={() => setError(null)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:from-blue-600 hover:to-purple-700 transition-colors"
+            className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
           >
             Try Again
           </button>

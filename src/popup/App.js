@@ -159,7 +159,7 @@ const App = () => {
     return (_jsxs("div", { className: "h-full bg-gray-50 flex flex-col", children: [_jsx(Header, { title: currentScreen === 'dashboard' ? 'SOW Wallet' : currentScreen.charAt(0).toUpperCase() + currentScreen.slice(1), wallet: wallet, currentNetwork: currentNetwork }), _jsx("div", { className: "flex-1 overflow-hidden", children: _jsx(AnimatePresence, { mode: "wait", children: _jsx(motion.div, { initial: { opacity: 0, x: 20 }, animate: { opacity: 1, x: 0 }, exit: { opacity: 0, x: -20 }, transition: { duration: 0.3 }, className: "h-full", children: renderScreen() }, currentScreen) }) }), isWalletUnlocked && currentScreen !== 'welcome' && currentScreen !== 'create' && currentScreen !== 'import' && currentScreen !== 'verify' && (_jsx(Navigation, { currentScreen: currentScreen, onNavigate: handleNavigate })), _jsx(NotificationBanner, { notification: notification, onClose: handleDismissNotification }), _jsx(Toaster, { position: "top-center", toastOptions: {
                     duration: 4000,
                     style: {
-                        background: '#363636',
+                        background: '#180CB2',
                         color: '#fff',
                     },
                 } })] }));

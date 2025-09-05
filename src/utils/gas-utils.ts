@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { storage } from './storage-utils';
 
 export interface GasSettings {
   priority: 'low' | 'medium' | 'high' | 'custom';
@@ -55,12 +56,8 @@ export async function getCurrentGasPrices(rpcUrl: string): Promise<{
     };
   } catch (error) {
     console.error('Error fetching gas prices:', error);
-    // Return fallback values
-    return {
-      maxFeePerGas: '25000000000',
-      maxPriorityFeePerGas: '2000000000',
-      gasPrice: '20000000000'
-    };
+    // Throw error instead of returning fallback values
+    throw new Error(`Failed to fetch gas prices: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
 
@@ -134,7 +131,7 @@ export function applyGasSettings(
 // Save gas settings to storage
 export async function saveGasSettings(gasSettings: GasSettings): Promise<void> {
   try {
-    await chrome.storage.local.set({ gasSettings });
+    await storage.set({ gasSettings });
     console.log('✅ Gas settings saved');
   } catch (error) {
     console.error('Error saving gas settings:', error);
@@ -145,7 +142,7 @@ export async function saveGasSettings(gasSettings: GasSettings): Promise<void> {
 // Load gas settings from storage
 export async function loadGasSettings(): Promise<GasSettings> {
   try {
-    const result = await chrome.storage.local.get(['gasSettings']);
+    const result = await storage.get(['gasSettings']);
     return result.gasSettings || DEFAULT_GAS_SETTINGS;
   } catch (error) {
     console.error('Error loading gas settings:', error);
@@ -156,7 +153,7 @@ export async function loadGasSettings(): Promise<GasSettings> {
 // Save transaction settings
 export async function saveTransactionSettings(settings: TransactionSettings): Promise<void> {
   try {
-    await chrome.storage.local.set({ transactionSettings: settings });
+    await storage.set({ transactionSettings: settings });
     console.log('✅ Transaction settings saved');
   } catch (error) {
     console.error('Error saving transaction settings:', error);
@@ -167,7 +164,7 @@ export async function saveTransactionSettings(settings: TransactionSettings): Pr
 // Load transaction settings
 export async function loadTransactionSettings(): Promise<TransactionSettings> {
   try {
-    const result = await chrome.storage.local.get(['transactionSettings']);
+    const result = await storage.get(['transactionSettings']);
     return result.transactionSettings || {
       gasSettings: DEFAULT_GAS_SETTINGS,
       autoApprove: false,
@@ -182,5 +179,7 @@ export async function loadTransactionSettings(): Promise<TransactionSettings> {
     };
   }
 }
+
+
 
 

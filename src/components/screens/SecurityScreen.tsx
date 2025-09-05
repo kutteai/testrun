@@ -4,6 +4,7 @@ import { ArrowLeft, Lock, Shield, Clock, Eye, EyeOff, Save, AlertTriangle } from
 import { useSecurity } from '../../store/SecurityContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const SecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { securityState, updateSecuritySettings, lockWallet } = useSecurity();
@@ -38,16 +39,16 @@ const SecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const { hashPassword } = await import('../../utils/crypto-utils');
       const newHash = await hashPassword(newPassword);
       
-      // Store the new password hash
-      await new Promise<void>((resolve, reject) => {
-        chrome.storage.local.set({ passwordHash: newHash }, () => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve();
-          }
-        });
-      });
+      // Save password hash to storage
+      const savePasswordHash = async (hash: string): Promise<void> => {
+        try {
+          await storage.set({ passwordHash: hash });
+        } catch (error) {
+          console.error('Failed to save password hash:', error);
+        }
+      };
+      
+      await savePasswordHash(newHash);
       
       toast.success('Password updated successfully');
       setCurrentPassword('');

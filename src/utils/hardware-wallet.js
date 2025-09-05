@@ -380,8 +380,19 @@ export class HardwareWalletManager {
         }
     }
     // Device signing (real implementation)
-    async simulateDeviceSigning(type) {
-        throw new Error(`Hardware wallet ${type} signing not yet implemented. Please use software wallet for now.`);
+    async signWithDevice(type) {
+        try {
+            if (this.deviceType === 'ledger') {
+                return await this.signWithLedger(type);
+            } else if (this.deviceType === 'trezor') {
+                return await this.signWithTrezor(type);
+            } else {
+                throw new Error(`Unsupported hardware wallet type: ${type}`);
+            }
+        } catch (error) {
+            console.error('Hardware wallet signing failed:', error);
+            throw new Error(`Hardware wallet signing failed: ${error.message}`);
+        }
     }
     // Get connected wallets
     getConnectedWallets() {

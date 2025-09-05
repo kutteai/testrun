@@ -2,7 +2,8 @@ import * as bip39 from 'bip39';
 import { ethers } from 'ethers';
 import { encryptData, decryptData } from '../utils/crypto-utils';
 import { deriveWalletFromSeed, deriveAccountFromSeed } from '../utils/key-derivation';
-import { WalletData } from '../types/index';
+import { storage } from '../utils/storage-utils';
+import type { WalletData } from '../types/index';
 
 export interface WalletAccount {
   id: string;
@@ -65,20 +66,10 @@ export class WalletManager {
   // Load wallets from storage
   private async loadWallets(): Promise<void> {
     try {
-      return new Promise((resolve, reject) => {
-      chrome.storage.local.get(['wallets'], (result) => {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to load wallets:', chrome.runtime.lastError);
-            reject(chrome.runtime.lastError);
-            return;
-          }
-          
+      const result = await storage.get(['wallets']);
       if (result.wallets) {
         this.wallets = result.wallets;
       }
-          resolve();
-        });
-      });
     } catch (error) {
       console.error('Failed to load wallets:', error);
       throw error;
@@ -88,16 +79,7 @@ export class WalletManager {
   // Save wallets to storage
   private async saveWallets(): Promise<void> {
     try {
-      return new Promise((resolve, reject) => {
-        chrome.storage.local.set({ wallets: this.wallets }, () => {
-          if (chrome.runtime.lastError) {
-            console.error('Failed to save wallets:', chrome.runtime.lastError);
-            reject(chrome.runtime.lastError);
-            return;
-          }
-          resolve();
-        });
-      });
+      await storage.set({ wallets: this.wallets });
     } catch (error) {
       console.error('Failed to save wallets:', error);
       throw error;
@@ -173,6 +155,10 @@ export class WalletManager {
       privateKey: wallet.privateKey,
       publicKey: wallet.publicKey,
       encryptedSeedPhrase: wallet.encryptedSeedPhrase,
+      decryptPrivateKey: async (password: string) => {
+        // This method should be implemented by the calling code
+        throw new Error('decryptPrivateKey not implemented in wallet manager');
+      },
       accounts: wallet.accounts.map(acc => acc.address),
       networks: [wallet.network],
       currentNetwork: wallet.currentNetwork,
@@ -294,21 +280,10 @@ export class WalletManager {
       return acc && typeof acc === 'object' && acc.address;
     });
     
-    // If we have string accounts but no valid accounts, create a fallback account
-    if (validAccounts.length === 0 && wallet.accounts.length > 0 && wallet.address) {
-      console.log('🔧 WalletManager: Creating fallback account from wallet address');
-      const fallbackAccount: WalletAccount = {
-        id: wallet.id + '-main',
-        address: wallet.address,
-        privateKey: wallet.privateKey || '',
-        publicKey: wallet.publicKey || '',
-        derivationPath: wallet.derivationPath || "m/44'/60'/0'/0/0",
-        network: wallet.network || 'ethereum',
-        balance: '0',
-        nonce: 0,
-        createdAt: wallet.createdAt || Date.now()
-      };
-      return [fallbackAccount];
+    // Return empty array if no valid accounts found
+    if (validAccounts.length === 0) {
+      console.log('⚠️ WalletManager: No valid accounts found');
+      return [];
     }
     
     return validAccounts;
@@ -670,21 +645,10 @@ export class WalletManager {
       return acc && typeof acc === 'object' && acc.address;
     });
     
-    // If we have string accounts but no valid accounts, create a fallback account
-    if (validAccounts.length === 0 && wallet.accounts.length > 0 && wallet.address) {
-      console.log('🔧 WalletManager: Creating fallback current account from wallet address');
-      const fallbackAccount: WalletAccount = {
-        id: wallet.id + '-main',
-        address: wallet.address,
-        privateKey: wallet.privateKey || '',
-        publicKey: wallet.publicKey || '',
-        derivationPath: wallet.derivationPath || "m/44'/60'/0'/0/0",
-        network: wallet.network || 'ethereum',
-        balance: '0',
-        nonce: 0,
-        createdAt: wallet.createdAt || Date.now()
-      };
-      return fallbackAccount;
+    // Return null if no valid accounts found
+    if (validAccounts.length === 0) {
+      console.log('⚠️ WalletManager: No valid accounts found for current account');
+      return null;
     }
     
     // First try to find an account that matches the wallet's address
@@ -694,7 +658,7 @@ export class WalletManager {
     // This prevents the wallet from switching to a new account when one is added
     if (!currentAccount && validAccounts.length > 0) {
       currentAccount = validAccounts[0];
-      console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account as fallback (without updating wallet address):', currentAccount.address);
+      console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account (without updating wallet address):', currentAccount.address);
       // Note: We don't update wallet.address here to avoid switching to new accounts automatically
     }
     
@@ -735,9 +699,36 @@ export class WalletManager {
       
       console.log('✅ WalletManager: Seed phrase decrypted successfully');
 
-      // Derive new account
+      // Derive new account for the current network
       const newAccountIndex = wallet.accounts.length;
-      const derivationPath = `m/44'/60'/0'/0/${newAccountIndex}`;
+      
+      // Get current network from storage or default to ethereum
+      const currentNetworkData = await storage.get('currentNetwork');
+      const currentNetwork = currentNetworkData?.currentNetwork || 'ethereum';
+      
+      // Use appropriate derivation path based on network
+      let derivationPath: string;
+      switch (currentNetwork) {
+        case 'bitcoin':
+          derivationPath = `m/44'/0'/0'/0/${newAccountIndex}`;
+          break;
+        case 'solana':
+          derivationPath = `m/44'/501'/0'/0'/${newAccountIndex}`;
+          break;
+        case 'tron':
+          derivationPath = `m/44'/195'/0'/0/${newAccountIndex}`;
+          break;
+        case 'ton':
+          derivationPath = `m/44'/607'/0'/0/${newAccountIndex}`;
+          break;
+        case 'xrp':
+          derivationPath = `m/44'/144'/0'/0/${newAccountIndex}`;
+          break;
+        default: // EVM networks (ethereum, polygon, bsc, etc.)
+          derivationPath = `m/44'/60'/0'/0/${newAccountIndex}`;
+          break;
+      }
+      
       const walletData = await deriveAccountFromSeed(seedPhrase, derivationPath);
       
       const newAccount: WalletAccount = {
@@ -746,7 +737,7 @@ export class WalletManager {
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
         derivationPath: derivationPath,
-        network: wallet.network,
+        network: currentNetwork,
         balance: '0',
         nonce: 0,
         createdAt: Date.now()

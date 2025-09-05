@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { ethers } from 'ethers';
+import { storage } from '../utils/storage-utils';
 
 interface NFT {
   id: string;
@@ -56,12 +57,8 @@ function getConfig() {
   if (typeof window !== 'undefined' && window.CONFIG) {
     return window.CONFIG;
   }
-  // Fallback for build time
-  return {
-    OPENSEA_API_KEY: '',
-    ALCHEMY_NFT_API_KEY: '',
-    INFURA_PROJECT_ID: 'YOUR_INFURA_KEY'
-  };
+  // Throw error if no config available
+  throw new Error('Configuration not available');
 }
 
 // Fetch NFT metadata from OpenSea
@@ -220,19 +217,33 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
 
   // Load NFTs from storage
   useEffect(() => {
-    chrome.storage.local.get(['nfts'], (result) => {
-      if (result.nfts) {
-        setNftState(prev => ({
-          ...prev,
-          nfts: result.nfts
-        }));
+    const loadNFTs = async () => {
+      try {
+        const result = await storage.get(['nfts']);
+        if (result.nfts) {
+          setNftState(prev => ({
+            ...prev,
+            nfts: result.nfts
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load NFTs:', error);
       }
-    });
+    };
+    loadNFTs();
   }, []);
 
   // Save NFTs to storage
-  const saveNFTs = (nfts: NFT[]) => {
-    chrome.storage.local.set({ nfts });
+  const saveNFTs = async (nfts: NFT[]) => {
+    try {
+      await storage.set({ nfts });
+      setNftState(prev => ({
+        ...prev,
+        nfts: nfts
+      }));
+    } catch (error) {
+      console.error('Failed to save NFTs:', error);
+    }
   };
 
   // Add NFT
@@ -298,16 +309,8 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
             // Finally try blockchain
             metadata = await fetchBlockchainNFTMetadata(contractAddress, tokenId, network);
           } catch (error3) {
-            // Fallback to basic metadata
-            metadata = {
-              name: `NFT #${tokenId}`,
-              description: `Imported NFT from ${network}`,
-              imageUrl: '',
-              collection: `Collection ${contractAddress.slice(0, 8)}...`,
-              attributes: [],
-              owner: '',
-              metadata: {}
-            };
+            // Throw error instead of fallback metadata
+            throw new Error('Failed to fetch NFT metadata from all sources');
           }
         }
       }

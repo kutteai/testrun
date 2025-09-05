@@ -119,12 +119,12 @@ const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     const colors: Record<string, string> = {
       ethereum: 'bg-blue-500',
       bsc: 'bg-yellow-500',
-      polygon: 'bg-purple-500',
+      polygon: 'bg-[#180CB2]',
       avalanche: 'bg-red-500',
       arbitrum: 'bg-cyan-500',
       optimism: 'bg-orange-500',
       bitcoin: 'bg-orange-600',
-      solana: 'bg-purple-600',
+      solana: 'bg-[#180CB2]',
       tron: 'bg-red-600',
       litecoin: 'bg-gray-500',
       xrp: 'bg-blue-600'
@@ -133,7 +133,7 @@ const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

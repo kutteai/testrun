@@ -1,3 +1,6 @@
+import { storage } from '../utils/storage-utils';
+import { crossBrowserSendMessage } from '../utils/runtime-utils';
+
 // PayCio Wallet injection script - runs in page context
 console.log('🔍 PayCio: Injecting into page context...');
 
@@ -333,22 +336,8 @@ function setupProviderInterception() {
   }
 }
 
-// Listen for wallet unlock status changes
-chrome.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.walletState) {
-    const newUnlockStatus = changes.walletState.newValue?.isWalletUnlocked || false;
-    const oldUnlockStatus = changes.walletState.oldValue?.isWalletUnlocked || false;
-    
-    if (newUnlockStatus && !oldUnlockStatus) {
-      console.log('PayCio: Wallet unlocked, processing pending connections...');
-      isWalletUnlocked = true;
-      handlePendingConnections();
-    } else if (!newUnlockStatus && oldUnlockStatus) {
-      console.log('PayCio: Wallet locked');
-      isWalletUnlocked = false;
-    }
-  }
-});
+// Note: Storage change listeners are not available in cross-browser storage utility
+// Wallet status changes will be handled through other mechanisms
 
 try {
   // IMMEDIATE error suppression - run this first
@@ -429,31 +418,9 @@ try {
         
         return ws;
       } catch (error) {
-        console.log('Failed to create WalletConnect WebSocket, using fallback:', error);
-        
-        // Only create fallback if real WebSocket fails
-        const fallbackWs = {
-          readyState: 3, // CLOSED
-          url: url,
-          protocol: '',
-          extensions: '',
-          bufferedAmount: 0,
-          onopen: null,
-          onclose: null,
-          onmessage: null,
-          onerror: null,
-          close: () => {},
-          send: () => { console.log('WebSocket send blocked for:', url); },
-          addEventListener: (type: string, listener: any) => {
-            if (type === 'error' && listener) {
-              setTimeout(() => listener(new Error('WebSocket connection blocked')), 0);
-            }
-          },
-          removeEventListener: () => {},
-          dispatchEvent: () => false
-        };
-        
-        return fallbackWs as any;
+        console.log('Failed to create WalletConnect WebSocket:', error);
+        // Throw error instead of creating fallback
+        throw new Error(`WebSocket connection blocked for: ${url}`);
       }
     }
     
@@ -853,53 +820,48 @@ try {
           
         case 'eth_chainId': {
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'eth_chainId', params: [] }, (response) => {
-              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'eth_chainId', params: [] }).then((response) => {
               if (response?.success) return resolve(response.result);
               reject(new Error(response?.error || 'eth_chainId failed'));
-            });
+            }).catch(reject);
           });
         }
           
         case 'eth_getBalance': {
           const address = (request.params && request.params[0]) || provider.selectedAddress;
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'eth_getBalance', params: [address, 'latest'] }, (response) => {
-              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'eth_getBalance', params: [address, 'latest'] }).then((response) => {
               if (response?.success) return resolve(response.result);
               reject(new Error(response?.error || 'eth_getBalance failed'));
-            });
+            }).catch(reject);
           });
         }
           
         case 'net_version': {
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'net_version', params: [] }, (response) => {
-              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'net_version', params: [] }).then((response) => {
               if (response?.success) return resolve(response.result);
               reject(new Error(response?.error || 'net_version failed'));
-            });
+            }).catch(reject);
           });
         }
           
         case 'wallet_switchEthereumChain': {
           // Forward to background; background will update storage/network state
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'wallet_switchEthereumChain', params: request.params || [] }, (response) => {
-              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'wallet_switchEthereumChain', params: request.params || [] }).then((response) => {
               if (response?.success) return resolve(response.result ?? null);
               reject(new Error(response?.error || 'wallet_switchEthereumChain failed'));
-            });
+            }).catch(reject);
           });
         }
           
         case 'wallet_addEthereumChain': {
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: 'wallet_addEthereumChain', params: request.params || [] }, (response) => {
-              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'wallet_addEthereumChain', params: request.params || [] }).then((response) => {
               if (response?.success) return resolve(response.result ?? null);
               reject(new Error(response?.error || 'wallet_addEthereumChain failed'));
-            });
+            }).catch(reject);
           });
         }
 
@@ -913,15 +875,14 @@ try {
               `Send Transaction\n\nTo: ${txParams.to}\nValue: ${txParams.value || '0x0'} ETH\nGas: ${txParams.gas || 'auto'}`,
               () => {
                 console.log('PayCio: Transaction approved by user');
-                chrome.runtime.sendMessage({ 
+                crossBrowserSendMessage({ 
                   type: 'WALLET_REQUEST', 
                   method: 'eth_sendTransaction', 
                   params: request.params 
-                }, (response) => {
-                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                }).then((response) => {
                   if (response?.success) return resolve(response.result);
                   reject(new Error(response?.error || 'Transaction failed'));
-                });
+                }).catch(reject);
               },
               () => {
                 console.log('PayCio: Transaction rejected by user');
@@ -941,15 +902,14 @@ try {
               `Sign Transaction\n\nTo: ${txParams.to}\nValue: ${txParams.value || '0x0'} ETH\nNote: This will not send the transaction`,
               () => {
                 console.log('PayCio: Sign transaction approved by user');
-                chrome.runtime.sendMessage({ 
+                crossBrowserSendMessage({ 
                   type: 'WALLET_REQUEST', 
                   method: 'eth_signTransaction', 
                   params: request.params 
-                }, (response) => {
-                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                }).then((response) => {
                   if (response?.success) return resolve(response.result);
                   reject(new Error(response?.error || 'Transaction signing failed'));
-                });
+                }).catch(reject);
               },
               () => {
                 console.log('PayCio: Sign transaction rejected by user');
@@ -970,15 +930,14 @@ try {
               `Sign Message\n\nMessage: ${message}\nSigning with: ${address}`,
               () => {
                 console.log('PayCio: Personal sign approved by user');
-                chrome.runtime.sendMessage({ 
+                crossBrowserSendMessage({ 
                   type: 'WALLET_REQUEST', 
                   method: 'personal_sign', 
                   params: request.params 
-                }, (response) => {
-                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                }).then((response) => {
                   if (response?.success) return resolve(response.result);
                   reject(new Error(response?.error || 'Message signing failed'));
-                });
+                }).catch(reject);
               },
               () => {
                 console.log('PayCio: Personal sign rejected by user');
@@ -1011,15 +970,14 @@ try {
               `Sign Typed Data\n\nDomain: ${domain}\nSigning with: ${address}\n\nData:\n${message}`,
               () => {
                 console.log('PayCio: Typed data sign approved by user');
-                chrome.runtime.sendMessage({ 
+                crossBrowserSendMessage({ 
                   type: 'WALLET_REQUEST', 
                   method: request.method, 
                   params: request.params 
-                }, (response) => {
-                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                }).then((response) => {
                   if (response?.success) return resolve(response.result);
                   reject(new Error(response?.error || 'Typed data signing failed'));
-                });
+                }).catch(reject);
               },
               () => {
                 console.log('PayCio: Typed data sign rejected by user');
@@ -1040,15 +998,14 @@ try {
               `Sign Data\n\nData: ${data}\nSigning with: ${address}\n\nWarning: This is a raw signature request`,
               () => {
                 console.log('PayCio: eth_sign approved by user');
-                chrome.runtime.sendMessage({ 
+                crossBrowserSendMessage({ 
                   type: 'WALLET_REQUEST', 
                   method: 'eth_sign', 
                   params: request.params 
-                }, (response) => {
-                  if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+                }).then((response) => {
                   if (response?.success) return resolve(response.result);
                   reject(new Error(response?.error || 'Data signing failed'));
-                });
+                }).catch(reject);
               },
               () => {
                 console.log('PayCio: eth_sign rejected by user');
@@ -1061,11 +1018,10 @@ try {
         default:
           // Forward unknown/tx methods to background
           return new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'WALLET_REQUEST', method: request.method, params: request.params || [] }, (response) => {
-              if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
+            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: request.method, params: request.params || [] }).then((response) => {
               if (response?.success) return resolve(response.result);
               reject(new Error(response?.error || ('Method ' + request.method + ' failed')));
-            });
+            }).catch(reject);
           });
       }
     },

@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import { solanaUtils, SolanaWallet, SolanaTransaction, SolanaToken } from '../../utils/solana-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -34,9 +35,10 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   }, [selectedWallet]);
 
-  const loadSolanaWallets = async () => {
+  // Load Solana wallets from storage
+  const loadSolanaWallets = async (): Promise<void> => {
     try {
-      const stored = await chrome.storage.local.get(['solanaWallets']);
+      const stored = await storage.get(['solanaWallets']);
       if (stored.solanaWallets) {
         setSolanaWallets(stored.solanaWallets);
         if (stored.solanaWallets.length > 0) {
@@ -44,15 +46,17 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading Solana wallets:', error);
+      console.error('Failed to load Solana wallets:', error);
     }
   };
 
-  const saveSolanaWallets = async (wallets: SolanaWallet[]) => {
+  // Save Solana wallets to storage
+  const saveSolanaWallets = async (wallets: any[]): Promise<void> => {
     try {
-      await chrome.storage.local.set({ solanaWallets: wallets });
+      await storage.set({ solanaWallets: wallets });
+      setSolanaWallets(wallets);
     } catch (error) {
-      console.error('Error saving Solana wallets:', error);
+      console.error('Failed to save Solana wallets:', error);
     }
   };
 
@@ -190,7 +194,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     switch (network) {
       case 'mainnet': return 'from-green-500 to-emerald-500';
       case 'testnet': return 'from-blue-500 to-cyan-500';
-      case 'devnet': return 'from-purple-500 to-indigo-500';
+              case 'devnet': return 'from-[#180CB2] to-indigo-500';
       default: return 'from-gray-500 to-slate-500';
     }
   };
@@ -205,7 +209,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -220,7 +224,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-[#180CB2] rounded-xl flex items-center justify-center">
               <TrendingUp className="w-6 h-6" />
             </div>
             <div>
@@ -320,7 +324,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                               ? 'bg-green-500/20 text-green-400' 
                               : solWallet.network === 'testnet'
                               ? 'bg-blue-500/20 text-blue-400'
-                              : 'bg-purple-500/20 text-purple-400'
+                              : 'bg-[#180CB2]/20 text-[#180CB2]'
                           }`}>
                             {getNetworkLabel(solWallet.network)}
                           </span>
@@ -404,7 +408,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   whileTap={{ scale: 0.95 }}
                   onClick={airdropSol}
                   disabled={isLoading}
-                  className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                  className="px-3 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors disabled:opacity-50"
                 >
                   {isLoading ? '...' : 'Airdrop'}
                 </motion.button>
@@ -428,7 +432,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl flex items-center justify-center">
+                      <div className="w-10 h-10 bg-gradient-to-r from-[#180CB2] to-pink-500 rounded-xl flex items-center justify-center">
                         <Coins className="w-5 h-5 text-white" />
                       </div>
                       <div>
@@ -487,7 +491,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                             {new Date(tx.timestamp).toLocaleDateString()}
                           </span>
                           {tx.tokenSymbol && (
-                            <span className="text-xs text-purple-400">
+                            <span className="text-xs text-[#180CB2]">
                               {tx.tokenSymbol}
                             </span>
                           )}

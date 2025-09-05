@@ -1,4 +1,5 @@
 import { getBalance, getGasPrice, estimateGas, NETWORKS } from '../utils/web3-utils';
+import { storage } from '../utils/storage-utils';
 
 export interface Network {
   id: string;
@@ -29,7 +30,7 @@ export class NetworkManager {
   // Load networks from storage
   private async loadNetworks(): Promise<void> {
     try {
-      const result = await chrome.storage.local.get(['networks', 'currentNetwork']);
+      const result = await storage.get(['networks', 'currentNetwork']);
       if (result.networks) {
         this.networks = result.networks;
       }
@@ -37,19 +38,19 @@ export class NetworkManager {
         this.currentNetwork = result.currentNetwork;
       }
     } catch (error) {
-      console.error('Error loading networks:', error);
+      console.error('Failed to load networks:', error);
     }
   }
 
   // Save networks to storage
   private async saveNetworks(): Promise<void> {
     try {
-      await chrome.storage.local.set({ 
+      await storage.set({
         networks: this.networks,
-        currentNetwork: this.currentNetwork 
+        currentNetwork: this.currentNetwork
       });
     } catch (error) {
-      console.error('Error saving networks:', error);
+      console.error('Failed to save networks:', error);
     }
   }
 
@@ -106,7 +107,7 @@ export class NetworkManager {
 
   // Remove custom network
   async removeCustomNetwork(networkId: string): Promise<void> {
-    this.networks = this.networks.filter(network => 
+    this.networks = this.networks.filter(network =>
       !(network.id === networkId && network.isCustom)
     );
 

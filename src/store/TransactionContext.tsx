@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { storage } from '../utils/storage-utils';
 
 interface Transaction {
   id: string;
@@ -57,27 +58,45 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
 
   // Load transactions from storage
   useEffect(() => {
-    chrome.storage.local.get(['transactions'], (result) => {
-      if (result.transactions) {
-        const transactions: Transaction[] = result.transactions;
-        const pending = transactions.filter(tx => tx.status === 'pending');
-        const recent = transactions
-          .filter(tx => tx.status !== 'pending')
-          .sort((a, b) => b.timestamp - a.timestamp)
-          .slice(0, 50); // Keep last 50 transactions
+    const loadTransactions = async () => {
+      try {
+        const result = await storage.get(['transactions']);
+        if (result.transactions) {
+          const transactions: Transaction[] = result.transactions;
+          const pending = transactions.filter(tx => tx.status === 'pending');
+          const recent = transactions
+            .filter(tx => tx.status !== 'pending')
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .slice(0, 50); // Keep last 50 transactions
 
-        setTransactionState(prev => ({
-          ...prev,
-          recentTransactions: recent,
-          pendingTransactions: pending
-        }));
+          setTransactionState(prev => ({
+            ...prev,
+            recentTransactions: recent,
+            pendingTransactions: pending
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to load transactions:', error);
       }
-    });
+    };
+    loadTransactions();
   }, []);
 
   // Save transactions to storage
-  const saveTransactions = (transactions: Transaction[]) => {
-    chrome.storage.local.set({ transactions });
+  const saveTransactions = async (transactions: Transaction[]) => {
+    try {
+      await storage.set({ transactions });
+      setTransactionState(prev => ({
+        ...prev,
+        recentTransactions: transactions
+          .filter(tx => tx.status !== 'pending')
+          .sort((a, b) => b.timestamp - a.timestamp)
+          .slice(0, 50),
+        pendingTransactions: transactions.filter(tx => tx.status === 'pending')
+      }));
+    } catch (error) {
+      console.error('Failed to save transactions:', error);
+    }
   };
 
   // Add transaction
@@ -138,13 +157,17 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
   };
 
   // Clear transactions
-  const clearTransactions = () => {
-    setTransactionState(prev => ({
-      ...prev,
-      recentTransactions: [],
-      pendingTransactions: []
-    }));
-    chrome.storage.local.remove(['transactions']);
+  const clearTransactions = async () => {
+    try {
+      await storage.remove(['transactions']);
+      setTransactionState(prev => ({
+        ...prev,
+        recentTransactions: [],
+        pendingTransactions: []
+      }));
+    } catch (error) {
+      console.error('Failed to clear transactions:', error);
+    }
   };
 
   // Refresh transactions

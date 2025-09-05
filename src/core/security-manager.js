@@ -1,4 +1,5 @@
 import { createAuthSession, isSessionValid, updateSessionActivity, validatePasswordStrength, checkRateLimit, updateRateLimit, secureStore, secureRetrieve } from '../utils/security-utils';
+import { storage } from '../utils/storage-utils';
 export class SecurityManager {
     constructor() {
         this.state = {
@@ -22,7 +23,7 @@ export class SecurityManager {
     // Load security settings from storage
     async loadSecuritySettings() {
         try {
-            const result = await chrome.storage.local.get(['securitySettings', 'isWalletUnlocked']);
+            const result = await storage.get(['securitySettings', 'isWalletUnlocked']);
             if (result.securitySettings) {
                 this.state = { ...this.state, ...result.securitySettings };
             }
@@ -37,7 +38,7 @@ export class SecurityManager {
     // Save security settings to storage
     async saveSecuritySettings() {
         try {
-            await chrome.storage.local.set({
+            await storage.set({
                 securitySettings: this.state,
                 isWalletUnlocked: this.state.isWalletUnlocked
             });
@@ -156,7 +157,7 @@ export class SecurityManager {
             const masterKey = await this.getMasterKey();
             const encryptedPassword = await encryptData(hashedPassword, masterKey);
             // Store encrypted password in secure storage
-            await chrome.storage.local.set({
+            await storage.set({
                 encryptedPassword: encryptedPassword,
                 passwordTimestamp: Date.now()
             });
@@ -169,7 +170,7 @@ export class SecurityManager {
     // Get stored password (real implementation)
     async getStoredPassword() {
         try {
-            const result = await chrome.storage.local.get(['encryptedPassword']);
+            const result = await storage.get(['encryptedPassword']);
             if (!result.encryptedPassword) {
                 return null;
             }

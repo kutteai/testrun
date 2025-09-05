@@ -2,6 +2,7 @@ import * as bip39 from 'bip39';
 import { ethers } from 'ethers';
 import { encryptData, decryptData } from '../utils/crypto-utils';
 import { deriveWalletFromSeed } from '../utils/key-derivation';
+import { storage } from '../utils/storage-utils';
 export class WalletManager {
     constructor() {
         this.wallets = [];
@@ -10,11 +11,10 @@ export class WalletManager {
     // Load wallets from storage
     async loadWallets() {
         try {
-            chrome.storage.local.get(['wallets'], (result) => {
-                if (result.wallets) {
-                    this.wallets = result.wallets;
-                }
-            });
+            const result = await storage.get(['wallets']);
+            if (result.wallets) {
+                this.wallets = result.wallets;
+            }
         }
         catch (error) {
             console.error('Failed to load wallets:', error);
@@ -23,7 +23,7 @@ export class WalletManager {
     // Save wallets to storage
     async saveWallets() {
         try {
-            chrome.storage.local.set({ wallets: this.wallets });
+            await storage.set({ wallets: this.wallets });
         }
         catch (error) {
             console.error('Failed to save wallets:', error);

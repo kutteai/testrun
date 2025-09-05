@@ -1,172 +1,144 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Copy, Check, ArrowRight, Wallet, Shield } from 'lucide-react';
-import { generateBIP39SeedPhrase } from '../../utils/crypto-utils';
-import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import walletIcon from '../../assets/wallet.png';
+import downloadIcon from '../../assets/download.png';
+import securityIcon from '../../assets/security.png';
+import lighteningIcon from '../../assets/lightening.png';
+import multichainIcon from '../../assets/multichain.png';
+import lockIcon from '../../assets/lock.png';
+import { storageUtils } from '../../utils/storage-utils';
 
 const CreateWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const [seedPhrase, setSeedPhrase] = useState('');
-  const [showSeedPhrase, setShowSeedPhrase] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [step, setStep] = useState<'generate' | 'confirm'>('generate');
-
-  // Generate seed phrase
-  const handleGenerateWallet = () => {
-    const newSeedPhrase = generateBIP39SeedPhrase();
-    setSeedPhrase(newSeedPhrase);
-    setStep('confirm');
-    
-    // Store seed phrase for verification
-    chrome.storage.local.set({ currentSeedPhrase: newSeedPhrase });
-  };
-
-  // Copy seed phrase
-  const copySeedPhrase = async () => {
-    try {
-      await navigator.clipboard.writeText(seedPhrase);
-      setCopied(true);
-      toast.success('Seed phrase copied to clipboard');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Failed to copy seed phrase');
+  const features = [
+    {
+      icon: <img src={multichainIcon} alt="Multi-Chain" className="w-6 h-6" />,
+      title: 'Multi-Chain Support',
+      description: 'Ethereum, Bitcoin, Solana, TRON, and more'
+    },
+    {
+      icon: <img src={securityIcon} alt="Security" className="w-6 h-6" />,
+      title: 'Advanced Security',
+      description: 'Hardware wallet support & encryption'
+    },
+    {
+      icon: <img src={lighteningIcon} alt="Lightning" className="w-6 h-6" />,
+      title: 'Lightning Fast',
+      description: 'Instant transactions & real-time updates'
+    },
+    {
+      icon: <img src={lockIcon} alt="Lock" className="w-6 h-6" />,
+      title: 'Privacy First',
+      description: 'Your keys, your crypto, your control'
     }
-  };
-
-  // Confirm and proceed
-  const handleConfirm = () => {
-    onNavigate('verify');
-  };
+  ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="h-screen bg-white flex flex-col"
+    >
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 pb-4"
+      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="mb-8"
+        >
+          {/* Paycio Wallet Title */}
+          <h1 className="text-4xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Inter' }}>
+            Paycio Wallet
+          </h1>
+          <p className="text-gray-600 text-lg">Your gateway to the decentralized world</p>
+        </motion.div>
+
+        {/* Features Grid */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="grid grid-cols-2 gap-4 mb-8 w-full max-w-sm"
+        >
+          {features.map((feature, index) => (
+            <motion.div
+              key={feature.title}
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.4, delay: 0.3 + index * 0.1 }}
+              className="bg-white border border-gray-200 rounded-xl p-4 text-center shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className="text-gray-700 mb-2 flex justify-center">
+                {feature.icon}
+              </div>
+              <h3 className="text-gray-900 font-semibold text-sm mb-1">
+                {feature.title}
+              </h3>
+              <p className="text-gray-600 text-xs leading-relaxed">
+                {feature.description}
+              </p>
+            </motion.div>
+          ))}
+        </motion.div>
+      </div>
+
+      {/* Action Buttons */}
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.4 }}
+        className="px-8 pb-8 space-y-4"
       >
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => onNavigate('welcome')}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+        {/* Create New Wallet Button */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={() => onNavigate('create-password')}
+          className="w-full bg-[#180CB2] text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2"
+        >
+          <img src={walletIcon} alt="Wallet" className="w-5 h-5" />
+          <span>Create new wallet</span>
+        </motion.button>
+
+        {/* Import Existing Wallet Button */}
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={async () => {
+            // Set import flow flag before navigating using cross-browser storage
+            await storageUtils.setImportFlow(true);
+            onNavigate('create-password');
+          }}
+          className="w-full bg-white text-gray-900 font-semibold py-4 px-6 rounded-xl border border-gray-300 hover:border-gray-400 transition-all duration-200 flex items-center justify-center space-x-2"
+        >
+          <img src={downloadIcon} alt="Download" className="w-5 h-5" />
+          <span>Import existing wallet</span>
+        </motion.button>
+      </motion.div>
+
+      {/* Footer Legal Text */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.6, delay: 0.6 }}
+        className="text-center pb-6 px-8"
+      >
+        <p className="text-gray-500 text-sm">
+          By continuing, you agree to our{' '}
+          <button 
+            onClick={() => onNavigate('terms')}
+            className="text-gray-600 hover:underline"
           >
-            <ArrowRight className="w-6 h-6 rotate-180" />
+            Terms of Service
           </button>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-              <Wallet className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Create Wallet</h1>
-              <p className="text-slate-400 text-sm">Generate new wallet</p>
-            </div>
-          </div>
-          <div className="w-10"></div>
-        </div>
+          {' '}and{' '}
+          <span className="text-gray-600">
+            Privacy Policy
+          </span>
+        </p>
       </motion.div>
-
-      {/* Content */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6"
-      >
-        {step === 'generate' && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center"
-          >
-            <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-8 border border-white/20 mb-6">
-              <div className="flex justify-center items-center mx-auto mb-6 w-20 h-20 rounded-full bg-gradient-to-r from-blue-500 to-purple-600">
-                <Shield className="w-10 h-10" />
-              </div>
-              <h2 className="mb-3 text-2xl font-bold">Create New Wallet</h2>
-              <p className="text-slate-400 mb-6">
-                Generate a new wallet with a secure seed phrase
-              </p>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleGenerateWallet}
-              className="w-full py-4 font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 transition-all"
-            >
-              Generate Seed Phrase
-            </motion.button>
-          </motion.div>
-        )}
-
-        {step === 'confirm' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
-          >
-            <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-6 border border-white/20">
-              <h2 className="mb-3 text-xl font-bold">Backup Your Seed Phrase</h2>
-              <p className="text-slate-400 text-sm mb-4">
-                Write down these 12 words in a secure location. You'll need them to recover your wallet.
-              </p>
-              
-              <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                <div className="flex justify-between items-center mb-3">
-                  <span className="text-sm font-medium">Seed Phrase</span>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => setShowSeedPhrase(!showSeedPhrase)}
-                      className="p-1 rounded hover:bg-white/10 transition-colors"
-                    >
-                      {showSeedPhrase ? (
-                        <EyeOff className="w-4 h-4" />
-                      ) : (
-                        <Eye className="w-4 h-4" />
-                      )}
-                    </button>
-                    <button
-                      onClick={copySeedPhrase}
-                      className="p-1 rounded hover:bg-white/10 transition-colors"
-                    >
-                      {copied ? (
-                        <Check className="w-4 h-4 text-green-400" />
-                      ) : (
-                        <Copy className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  {seedPhrase.split(' ').map((word, index) => (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: index * 0.05 }}
-                      className="px-3 py-2 text-sm rounded-lg border border-white/20 bg-white/5"
-                    >
-                      <span className="text-xs text-slate-400">{index + 1}.</span> 
-                      {showSeedPhrase ? word : '••••••••'}
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={handleConfirm}
-              className="w-full py-4 font-semibold text-white rounded-xl bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 transition-all"
-            >
-              Continue to Verification
-            </motion.button>
-          </motion.div>
-        )}
-      </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, CheckCircle, RefreshCw, Shield, AlertCircle } from 'lucide-react';
-import { validateBIP39SeedPhrase } from '../../utils/crypto-utils';
+import { validateBIP39SeedPhrase, validateBIP39SeedPhraseWithFeedback } from '../../utils/crypto-utils';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [seedWords, setSeedWords] = useState<string[]>([]);
@@ -16,13 +17,33 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [verificationIndices, setVerificationIndices] = useState<number[]>([3, 7, 11, 15, 19, 23]);
   const { importWallet } = useWallet();
 
+  // Load seed phrase from storage
+  const loadSeedPhrase = async (): Promise<string | null> => {
+    try {
+      const result = await storage.get(['currentSeedPhrase']);
+      return result.currentSeedPhrase || null;
+    } catch (error) {
+      console.error('Failed to load seed phrase:', error);
+      return null;
+    }
+  };
+
+  // Save seed phrase verification status
+  const saveVerificationStatus = async (): Promise<void> => {
+    try {
+      await storage.set({ seedPhraseVerified: true });
+    } catch (error) {
+      console.error('Failed to save verification status:', error);
+    }
+  };
+
   // Get seed phrase from storage or context
   useEffect(() => {
     const getStoredSeedPhrase = async () => {
       try {
-        const result = await chrome.storage.local.get(['currentSeedPhrase']);
-        if (result.currentSeedPhrase) {
-          const words = result.currentSeedPhrase.split(' ');
+        const storedSeedPhrase = await loadSeedPhrase();
+        if (storedSeedPhrase) {
+          const words = storedSeedPhrase.split(' ');
           setSeedWords(words);
           // Create verification words (every 4th word for security)
           const indices = [3, 7, 11, 15, 19, 23]; // 6 words to verify
@@ -78,16 +99,16 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setIsLoading(true);
     
     try {
-      const result = await chrome.storage.local.get(['currentSeedPhrase']);
-      if (result.currentSeedPhrase) {
-        const isValid = validateBIP39SeedPhrase(result.currentSeedPhrase);
+      const storedSeedPhrase = await loadSeedPhrase();
+      if (storedSeedPhrase) {
+        const validation = validateBIP39SeedPhraseWithFeedback(storedSeedPhrase);
         
-        if (isValid) {
+        if (validation.isValid) {
           setIsVerified(true);
           toast.success('Seed phrase verified successfully!');
           
           // Store verification status
-          await chrome.storage.local.set({ seedPhraseVerified: true });
+          await saveVerificationStatus();
           
           // Prompt for password before creating wallet
           const password = prompt('Please enter a password to secure your wallet:');
@@ -98,7 +119,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           
           // Create the actual wallet
           try {
-            await importWallet(result.currentSeedPhrase, 'ethereum', password);
+            await importWallet(storedSeedPhrase, 'ethereum', password);
             toast.success('Wallet created and verified successfully!');
             
             // Navigate to dashboard after a short delay
@@ -107,11 +128,12 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             }, 1500);
           } catch (walletError) {
             console.error('Failed to create wallet:', walletError);
-            toast.error('Verification successful but wallet creation failed');
+            const errorMessage = walletError instanceof Error ? walletError.message : 'Verification successful but wallet creation failed';
+            toast.error(errorMessage);
             resetVerification();
           }
         } else {
-          toast.error('Invalid seed phrase. Please try again.');
+          toast.error(validation.error || 'Invalid seed phrase. Please try again.');
           resetVerification();
         }
       }
@@ -144,7 +166,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -236,7 +258,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               className={`w-full py-3 rounded-xl font-semibold transition-all ${
                 !userInput.trim() || isLoading
                   ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                  : 'bg-[#180CB2] hover:bg-[#140a8f]'
               }`}
             >
               {isLoading ? 'Verifying...' : 'Verify Word'}

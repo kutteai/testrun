@@ -6,29 +6,29 @@ export interface Config {
   ETHERSCAN_API_KEY?: string;
 }
 
-// Get configuration from environment variables or fallbacks
+// Get configuration from environment variables
 export function getConfig(): Config {
   // Try to get from environment variables first
-  const getEnvVar = (key: string, fallback?: string): string => {
+  const getEnvVar = (key: string): string => {
     try {
       // Check if we're in a browser environment
       if (typeof window !== 'undefined' && window.CONFIG) {
-        return window.CONFIG[key] || fallback || '';
+        return window.CONFIG[key] || '';
       }
       
       // Check if we're in Node.js environment
       if (typeof process !== 'undefined' && process.env) {
-        return process.env[key] || fallback || '';
+        return process.env[key] || '';
       }
       
-      return fallback || '';
+      return '';
     } catch {
-      return fallback || '';
+      return '';
     }
   };
 
   return {
-    INFURA_PROJECT_ID: getEnvVar('INFURA_PROJECT_ID', '9aa3d95b3bc440fa88ea12eaa4456161'),
+    INFURA_PROJECT_ID: getEnvVar('INFURA_PROJECT_ID'),
     COINGECKO_API_KEY: getEnvVar('COINGECKO_API_KEY'),
     ENS_RPC_URL: getEnvVar('ENS_RPC_URL'),
     ETHERSCAN_API_KEY: getEnvVar('ETHERSCAN_API_KEY')
@@ -51,5 +51,7 @@ export function validateConfig(): boolean {
   const config = getConfig();
   return !!config.INFURA_PROJECT_ID;
 }
+
+
 
 

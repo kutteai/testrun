@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { hashPassword, verifyPassword } from '../utils/crypto-utils';
+import { storage } from '../utils/storage-utils';
 
 interface SecurityState {
   isAuthenticated: boolean;
@@ -51,15 +52,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
 
   // Load security settings from storage
   useEffect(() => {
-    chrome.storage.local.get(['securitySettings', 'isWalletUnlocked', 'passwordHash'], (result) => {
-      if (result.securitySettings) {
-        setSecurityState(prev => ({
-          ...prev,
-          ...result.securitySettings,
-          isWalletUnlocked: result.isWalletUnlocked || false
-        }));
-      }
-    });
+    loadSecuritySettings();
   }, []);
 
   // Auto-lock functionality
@@ -96,7 +89,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       if (!storedHash) {
         // First time authentication, create password hash
         const hash = await hashPassword(password);
-        await storePasswordHash(hash);
+        await updatePasswordHash(hash);
         return true;
       }
 
@@ -132,7 +125,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       isWalletUnlocked: false
     }));
     
-    chrome.storage.local.set({ isWalletUnlocked: false });
+    updateWalletLockStatus(false);
   };
 
   const unlockWallet = async (password: string): Promise<boolean> => {
@@ -149,7 +142,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
           isWalletUnlocked: true,
           lastActivity: Date.now()
         }));
-        chrome.storage.local.set({ isWalletUnlocked: true });
+        updateWalletLockStatus(true);
       }
       return isValid;
     } catch (error) {
@@ -158,14 +151,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
     }
   };
 
-  const updateSecuritySettings = (settings: Partial<SecurityState>): void => {
-    setSecurityState(prev => ({
-      ...prev,
-      ...settings
-    }));
-    
-    chrome.storage.local.set({ securitySettings: settings });
-  };
+
 
   const resetFailedAttempts = (): void => {
     setSecurityState(prev => ({
@@ -194,18 +180,63 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
     return authenticate(password);
   };
 
-  // Store password hash
-  const storePasswordHash = async (hash: string): Promise<void> => {
-    chrome.storage.local.set({ passwordHash: hash });
+
+
+  const loadSecuritySettings = async () => {
+    try {
+      const result = await storage.get(['securitySettings', 'isWalletUnlocked', 'passwordHash']);
+      if (result.securitySettings) {
+        setSecurityState(prev => ({
+          ...prev,
+          ...result.securitySettings
+        }));
+      }
+      if (result.isWalletUnlocked !== undefined) {
+        // setIsWalletUnlocked(result.isWalletUnlocked); // This line was removed from the new_code, so it's removed here.
+      }
+      if (result.passwordHash) {
+        // setPasswordHash(result.passwordHash); // This line was removed from the new_code, so it's removed here.
+      }
+    } catch (error) {
+      console.error('Failed to load security settings:', error);
+    }
   };
 
-  // Get stored password hash
-  const getStoredPasswordHash = async (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['passwordHash'], (result) => {
-        resolve(result.passwordHash || null);
-      });
-    });
+  const updateWalletLockStatus = async (locked: boolean) => {
+    try {
+      await storage.set({ isWalletUnlocked: locked });
+      // setIsWalletUnlocked(locked); // This line was removed from the new_code, so it's removed here.
+    } catch (error) {
+      console.error('Failed to update wallet lock status:', error);
+    }
+  };
+
+  const updateSecuritySettings = async (settings: Partial<SecurityState>) => {
+    try {
+      await storage.set({ securitySettings: settings });
+      setSecurityState(prev => ({ ...prev, ...settings }));
+    } catch (error) {
+      console.error('Failed to update security settings:', error);
+    }
+  };
+
+  const updatePasswordHash = async (hash: string) => {
+    try {
+      await storage.set({ passwordHash: hash });
+      // setPasswordHash(hash); // This line was removed from the new_code, so it's removed here.
+    } catch (error) {
+      console.error('Failed to update password hash:', error);
+    }
+  };
+
+  const getStoredPasswordHash = async () => {
+    try {
+      const result = await storage.get(['passwordHash']);
+      return result.passwordHash || null;
+    } catch (error) {
+      console.error('Failed to get stored password hash:', error);
+      return null;
+    }
   };
 
   const value: SecurityContextType = {

@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import { tronUtils, TronWallet, TronTransaction, TronToken } from '../../utils/tron-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -36,7 +37,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   const loadTronWallets = async () => {
     try {
-      const stored = await chrome.storage.local.get(['tronWallets']);
+      const stored = await storage.get(['tronWallets']);
       if (stored.tronWallets) {
         setTronWallets(stored.tronWallets);
         if (stored.tronWallets.length > 0) {
@@ -44,15 +45,15 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading TRON wallets:', error);
+      console.error('Failed to load TRON wallets:', error);
     }
   };
 
   const saveTronWallets = async (wallets: TronWallet[]) => {
     try {
-      await chrome.storage.local.set({ tronWallets: wallets });
+      await storage.set({ tronWallets: wallets });
     } catch (error) {
-      console.error('Error saving TRON wallets:', error);
+      console.error('Failed to save TRON wallets:', error);
     }
   };
 
@@ -182,7 +183,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import { litecoinUtils, LitecoinWallet, AddressType, LitecoinTransaction } from '../../utils/litecoin-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -32,9 +33,10 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   }, [selectedWallet]);
 
-  const loadLitecoinWallets = async () => {
+  // Load Litecoin wallets from storage
+  const loadLitecoinWallets = async (): Promise<void> => {
     try {
-      const stored = await chrome.storage.local.get(['litecoinWallets']);
+      const stored = await storage.get(['litecoinWallets']);
       if (stored.litecoinWallets) {
         setLitecoinWallets(stored.litecoinWallets);
         if (stored.litecoinWallets.length > 0) {
@@ -42,15 +44,17 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading Litecoin wallets:', error);
+      console.error('Failed to load Litecoin wallets:', error);
     }
   };
 
-  const saveLitecoinWallets = async (wallets: LitecoinWallet[]) => {
+  // Save Litecoin wallets to storage
+  const saveLitecoinWallets = async (wallets: any[]): Promise<void> => {
     try {
-      await chrome.storage.local.set({ litecoinWallets: wallets });
+      await storage.set({ litecoinWallets: wallets });
+      setLitecoinWallets(wallets);
     } catch (error) {
-      console.error('Error saving Litecoin wallets:', error);
+      console.error('Failed to save Litecoin wallets:', error);
     }
   };
 
@@ -171,7 +175,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

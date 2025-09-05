@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import { bitcoinUtils, BitcoinWallet, AddressType, BitcoinTransaction } from '../../utils/bitcoin-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { storage } from '../../utils/storage-utils';
 
 const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -32,9 +33,10 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   }, [selectedWallet]);
 
-  const loadBitcoinWallets = async () => {
+  // Load Bitcoin wallets from storage
+  const loadBitcoinWallets = async (): Promise<void> => {
     try {
-      const stored = await chrome.storage.local.get(['bitcoinWallets']);
+      const stored = await storage.get(['bitcoinWallets']);
       if (stored.bitcoinWallets) {
         setBitcoinWallets(stored.bitcoinWallets);
         if (stored.bitcoinWallets.length > 0) {
@@ -42,15 +44,17 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading Bitcoin wallets:', error);
+      console.error('Failed to load Bitcoin wallets:', error);
     }
   };
 
-  const saveBitcoinWallets = async (wallets: BitcoinWallet[]) => {
+  // Save Bitcoin wallets to storage
+  const saveBitcoinWallets = async (wallets: any[]): Promise<void> => {
     try {
-      await chrome.storage.local.set({ bitcoinWallets: wallets });
+      await storage.set({ bitcoinWallets: wallets });
+      setBitcoinWallets(wallets);
     } catch (error) {
-      console.error('Error saving Bitcoin wallets:', error);
+      console.error('Failed to save Bitcoin wallets:', error);
     }
   };
 
@@ -163,7 +167,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}

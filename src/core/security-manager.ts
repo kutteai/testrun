@@ -2,6 +2,7 @@ import {
   validatePasswordStrength,
   securityUtils
 } from '../utils/security-utils';
+import { storage } from '../utils/storage-utils';
 
 export interface SecurityState {
   isAuthenticated: boolean;
@@ -41,7 +42,7 @@ export class SecurityManager {
   // Load security settings from storage
   private async loadSecuritySettings(): Promise<void> {
     try {
-      const result = await chrome.storage.local.get(['securitySettings', 'isWalletUnlocked']);
+      const result = await storage.get(['securitySettings', 'isWalletUnlocked']);
       if (result.securitySettings) {
         this.state = { ...this.state, ...result.securitySettings };
       }
@@ -56,12 +57,30 @@ export class SecurityManager {
   // Save security settings to storage
   private async saveSecuritySettings(): Promise<void> {
     try {
-      await chrome.storage.local.set({ 
+      await storage.set({ 
         securitySettings: this.state,
         isWalletUnlocked: this.state.isWalletUnlocked
       });
     } catch (error) {
       console.error('Error saving security settings:', error);
+    }
+  }
+
+  async saveEncryptedPassword(encryptedPassword: string): Promise<void> {
+    try {
+      await storage.set({ encryptedPassword });
+    } catch (error) {
+      console.error('Failed to save encrypted password:', error);
+    }
+  }
+
+  async getEncryptedPassword(): Promise<string | null> {
+    try {
+      const result = await storage.get(['encryptedPassword']);
+      return result.encryptedPassword || null;
+    } catch (error) {
+      console.error('Failed to get encrypted password:', error);
+      return null;
     }
   }
 
@@ -181,10 +200,7 @@ export class SecurityManager {
       const encryptedPassword = await encryptData(hashedPassword, masterKey);
       
       // Store encrypted password in secure storage
-      await chrome.storage.local.set({
-        encryptedPassword: encryptedPassword,
-        passwordTimestamp: Date.now()
-      });
+      await this.saveEncryptedPassword(encryptedPassword);
     } catch (error) {
       console.error('Error storing password:', error);
       throw error;
@@ -194,16 +210,16 @@ export class SecurityManager {
   // Get stored password (real implementation)
   private async getStoredPassword(): Promise<string | null> {
     try {
-      const result = await chrome.storage.local.get(['encryptedPassword']);
+      const encryptedPassword = await this.getEncryptedPassword();
       
-      if (!result.encryptedPassword) {
+      if (!encryptedPassword) {
         return null;
       }
       
       // Decrypt the password
       const { decryptData } = await import('../utils/crypto-utils');
       const masterKey = await this.getMasterKey();
-      const decryptedPassword = await decryptData(result.encryptedPassword, masterKey);
+      const decryptedPassword = await decryptData(encryptedPassword, masterKey);
       
       return decryptedPassword;
     } catch (error) {

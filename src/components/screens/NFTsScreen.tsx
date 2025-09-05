@@ -121,7 +121,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white flex flex-col">
+          <div className="min-h-screen bg-white text-gray-900 flex flex-col">
       {/* Header */}
       <motion.div 
         initial={{ opacity: 0, y: -20 }}
@@ -131,25 +131,25 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => onNavigate('dashboard')}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-6 h-6 text-gray-700" />
           </button>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
-              <Image className="w-6 h-6" />
+            <div className="w-10 h-10 bg-[#180CB2] rounded-xl flex items-center justify-center">
+              <Image className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-xl font-bold">NFTs</h1>
-              <p className="text-slate-400 text-sm">Your NFT Collections</p>
+              <h1 className="text-xl font-bold text-gray-900">NFTs</h1>
+              <p className="text-gray-600 text-sm">Your NFT Collections</p>
             </div>
           </div>
           <button
             onClick={loadNFTs}
             disabled={isLoading}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           >
-            {isLoading ? <Loader className="w-6 h-6 animate-spin" /> : <RefreshCw className="w-6 h-6" />}
+            {isLoading ? <Loader className="w-6 h-6 animate-spin text-gray-700" /> : <RefreshCw className="w-6 h-6 text-gray-700" />}
           </button>
         </div>
 
@@ -161,9 +161,9 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search NFTs..."
-              className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full bg-gray-50 border border-gray-300 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2]"
             />
-            <Search className="absolute right-3 top-3 w-5 h-5 text-gray-400" />
+            <Search className="absolute right-3 top-3 w-5 h-5 text-gray-500" />
           </div>
         </div>
       </motion.div>
@@ -175,21 +175,21 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           animate={{ opacity: 1, y: 0 }}
           className="px-6 pb-4"
         >
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
+          <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold flex items-center">
-                <Crown className="w-5 h-5 text-yellow-400 mr-2" />
+              <h3 className="text-lg font-semibold flex items-center text-gray-900">
+                <Crown className="w-5 h-5 text-yellow-500 mr-2" />
                 Profile Picture
               </h3>
               <button
                 onClick={handleRemoveProfilePicture}
-                className="text-red-400 hover:text-red-300 text-sm"
+                className="text-red-500 hover:text-red-600 text-sm"
               >
                 Remove
               </button>
             </div>
             <div className="flex items-center space-x-3">
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-gradient-to-br from-purple-500 to-pink-600">
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#180CB2]">
                 <img 
                   src={profilePicture.metadata.image} 
                   alt={profilePicture.metadata.name}
@@ -200,8 +200,8 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 />
               </div>
               <div className="flex-1">
-                <h4 className="font-semibold">{profilePicture.metadata.name}</h4>
-                <p className="text-sm text-gray-400">{profilePicture.name}</p>
+                <h4 className="font-semibold text-gray-900">{profilePicture.metadata.name}</h4>
+                <p className="text-sm text-gray-600">{profilePicture.name}</p>
                 <p className="text-xs text-gray-500">Token #{profilePicture.tokenId}</p>
               </div>
             </div>
@@ -224,7 +224,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-xl overflow-hidden cursor-pointer"
                 onClick={() => setSelectedNFT(nft)}
               >
-                <div className="aspect-square bg-gradient-to-br from-purple-500/20 to-pink-500/20 relative">
+                <div className="aspect-square bg-[#180CB2]/20 relative">
                   <img 
                     src={nft.metadata.image} 
                     alt={nft.metadata.name}
@@ -253,7 +253,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       {/* Loading State */}
       {isLoading && (
         <div className="flex items-center justify-center py-8">
-          <Loader className="w-6 h-6 animate-spin text-purple-400" />
+          <Loader className="w-6 h-6 animate-spin text-[#180CB2]" />
         </div>
       )}
 
@@ -282,7 +282,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             className="bg-slate-800 rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="aspect-square bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl overflow-hidden mb-4">
+                            <div className="aspect-square bg-[#180CB2]/20 rounded-xl overflow-hidden mb-4">
               <img 
                 src={selectedNFT.metadata.image} 
                 alt={selectedNFT.metadata.name}
@@ -318,7 +318,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 <button
                   onClick={() => handleSetAsProfilePicture(selectedNFT)}
                   disabled={isSettingProfile}
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl font-semibold transition-all duration-200"
+                  className="flex-1 bg-gradient-to-r from-[#180CB2] to-[#140a8f] hover:from-[#140a8f] hover:to-[#0f0a6b] disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl font-semibold transition-all duration-200"
                 >
                   {isSettingProfile ? (
                     <div className="flex items-center justify-center space-x-2">

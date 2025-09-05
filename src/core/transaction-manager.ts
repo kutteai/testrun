@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { estimateGas, getTransactionReceipt, NETWORKS } from '../utils/web3-utils';
 import { WalletManager } from './wallet-manager';
+import { storage } from '../utils/storage-utils';
 
 export interface Transaction {
   id: string;
@@ -60,11 +61,10 @@ export class TransactionManager {
   // Load transactions from storage
   private async loadTransactions(): Promise<void> {
     try {
-      chrome.storage.local.get(['transactions'], (result) => {
-        if (result.transactions) {
-          this.transactions = result.transactions;
-        }
-      });
+      const result = await storage.get(['transactions']);
+      if (result.transactions) {
+        this.transactions = result.transactions;
+      }
     } catch (error) {
       console.error('Failed to load transactions:', error);
     }
@@ -73,7 +73,7 @@ export class TransactionManager {
   // Save transactions to storage
   private async saveTransactions(): Promise<void> {
     try {
-      chrome.storage.local.set({ transactions: this.transactions });
+      await storage.set({ transactions: this.transactions });
     } catch (error) {
       console.error('Failed to save transactions:', error);
     }
@@ -82,7 +82,7 @@ export class TransactionManager {
   // Save pending transactions to storage
   private async savePendingTransactions(): Promise<void> {
     try {
-      chrome.storage.local.set({ pendingTransactions: this.pendingTransactions });
+      await storage.set({ pendingTransactions: this.pendingTransactions });
     } catch (error) {
       console.error('Failed to save pending transactions:', error);
     }
@@ -90,11 +90,13 @@ export class TransactionManager {
 
   // Get wallet from storage
   private async getWalletFromStorage(): Promise<any> {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['wallet'], (result) => {
-        resolve(result.wallet || null);
-      });
-    });
+    try {
+      const result = await storage.get(['wallet']);
+      return result.wallet || null;
+    } catch (error) {
+      console.error('Failed to get wallet from storage:', error);
+      return null;
+    }
   }
 
   // Send transaction with real implementation
