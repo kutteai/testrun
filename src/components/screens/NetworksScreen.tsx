@@ -272,118 +272,122 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-          <div className="min-h-screen bg-white text-gray-900 flex flex-col">
-      {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 pb-4"
+    <div className="fixed inset-0 z-40">
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={() => onNavigate('options')}
+        className="absolute inset-0 bg-black/20"
+      />
+      
+      {/* Networks Panel */}
+      <motion.div
+        initial={{ x: '100%' }}
+        animate={{ x: 0 }}
+        exit={{ x: '100%' }}
+        transition={{ type: 'tween', duration: 0.2 }}
+        className="absolute top-0 right-0 w-1/2 h-full bg-white flex flex-col z-50 shadow-2xl"
       >
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={() => onNavigate('dashboard')}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-[#180CB2] rounded-xl flex items-center justify-center">
-              <Globe className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Networks</h1>
-              <p className="text-slate-400 text-sm">Select blockchain network</p>
-            </div>
+        {/* Header */}
+        <div className="bg-[#180CB2] text-white px-6 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => onNavigate('options')}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="flex-1 text-center text-lg font-semibold">
+              Networks
+            </h1>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setIsAddingCustom(true)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <Plus className="w-5 h-5" />
+            </motion.button>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsAddingCustom(true)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <Plus className="w-6 h-6" />
-          </motion.button>
         </div>
-      </motion.div>
 
-      {/* Content */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-6 pb-6 flex-1 overflow-y-auto"
-      >
+        {/* Main Content */}
+        <div className="flex-1 bg-white overflow-y-auto px-6 py-6">
         {/* Current Network Status */}
         {currentNetwork && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 border border-white/20">
+          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-200 mb-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-green-500/20 rounded-lg flex items-center justify-center">
-                  <Globe className="w-5 h-5 text-green-400" />
+                  <Globe className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-white">Current Network</h3>
-                  <p className="text-slate-400 text-sm">{currentNetwork.name} ({currentNetwork.symbol})</p>
+                  <h3 className="font-semibold text-gray-900 text-[13px]">Current Network</h3>
+                  <p className="text-gray-500 text-[13px]">{currentNetwork.name} ({currentNetwork.symbol})</p>
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                <span className="text-sm text-green-400">Connected</span>
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <span className="text-[13px] text-green-600">Connected</span>
               </div>
             </div>
           </div>
         )}
 
         {/* EVM Networks */}
-        <div>
-          <h2 className="text-lg font-semibold text-white mb-4">EVM Networks</h2>
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 text-[13px]">EVM Networks</h2>
           <div className="space-y-3">
             {defaultNetworks.map((network) => (
               <motion.div
                 key={network.id}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className={`p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all ${
+                className={`p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm ${
                   isNetworkActive(network)
-                    ? 'border-blue-500 bg-blue-500/20'
-                    : 'border-white/20 hover:border-white/30'
+                    ? 'border-[#180CB2] bg-[#180CB2]/5'
+                    : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                      isNetworkActive(network) ? 'bg-blue-500/20' : 'bg-white/10'
+                      isNetworkActive(network) ? 'bg-[#180CB2]/20' : 'bg-gray-100'
                     }`}>
-                      <Globe className={`w-5 h-5 ${isNetworkActive(network) ? 'text-blue-400' : 'text-white'}`} />
+                      <Globe className={`w-5 h-5 ${isNetworkActive(network) ? 'text-[#180CB2]' : 'text-gray-600'}`} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-white">{network.name}</h3>
-                      <p className="text-slate-400 text-sm">{network.symbol} • Chain ID: {network.chainId}</p>
+                      <h3 className="font-semibold text-gray-900 text-[13px]">{network.name}</h3>
+                      <p className="text-gray-500 text-[13px]">{network.symbol} • Chain ID: {network.chainId}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
                     {isNetworkActive(network) && (
-                      <Check className="w-5 h-5 text-blue-400" />
+                      <Check className="w-5 h-5 text-[#180CB2]" />
                     )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         testNetworkConnection(network);
                       }}
-                      className="p-1 hover:bg-white/10 rounded transition-colors"
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
                       disabled={isTestingConnection === network.id}
                     >
                       {isTestingConnection === network.id ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        <div className="w-4 h-4 border-2 border-gray-300 border-t-[#180CB2] rounded-full animate-spin"></div>
                       ) : (
-                        <Wifi className="w-4 h-4 text-slate-400" />
+                        <Wifi className="w-4 h-4 text-gray-400" />
                       )}
                     </button>
                     <button
                       onClick={() => handleNetworkSwitch(network)}
-                      className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 py-1 rounded-lg text-[13px] font-medium transition-colors ${
                         isNetworkActive(network)
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-white/10 text-white hover:bg-white/20'
+                          ? 'bg-[#180CB2] text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                       }`}
                     >
                       {isNetworkActive(network) ? 'Active' : 'Switch'}
@@ -396,14 +400,14 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         </div>
 
         {/* Non-EVM Networks */}
-        <div>
-          <h2 className="text-lg font-semibold text-white mb-4">Non-EVM Networks</h2>
+        <div className="mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 text-[13px]">Non-EVM Networks</h2>
           <div className="space-y-3">
             {/* Bitcoin */}
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              className="p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm border-gray-200 hover:border-gray-300"
               onClick={() => onNavigate('bitcoin')}
             >
               <div className="flex items-center justify-between">
@@ -412,11 +416,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <Bitcoin className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">Bitcoin</h3>
-                    <p className="text-slate-400 text-sm">BTC • Layer 1</p>
+                    <h3 className="font-semibold text-gray-900 text-[13px]">Bitcoin</h3>
+                    <p className="text-gray-500 text-[13px]">BTC • Layer 1</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-[13px]">
                   Open
                 </button>
               </div>
@@ -426,7 +430,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              className="p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm border-gray-200 hover:border-gray-300"
               onClick={() => onNavigate('solana')}
             >
               <div className="flex items-center justify-between">
@@ -435,11 +439,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">Solana</h3>
-                    <p className="text-slate-400 text-sm">SOL • High Performance</p>
+                    <h3 className="font-semibold text-gray-900 text-[13px]">Solana</h3>
+                    <p className="text-gray-500 text-[13px]">SOL • High Performance</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-[13px]">
                   Open
                 </button>
               </div>
@@ -449,7 +453,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              className="p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm border-gray-200 hover:border-gray-300"
               onClick={() => onNavigate('tron')}
             >
               <div className="flex items-center justify-between">
@@ -458,11 +462,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <TrendingUp className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">TRON</h3>
-                    <p className="text-slate-400 text-sm">TRX • Entertainment</p>
+                    <h3 className="font-semibold text-gray-900 text-[13px]">TRON</h3>
+                    <p className="text-gray-500 text-[13px]">TRX • Entertainment</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-[13px]">
                   Open
                 </button>
               </div>
@@ -472,7 +476,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              className="p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm border-gray-200 hover:border-gray-300"
               onClick={() => onNavigate('litecoin')}
             >
               <div className="flex items-center justify-between">
@@ -481,11 +485,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <Bitcoin className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">Litecoin</h3>
-                    <p className="text-slate-400 text-sm">LTC • Silver to Bitcoin's Gold</p>
+                    <h3 className="font-semibold text-gray-900 text-[13px]">Litecoin</h3>
+                    <p className="text-gray-500 text-[13px]">LTC • Silver to Bitcoin's Gold</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-[13px]">
                   Open
                 </button>
               </div>
@@ -495,7 +499,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              className="p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm border-gray-200 hover:border-gray-300"
               onClick={() => onNavigate('ton')}
             >
               <div className="flex items-center justify-between">
@@ -504,11 +508,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">TON</h3>
-                    <p className="text-slate-400 text-sm">The Open Network</p>
+                    <h3 className="font-semibold text-gray-900 text-[13px]">TON</h3>
+                    <p className="text-gray-500 text-[13px]">The Open Network</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-[13px]">
                   Open
                 </button>
               </div>
@@ -518,7 +522,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <motion.div
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all border-white/20 hover:border-white/30"
+              className="p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm border-gray-200 hover:border-gray-300"
               onClick={() => onNavigate('xrp')}
             >
               <div className="flex items-center justify-between">
@@ -527,11 +531,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <Zap className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-white">XRP</h3>
-                    <p className="text-slate-400 text-sm">Ripple Network</p>
+                    <h3 className="font-semibold text-gray-900 text-[13px]">XRP</h3>
+                    <p className="text-gray-500 text-[13px]">Ripple Network</p>
                   </div>
                 </div>
-                <button className="px-3 py-1 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors">
+                <button className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-[13px]">
                   Open
                 </button>
               </div>
@@ -541,56 +545,56 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         {/* Custom Networks */}
         {networks.filter(n => n.isCustom).length > 0 && (
-          <div>
-            <h2 className="text-lg font-semibold text-white mb-4">Custom Networks</h2>
+          <div className="mb-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 text-[13px]">Custom Networks</h2>
             <div className="space-y-3">
               {networks.filter(n => n.isCustom).map((network) => (
                 <motion.div
                   key={network.id}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className={`p-4 bg-white/10 backdrop-blur-xl rounded-xl border-2 cursor-pointer transition-all ${
+                  className={`p-4 bg-white rounded-xl border-2 cursor-pointer transition-all shadow-sm ${
                     isNetworkActive(network)
-                      ? 'border-green-500 bg-green-500/20'
-                      : 'border-white/20 hover:border-white/30'
+                      ? 'border-green-500 bg-green-500/5'
+                      : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        isNetworkActive(network) ? 'bg-green-500/20' : 'bg-white/10'
+                        isNetworkActive(network) ? 'bg-green-500/20' : 'bg-gray-100'
                       }`}>
-                        <Settings className={`w-5 h-5 ${isNetworkActive(network) ? 'text-green-400' : 'text-white'}`} />
+                        <Settings className={`w-5 h-5 ${isNetworkActive(network) ? 'text-green-600' : 'text-gray-600'}`} />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-white">{network.name}</h3>
-                        <p className="text-slate-400 text-sm">{network.symbol} • Chain ID: {network.chainId}</p>
+                        <h3 className="font-semibold text-gray-900 text-[13px]">{network.name}</h3>
+                        <p className="text-gray-500 text-[13px]">{network.symbol} • Chain ID: {network.chainId}</p>
                       </div>
                     </div>
                     <div className="flex items-center space-x-2">
                       {isNetworkActive(network) && (
-                        <Check className="w-5 h-5 text-green-400" />
+                        <Check className="w-5 h-5 text-green-600" />
                       )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           testNetworkConnection(network);
                         }}
-                        className="p-1 hover:bg-white/10 rounded transition-colors"
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
                         disabled={isTestingConnection === network.id}
                       >
                         {isTestingConnection === network.id ? (
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                          <div className="w-4 h-4 border-2 border-gray-300 border-t-green-500 rounded-full animate-spin"></div>
                         ) : (
-                          <Wifi className="w-4 h-4 text-slate-400" />
+                          <Wifi className="w-4 h-4 text-gray-400" />
                         )}
                       </button>
                       <button
                         onClick={() => handleNetworkSwitch(network)}
-                        className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                        className={`px-3 py-1 rounded-lg text-[13px] font-medium transition-colors ${
                           isNetworkActive(network)
                             ? 'bg-green-500 text-white'
-                            : 'bg-white/10 text-white hover:bg-white/20'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                         }`}
                       >
                         {isNetworkActive(network) ? 'Active' : 'Switch'}
@@ -609,14 +613,14 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="bg-slate-800 rounded-2xl p-6 w-full max-w-lg mx-4 border border-slate-600 shadow-2xl"
+              className="bg-white rounded-2xl p-6 w-full max-w-lg mx-4 border border-gray-200 shadow-2xl"
             >
-              <h3 className="text-lg font-semibold text-white mb-2">Add Custom Network</h3>
-              <p className="text-sm text-slate-400 mb-6">Add a custom EVM-compatible network to your wallet. Make sure to verify the network details.</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 text-[13px]">Add Custom Network</h3>
+              <p className="text-[13px] text-gray-500 mb-6">Add a custom EVM-compatible network to your wallet. Make sure to verify the network details.</p>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">
                     Network Name
                   </label>
                   <input
@@ -630,7 +634,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">
                     Symbol
                   </label>
                   <input
@@ -644,7 +648,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">
                     RPC URL
                   </label>
                   <input
@@ -658,7 +662,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">
                     Chain ID
                   </label>
                   <input
@@ -672,7 +676,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-1">
+                  <label className="block text-[13px] font-medium text-gray-700 mb-1">
                     Explorer URL (Optional)
                   </label>
                   <input
@@ -691,10 +695,10 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   whileTap={{ scale: isAddingNetwork ? 1 : 0.98 }}
                   onClick={() => setIsAddingCustom(false)}
                   disabled={isAddingNetwork}
-                  className={`flex-1 px-4 py-3 border rounded-lg transition-all duration-200 font-medium ${
+                  className={`flex-1 px-4 py-3 border rounded-lg transition-all duration-200 font-medium text-[13px] ${
                     isAddingNetwork
-                      ? 'border-slate-600 text-slate-500 cursor-not-allowed'
-                      : 'border-slate-500 text-slate-300 hover:bg-slate-700'
+                      ? 'border-gray-300 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-50'
                   }`}
                 >
                   Cancel
@@ -704,10 +708,10 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   whileTap={{ scale: isAddingNetwork ? 1 : 0.98 }}
                   onClick={handleAddCustomNetwork}
                   disabled={isAddingNetwork}
-                  className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 font-medium shadow-lg flex items-center justify-center ${
+                  className={`flex-1 px-4 py-3 rounded-lg transition-all duration-200 font-medium shadow-lg flex items-center justify-center text-[13px] ${
                     isAddingNetwork 
-                      ? 'bg-blue-500 cursor-not-allowed' 
-                      : 'bg-blue-600 hover:bg-blue-700'
+                      ? 'bg-[#180CB2] cursor-not-allowed' 
+                      : 'bg-[#180CB2] hover:bg-[#180CB2]/90'
                   } text-white`}
                 >
                   {isAddingNetwork ? (
@@ -726,6 +730,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </motion.div>
           </div>
         )}
+        </div>
       </motion.div>
     </div>
   );

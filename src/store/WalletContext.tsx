@@ -1053,7 +1053,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       console.log(`✅ Network switched to ${network.name}. Address changed: ${addressChanged}`);
       console.log(`✅ Final address: ${newAddress}`);
       
-      // Check if we need to create an account for this network
+      // Check if we need to create an account for this network and update wallet address
       try {
         const { WalletManager } = await import('../core/wallet-manager');
         const walletManager = new WalletManager();
@@ -1073,6 +1073,15 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           } catch (accountError) {
             console.warn(`Failed to create account for ${network.name}:`, accountError);
           }
+        }
+        
+        // Update wallet address to match the current account for this network
+        const currentAccountForNetwork = await walletManager.getCurrentAccountForWallet(updatedWallet.id);
+        if (currentAccountForNetwork && currentAccountForNetwork.address !== updatedWallet.address) {
+          console.log(`🔄 Updating wallet address to match current account: ${updatedWallet.address} -> ${currentAccountForNetwork.address}`);
+          const finalUpdatedWallet = { ...updatedWallet, address: currentAccountForNetwork.address };
+          dispatch({ type: 'SET_WALLET', payload: finalUpdatedWallet });
+          await storeWallet(finalUpdatedWallet);
         }
       } catch (accountCheckError) {
         console.warn('Failed to check/create account for network:', accountCheckError);

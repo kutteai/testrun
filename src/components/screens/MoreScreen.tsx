@@ -15,22 +15,38 @@ const MoreScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     {
       icon: FileText,
       label: 'Terms of service',
-      screen: 'terms'
+      screen: 'terms',
+      action: () => {
+        // Open terms in new tab or show modal
+        window.open('https://paycio.com/terms', '_blank');
+      }
     },
     {
       icon: Shield,
       label: 'Privacy policy',
-      screen: 'privacy'
+      screen: 'privacy',
+      action: () => {
+        // Open privacy policy in new tab or show modal
+        window.open('https://paycio.com/privacy', '_blank');
+      }
     },
     {
       icon: Headphones,
       label: 'Support center',
-      screen: 'support'
+      screen: 'support',
+      action: () => {
+        // Open support in new tab or show modal
+        window.open('https://paycio.com/support', '_blank');
+      }
     },
     {
       icon: Users,
       label: 'Community',
-      screen: 'community'
+      screen: 'community',
+      action: () => {
+        // Open community in new tab or show modal
+        window.open('https://paycio.com/community', '_blank');
+      }
     }
   ];
 
@@ -85,7 +101,7 @@ const MoreScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               initial={{ x: -20, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ duration: 0.3, delay: index * 0.1 }}
-              onClick={() => onNavigate(item.screen)}
+              onClick={item.action}
               className="w-full flex items-center justify-between p-4 bg-white rounded-xl border border-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-all shadow-sm"
             >
               <div className="flex items-center space-x-4">
@@ -93,15 +109,16 @@ const MoreScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   <item.icon className="w-5 h-5 text-gray-600" />
                 </div>
                 <div className="text-left">
-                  <div className="font-medium text-gray-900">{item.label}</div>
+                  <div className="font-medium text-gray-900 text-[13px]">{item.label}</div>
                 </div>
               </div>
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </motion.button>
           ))}
         </motion.div>
-      </div>
-    </motion.div>
+        </div>
+      </motion.div>
+    </div>
   );
 };
 

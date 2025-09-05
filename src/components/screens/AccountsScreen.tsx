@@ -55,6 +55,28 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     loadAccounts();
   }, [wallet, getWalletAccounts, getCurrentAccount]);
 
+  // Listen for wallet changes to refresh accounts
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in AccountsScreen:', event.detail);
+      try {
+        const walletAccounts = await getWalletAccounts();
+        console.log('✅ Refreshed accounts after wallet change:', walletAccounts);
+        setAccounts(walletAccounts);
+        
+        const currentAccount = await getCurrentAccount();
+        setSelectedAccount(currentAccount);
+      } catch (error) {
+        console.error('Failed to refresh accounts after wallet change:', error);
+      }
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, [getWalletAccounts, getCurrentAccount]);
+
   // Filter accounts based on search query
   const filteredAccounts = accounts.filter(account => {
     if (!searchQuery) return true;

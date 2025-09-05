@@ -56,7 +56,14 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const downloadQRCode = () => {
     if (!wallet?.address) return;
     
-    // Create a canvas element to render the QR code
+    // Get the QR code SVG element
+    const qrElement = document.querySelector('#qr-code-svg');
+    if (!qrElement) {
+      toast.error('QR code not found');
+      return;
+    }
+    
+    // Convert SVG to canvas
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -64,26 +71,40 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     canvas.width = 200;
     canvas.height = 200;
     
-    // For now, create a simple QR-like pattern
-    // In a production app, you'd use a proper QR code library
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, 200, 200);
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(10, 10, 180, 180);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(20, 20, 160, 160);
+    // Create a new image from the SVG
+    const svgData = new XMLSerializer().serializeToString(qrElement);
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+    const svgUrl = URL.createObjectURL(svgBlob);
     
-    // Add the address text
-    ctx.fillStyle = '#000';
-    ctx.font = '10px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('PayCio Address', 100, 190);
+    const img = new Image();
+    img.onload = () => {
+      // Draw the QR code on canvas
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, 200, 200);
+      ctx.drawImage(img, 0, 0, 200, 200);
+      
+      // Add the address text below
+      ctx.fillStyle = '#000000';
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('PayCio Address', 100, 190);
+      
+      // Download
+      const link = document.createElement('a');
+      link.download = 'paycio-address-qr.png';
+      link.href = canvas.toDataURL();
+      link.click();
+      
+      // Clean up
+      URL.revokeObjectURL(svgUrl);
+    };
     
-    // Download
-    const link = document.createElement('a');
-    link.download = 'paycio-address-qr.png';
-    link.href = canvas.toDataURL();
-    link.click();
+    img.onerror = () => {
+      toast.error('Failed to generate QR code image');
+      URL.revokeObjectURL(svgUrl);
+    };
+    
+    img.src = svgUrl;
   };
 
   const shareAddress = async () => {
@@ -227,6 +248,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div className="flex justify-center mb-6">
             <div className="bg-white p-4 rounded-2xl">
               <QRCodeSVG
+                id="qr-code-svg"
                 value={getQRCodeData()}
                 size={qrSize}
                 level="M"

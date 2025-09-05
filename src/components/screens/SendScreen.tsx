@@ -136,7 +136,19 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const handleContinue = () => {
-    if (isAddressValid && amount && parseFloat(amount) > 0) {
+    if (isAddressValid && amount && parseFloat(amount) > 0 && fromAccount) {
+      // Save transaction data to session storage for ReviewSendScreen
+      const transactionData = {
+        amount: amount,
+        currency: selectedCurrency,
+        toAddress: toAddress,
+        fromAccount: fromAccount.name || `Account ${fromAccount.id}`,
+        fromAddress: fromAccount.address,
+        network: currentNetwork?.name || 'Ethereum',
+        addressType: addressType
+      };
+      
+      sessionStorage.setItem('pendingTransaction', JSON.stringify(transactionData));
       onNavigate('review-send');
     }
   };

@@ -58,7 +58,7 @@ const WalletSecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   // Save auto-lock time to storage
-  const saveAutoLockTime = async (newLockTime: number): Promise<void> => {
+  const saveAutoLockTime = async (newLockTime: string): Promise<void> => {
     try {
       await storage.set({ autoLockTime: newLockTime });
       setLockTime(newLockTime);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowLeft,
@@ -12,26 +12,116 @@ import {
   Copy,
   X
 } from 'lucide-react';
+import { useWallet } from '../../store/WalletContext';
+import { usePortfolio } from '../../store/PortfolioContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
 const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const [accountName, setAccountName] = useState('Account 1');
+  const { wallet, getCurrentAccount, getWalletAccounts } = useWallet();
+  const { portfolioValue } = usePortfolio();
+  const [accountName, setAccountName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [showChangeNameModal, setShowChangeNameModal] = useState(false);
+  const [currentAccount, setCurrentAccount] = useState<any>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const currentAccount = {
-    id: '1',
-    name: 'Account 1',
-    address: 'af45g3.....3453tr',
-    fullAddress: '0x6ED56789012345678901234567890127db',
-    avatar: '👤',
-    walletName: 'Wallet 1',
-  };
+  // Load real account data
+  useEffect(() => {
+    const loadAccountData = async () => {
+      if (!wallet) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        
+        // Get current account
+        const current = await getCurrentAccount();
+        setCurrentAccount(current);
+        
+        // Get all accounts for dropdown
+        const walletAccounts = await getWalletAccounts();
+        setAccounts(walletAccounts);
+        
+        // Set account name
+        if (current) {
+          setAccountName(current.name || `Account ${current.id || '1'}`);
+        }
+      } catch (error) {
+        console.error('Failed to load account data:', error);
+        toast.error('Failed to load account details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadAccountData();
+  }, [wallet, getCurrentAccount, getWalletAccounts]);
+
+  // Listen for wallet changes to refresh account data
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in AccountDetailsScreen:', event.detail);
+      try {
+        const current = await getCurrentAccount();
+        setCurrentAccount(current);
+        
+        const walletAccounts = await getWalletAccounts();
+        setAccounts(walletAccounts);
+        
+        if (current) {
+          setAccountName(current.name || `Account ${current.id || '1'}`);
+        }
+      } catch (error) {
+        console.error('Failed to refresh account data after wallet change:', error);
+      }
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, [getCurrentAccount, getWalletAccounts]);
 
   const handleCopyAddress = () => {
-    navigator.clipboard.writeText(currentAccount.fullAddress);
-    toast.success('Address copied to clipboard!');
+    if (currentAccount?.address) {
+      navigator.clipboard.writeText(currentAccount.address);
+      toast.success('Address copied to clipboard!');
+    } else {
+      toast.error('No address available to copy');
+    }
+  };
+
+  const getAccountBalance = () => {
+    if (!portfolioValue?.assets || !currentAccount?.address) {
+      return { balance: '0', usdValue: 0 };
+    }
+    
+    // Find assets for this account's network
+    const accountAssets = portfolioValue.assets.filter(asset => 
+      asset.network?.toLowerCase() === currentAccount.network?.toLowerCase()
+    );
+    
+    if (accountAssets.length === 0) {
+      return { balance: '0', usdValue: 0 };
+    }
+    
+    // Calculate total balance
+    const totalBalance = accountAssets.reduce((sum, asset) => {
+      return sum + parseFloat(asset.balance || '0');
+    }, 0);
+    
+    const totalUsdValue = accountAssets.reduce((sum, asset) => {
+      return sum + (asset.usdValue || 0);
+    }, 0);
+    
+    return { 
+      balance: totalBalance.toFixed(6), 
+      usdValue: totalUsdValue 
+    };
   };
 
   const handleUpdateAccountName = () => {
@@ -79,133 +169,149 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         {/* Main Content */}
         <div className="flex-1 bg-white overflow-y-auto px-6 py-6 space-y-4">
-        {/* Select Account Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
-        >
-          <p className="text-[13px] text-gray-500 mb-2">Select account</p>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-                <span className="text-white text-[13px]">{currentAccount.avatar}</span>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-[13px] text-gray-500">Loading account details...</div>
+          </div>
+        ) : !currentAccount ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="text-[13px] text-gray-500">No account selected</div>
+          </div>
+        ) : (
+          <>
+            {/* Select Account Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
+              <p className="text-[13px] text-gray-500 mb-2">Select account</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-[13px]">{currentAccount.avatar || '👤'}</span>
+                  </div>
+                  <div>
+                    <div className="font-medium text-gray-900 text-[13px]">{currentAccount.name || `Account ${currentAccount.id || '1'}`}</div>
+                    <div className="text-[13px] text-gray-600">
+                      {currentAccount.address ? `${currentAccount.address.slice(0, 6)}...${currentAccount.address.slice(-4)}` : 'No address'}
+                    </div>
+                  </div>
+                </div>
+                <ChevronDown className="w-5 h-5 text-gray-600" />
               </div>
-              <div>
-                <div className="font-medium text-gray-900 text-[13px]">{currentAccount.name}</div>
-                <div className="text-[13px] text-gray-600">{currentAccount.address}</div>
+            </motion.div>
+
+            {/* Account Name Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.05 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <User className="w-5 h-5 text-gray-600" />
+                  <span className="font-medium text-gray-900 text-[13px]">Account name</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-700 text-[13px]">{accountName}</span>
+                  <button
+                    onClick={() => setShowChangeNameModal(true)}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <Edit className="w-4 h-4 text-gray-600" />
+                  </button>
+                </div>
               </div>
-            </div>
-            <ChevronDown className="w-5 h-5 text-gray-600" />
-          </div>
-        </motion.div>
+            </motion.div>
 
-        {/* Account Name Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.05 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <User className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900 text-[13px]">Account name</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-700 text-[13px]">{accountName}</span>
+            {/* Address Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Shield className="w-5 h-5 text-gray-600" />
+                  <span className="font-medium text-gray-900 text-[13px]">Address</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-700 text-[13px]">
+                    {currentAccount.address ? `${currentAccount.address.substring(0, 8)}...${currentAccount.address.substring(currentAccount.address.length - 5)}` : 'No address'}
+                  </span>
+                  <button
+                    onClick={handleCopyAddress}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <Copy className="w-4 h-4 text-gray-600" />
+                  </button>
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Wallet Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.15 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Key className="w-5 h-5 text-gray-600" />
+                  <span className="font-medium text-gray-900 text-[13px]">Wallet</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-700 text-[13px]">{wallet?.name || 'Unknown Wallet'}</span>
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Secret Recovery Phrase Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.2 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
               <button
-                onClick={() => setShowChangeNameModal(true)}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => onNavigate('recovery-phrase')}
+                className="flex items-center justify-between w-full"
               >
-                <Edit className="w-4 h-4 text-gray-600" />
+                <div className="flex items-center space-x-3">
+                  <Grid3X3 className="w-5 h-5 text-gray-600" />
+                  <span className="font-medium text-gray-900 text-[13px]">Secret recovery phrase</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
               </button>
-            </div>
-          </div>
-        </motion.div>
+            </motion.div>
 
-        {/* Address Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Shield className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900">Address</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-700">{currentAccount.fullAddress.substring(0, 8)}...{currentAccount.fullAddress.substring(currentAccount.fullAddress.length - 5)}</span>
+            {/* Private Key Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.25 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
               <button
-                onClick={handleCopyAddress}
-                className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                onClick={() => onNavigate('import-private-key')}
+                className="flex items-center justify-between w-full"
               >
-                <Copy className="w-4 h-4 text-gray-600" />
+                <div className="flex items-center space-x-3">
+                  <Grid3X3 className="w-5 h-5 text-gray-600" />
+                  <span className="font-medium text-gray-900 text-[13px]">Private key</span>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
               </button>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Wallet Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.15 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Key className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900">Wallet</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <span className="text-gray-700">{currentAccount.walletName}</span>
-              <ChevronRight className="w-5 h-5 text-gray-400" />
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Secret Recovery Phrase Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
-        >
-          <button
-            onClick={() => onNavigate('recovery-phrase')}
-            className="flex items-center justify-between w-full"
-          >
-            <div className="flex items-center space-x-3">
-              <Grid3X3 className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900">Secret recovery phrase</span>
-            </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
-          </button>
-        </motion.div>
-
-        {/* Private Key Card */}
-        <motion.div
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ duration: 0.3, delay: 0.25 }}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
-        >
-          <button
-            onClick={() => onNavigate('import-private-key')}
-            className="flex items-center justify-between w-full"
-          >
-            <div className="flex items-center space-x-3">
-              <Grid3X3 className="w-5 h-5 text-gray-600" />
-              <span className="font-medium text-gray-900">Private key</span>
-            </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
-          </button>
-        </motion.div>
+            </motion.div>
+          </>
+        )}
         </div>
 
         {/* Change Account Name Modal */}

@@ -651,10 +651,15 @@ export class WalletManager {
       return null;
     }
     
-    // First try to find an account that matches the wallet's address
-    let currentAccount = validAccounts.find(acc => acc.address === wallet.address);
+    // First try to find an account that matches the wallet's current network
+    let currentAccount = validAccounts.find(acc => acc.network === wallet.currentNetwork);
     
-    // If not found, use the first account but DON'T automatically update the wallet's address
+    // If not found, try to find an account that matches the wallet's address
+    if (!currentAccount) {
+      currentAccount = validAccounts.find(acc => acc.address === wallet.address);
+    }
+    
+    // If still not found, use the first account but DON'T automatically update the wallet's address
     // This prevents the wallet from switching to a new account when one is added
     if (!currentAccount && validAccounts.length > 0) {
       currentAccount = validAccounts[0];

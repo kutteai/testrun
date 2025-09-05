@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, MoreVertical, Bell } from 'lucide-react';
+import { useWallet } from '../../store/WalletContext';
+import { useTransaction } from '../../store/TransactionContext';
+import { storage } from '../../utils/storage-utils';
 import type { ScreenProps } from '../../types/index';
 
 interface Notification {
@@ -13,65 +16,118 @@ interface Notification {
 }
 
 const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+  const { wallet } = useWallet();
+  const { recentTransactions, pendingTransactions } = useTransaction();
   const [activeFilter, setActiveFilter] = useState<'all' | 'wallet' | 'web3'>('all');
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Sample notifications data (replace with real data later)
-  const sampleNotifications: Notification[] = [
-    {
-      id: '1',
-      title: 'New Dashboard, Smarter UX',
-      description: 'Paycio just got a sleek multichain upgrade. Discover what\'s new today.',
-      date: 'Aug 18',
-      type: 'product',
-      isRead: false
-    },
-    {
-      id: '2',
-      title: 'Sei is live on Paycio!',
-      description: 'Trade, explore dApps, and more—all from Paycio.',
-      date: 'Aug 18',
-      type: 'web3',
-      isRead: false
-    },
-    {
-      id: '3',
-      title: 'The Metal Card is here',
-      description: 'Earn 3% cashback, enjoy no FX fees, and spend your crypto anywhere Mastercard is accepted. Presale ends 11 August.',
-      date: 'Aug 18',
-      type: 'product',
-      isRead: false
-    },
-    {
-      id: '4',
-      title: 'Transaction Completed',
-      description: 'Your ETH transfer of 0.5 ETH has been successfully completed.',
-      date: 'Aug 17',
-      type: 'wallet',
-      isRead: true
-    },
-    {
-      id: '5',
-      title: 'New Token Added',
-      description: 'USDC has been added to your portfolio.',
-      date: 'Aug 16',
-      type: 'wallet',
-      isRead: true
+  // Generate real notifications from wallet data
+  const generateNotifications = (): Notification[] => {
+    const generatedNotifications: Notification[] = [];
+    
+    // Add transaction notifications
+    recentTransactions.slice(0, 3).forEach((tx, index) => {
+      generatedNotifications.push({
+        id: `tx-${tx.hash}`,
+        title: tx.status === 'confirmed' ? 'Transaction Completed' : 'Transaction Pending',
+        description: `Transaction ${tx.status === 'confirmed' ? 'completed' : 'pending'} - ${tx.value || '0'} ${tx.network}`,
+        date: new Date(tx.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        type: 'wallet',
+        isRead: index > 0 // Mark older transactions as read
+      });
+    });
+
+    // Add pending transaction notifications
+    pendingTransactions.forEach((tx) => {
+      generatedNotifications.push({
+        id: `pending-${tx.hash}`,
+        title: 'Transaction Pending',
+        description: `Your ${tx.value || '0'} ${tx.network} transaction is pending confirmation`,
+        date: new Date(tx.timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        type: 'wallet',
+        isRead: false
+      });
+    });
+
+    // Add wallet-specific notifications
+    if (wallet) {
+      generatedNotifications.push({
+        id: 'wallet-unlocked',
+        title: 'Wallet Unlocked',
+        description: `Your wallet "${wallet.name}" has been successfully unlocked`,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        type: 'wallet',
+        isRead: true
+      });
     }
-  ];
+
+    // Add product notifications (these can be stored in storage for persistence)
+    const productNotifications: Notification[] = [
+      {
+        id: 'product-update-1',
+        title: 'New Dashboard, Smarter UX',
+        description: 'Paycio just got a sleek multichain upgrade. Discover what\'s new today.',
+        date: 'Aug 18',
+        type: 'product',
+        isRead: false
+      },
+      {
+        id: 'product-update-2',
+        title: 'Enhanced Security Features',
+        description: 'New security features have been added to protect your assets.',
+        date: 'Aug 15',
+        type: 'product',
+        isRead: true
+      }
+    ];
+
+    generatedNotifications.push(...productNotifications);
+
+    return generatedNotifications.sort((a, b) => {
+      // Sort by date, newest first
+      const dateA = new Date(a.date);
+      const dateB = new Date(b.date);
+      return dateB.getTime() - dateA.getTime();
+    });
+  };
 
   useEffect(() => {
-    // Simulate loading notifications
     const loadNotifications = async () => {
       setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setNotifications(sampleNotifications);
-      setIsLoading(false);
+      
+      try {
+        // Load stored notifications from storage
+        const storedNotifications = await storage.get(['notifications']);
+        let allNotifications = storedNotifications.notifications || [];
+        
+        // Generate real-time notifications
+        const realTimeNotifications = generateNotifications();
+        
+        // Merge stored and real-time notifications, avoiding duplicates
+        const existingIds = new Set(allNotifications.map(n => n.id));
+        const newNotifications = realTimeNotifications.filter(n => !existingIds.has(n.id));
+        
+        allNotifications = [...newNotifications, ...allNotifications];
+        
+        // Limit to 20 most recent notifications
+        allNotifications = allNotifications.slice(0, 20);
+        
+        setNotifications(allNotifications);
+        
+        // Save updated notifications to storage
+        await storage.set({ notifications: allNotifications });
+      } catch (error) {
+        console.error('Failed to load notifications:', error);
+        // Fallback to generated notifications only
+        setNotifications(generateNotifications());
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     loadNotifications();
-  }, []);
+  }, [wallet, recentTransactions, pendingTransactions]);
 
   const filteredNotifications = notifications.filter(notification => {
     if (activeFilter === 'all') return true;
@@ -80,15 +136,31 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const handleMarkAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  const handleMarkAllAsRead = async () => {
+    const updatedNotifications = notifications.map(n => ({ ...n, isRead: true }));
+    setNotifications(updatedNotifications);
+    
+    // Save to storage
+    try {
+      await storage.set({ notifications: updatedNotifications });
+    } catch (error) {
+      console.error('Failed to save notifications:', error);
+    }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
+  const handleNotificationClick = async (notification: Notification) => {
     // Mark as read when clicked
-    setNotifications(prev => 
-      prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n)
+    const updatedNotifications = notifications.map(n => 
+      n.id === notification.id ? { ...n, isRead: true } : n
     );
+    setNotifications(updatedNotifications);
+    
+    // Save to storage
+    try {
+      await storage.set({ notifications: updatedNotifications });
+    } catch (error) {
+      console.error('Failed to save notifications:', error);
+    }
   };
 
   return (

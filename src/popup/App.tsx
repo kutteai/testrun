@@ -31,6 +31,7 @@ import TransactionsScreen from '../components/screens/TransactionsScreen';
 import NotificationsScreen from '../components/screens/NotificationsScreen';
 import NotificationSettingsScreen from '../components/screens/NotificationSettingsScreen';
 import EnableNotificationsScreen from '../components/screens/EnableNotificationsScreen';
+import AboutScreen from '../components/screens/AboutScreen';
 import TransactionHistoryScreen from '../components/screens/TransactionHistoryScreen';
 import BitcoinScreen from '../components/screens/BitcoinScreen';
 import SolanaScreen from '../components/screens/SolanaScreen';
@@ -194,14 +195,14 @@ const App: React.FC = () => {
         return <WalletSecurityScreen onNavigate={handleNavigate} />;
       case 'more':
         return <MoreScreen onNavigate={handleNavigate} />;
+      case 'about':
+        return <AboutScreen onNavigate={handleNavigate} />;
       case 'account-details':
         return <AccountDetailsScreen onNavigate={handleNavigate} />;
       case 'verify':
         return <VerifySeedScreen onNavigate={handleNavigate} />;
       case 'dashboard':
         return <DashboardScreen onNavigate={handleNavigate} />;
-      case 'send':
-        return <SendScreen onNavigate={handleNavigate} />;
       case 'receive':
         return <ReceiveScreen onNavigate={handleNavigate} />;
       case 'settings':
@@ -244,6 +245,18 @@ const App: React.FC = () => {
         return <TonScreen onNavigate={handleNavigate} />;
       case 'xrp':
         return <XrpScreen onNavigate={handleNavigate} />;
+      case 'manage-networks':
+        return <ManageNetworksScreen onNavigate={handleNavigate} />;
+      case 'add-custom-network':
+        return <AddCustomNetworkScreen onNavigate={handleNavigate} />;
+      case 'import-google':
+        return <div className="p-6 text-center">Import Google - Coming Soon</div>;
+      case 'address-book':
+        return <div className="p-6 text-center">Address Book - Coming Soon</div>;
+      case 'backups':
+        return <div className="p-6 text-center">Backups - Coming Soon</div>;
+      case 'expand-view':
+        return <div className="p-6 text-center">Expand View - Coming Soon</div>;
 
       case 'nfts':
         return <NFTsScreen onNavigate={handleNavigate} />;
@@ -287,7 +300,11 @@ const App: React.FC = () => {
       'send',
       'receive',
       'accounts',
-      'settings'
+      'settings',
+      'tokens',
+      'nfts',
+      'portfolio',
+      'transactions'
     ];
     return screensWithNavigation.includes(currentScreen);
   };
