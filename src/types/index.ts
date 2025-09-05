@@ -61,6 +61,8 @@ export type ScreenId =
   | 'manage-networks'
   | 'add-custom-network'
   | 'expand-view'
+  | 'support'
+  | 'lock-paycio'
   | 'loading'
   | 'error';
 
@@ -251,6 +253,8 @@ export interface WalletContextType {
   getWalletAccounts: () => Promise<any[]>;
   getPassword: () => Promise<string | null>; // Add missing getPassword method
   decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
+  getAccountPrivateKey: (accountId: string, password: string) => Promise<string | null>; // Add new function
+  getAccountSeedPhrase: (accountId: string, password: string) => Promise<string | null>; // Add new function
   setGlobalPassword: (password: string) => void;
   setGlobalPasswordAndHash: (password: string) => Promise<void>;
   clearError: () => void;

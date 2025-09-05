@@ -1,7 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  X,
   Bell,
   User,
   Settings,
@@ -76,49 +75,34 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-40">
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
+    <div className="fixed inset-0 z-40 pointer-events-none">
+      {/* Backdrop - invisible but captures clicks to close */}
+      <div
         onClick={() => onNavigate('dashboard')}
-        className="absolute inset-0 bg-black/20"
+        className="absolute inset-0 pointer-events-auto"
       />
       
-      {/* Menu Panel */}
+      {/* Dropdown Menu - positioned to hover over dashboard */}
       <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'tween', duration: 0.2 }}
-        className="absolute top-0 right-0 w-1/2 h-full bg-white flex flex-col z-50 dashboard-typography shadow-2xl"
+        initial={{ opacity: 0, scale: 0.95, y: -10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+        transition={{ duration: 0.15, ease: "easeOut" }}
+        className="absolute top-16 right-4 w-64 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 pointer-events-auto"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <div className="flex-1 text-center text-xl font-bold text-gray-900">Options</div>
-          <button
-            onClick={() => onNavigate('dashboard')}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
-          </button>
-        </div>
-
         {/* Menu Items */}
-        <div className="flex-1 p-6 space-y-2">
+        <div className="py-2">
           {menuItems.map((item, index) => (
             <motion.button
               key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: index * 0.05 }}
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.1, delay: index * 0.02 }}
               onClick={() => handleMenuItemClick(item.screen)}
-              className="flex items-center w-full p-4 rounded-lg hover:bg-gray-100 transition-colors space-x-4"
+              className="flex items-center w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors space-x-3 group"
             >
-              <item.icon className="w-5 h-5 text-gray-600" />
-              <span className="text-lg font-medium text-gray-800">{item.label}</span>
+              <item.icon className="w-5 h-5 text-gray-600 group-hover:text-[#180CB2] transition-colors" />
+              <span className="text-[13px] font-medium text-gray-800 group-hover:text-[#180CB2] transition-colors">{item.label}</span>
             </motion.button>
           ))}
         </div>

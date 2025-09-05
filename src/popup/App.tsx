@@ -257,6 +257,10 @@ const App: React.FC = () => {
         return <div className="p-6 text-center">Backups - Coming Soon</div>;
       case 'expand-view':
         return <div className="p-6 text-center">Expand View - Coming Soon</div>;
+      case 'support':
+        return <div className="p-6 text-center">Support - Coming Soon</div>;
+      case 'lock-paycio':
+        return <div className="p-6 text-center">Locking wallet...</div>;
 
       case 'nfts':
         return <NFTsScreen onNavigate={handleNavigate} />;

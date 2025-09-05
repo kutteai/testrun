@@ -94,6 +94,20 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     });
   }, []);
 
+  // Listen for wallet changes to refresh data
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in BuySellScreen:', event.detail);
+      // BuySellScreen doesn't need to refresh data on wallet change
+      // as it only shows price data and transaction forms
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, []);
+
   const handleAmountChange = (amount: string, type: 'spend' | 'buy') => {
     if (type === 'spend') {
       setSpendAmount(amount);

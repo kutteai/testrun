@@ -5,6 +5,7 @@ import { useNetwork } from '../../store/NetworkContext';
 import { usePortfolio } from '../../store/PortfolioContext';
 import { toast } from 'react-hot-toast';
 import { ChevronLeft, Search, Plus, MoreVertical, Eye, EyeOff, Pin, User, Key } from 'lucide-react';
+import { navigateWithHistory, goBackWithHistory, shouldShowBackButton, getDefaultBackTarget } from '../../utils/navigation-utils';
 
 interface ScreenProps {
   onNavigate: (screen: string) => void;
@@ -282,7 +283,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-4 py-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={() => goBackWithHistory(onNavigate)}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ChevronLeft className="w-6 h-6" />
@@ -398,7 +399,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       {/* Add Account Button */}
       <div className="px-4 pb-4">
         <button
-          onClick={() => setShowCreateAccountModal(true)}
+          onClick={() => navigateWithHistory('add-account', onNavigate)}
           className="w-full py-4 bg-[#180CB2] text-white rounded-xl font-semibold hover:bg-[#140a8f] transition-colors flex items-center justify-center space-x-2"
         >
           <Plus className="w-5 h-5" />

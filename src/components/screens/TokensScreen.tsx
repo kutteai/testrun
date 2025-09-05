@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { detectTokensWithBalances, getAllPopularTokens, getNetworkRPCUrl, getTokenPrice, type TokenBalance } from '../../utils/token-balance-utils';
 import { storage } from '../../utils/storage-utils';
+import { handleError, ErrorCodes } from '../../utils/error-handler';
 
 interface Token {
   id: string;
@@ -29,9 +30,7 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
   const { setSelectedToken } = useSend();
   
-  // Debug logging
-  console.log('TokensScreen rendered, onNavigate:', !!onNavigate);
-  console.log('TokensScreen wallet:', wallet);
+  // Component state
   const [tokens, setTokens] = useState<Token[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddingToken, setIsAddingToken] = useState(false);
@@ -219,13 +218,12 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   // Load and fetch tokens
   useEffect(() => {
-    console.log('TokensScreen useEffect running');
     const loadAndFetchTokens = async () => {
       try {
         // Load custom tokens from storage
         const result = await storage.get(['customTokens']);
         const savedCustomTokens = result.customTokens || [];
-        console.log('📦 Loaded custom tokens from storage:', savedCustomTokens.length);
+        // Loaded custom tokens from storage
         
         // Combine default tokens with custom tokens
         const defaultTokens = await getDefaultTokens();
@@ -236,7 +234,7 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
           if (currentAccount && currentAccount.address) {
             const accountAddress = currentAccount.address;
-            console.log('🔍 Auto-detecting tokens for account:', accountAddress);
+            // Auto-detecting tokens for account
             
             try {
               // Get RPC URL for current network
@@ -281,11 +279,14 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               // Combine auto-detected tokens with discovery tokens and saved custom tokens
               const finalTokens = [...autoDetectedTokens, ...discoveryTokens, ...savedCustomTokens];
               setTokens(finalTokens);
-              console.log('📋 Final token list:', finalTokens.length, 'tokens');
+              // Final token list loaded
               
 
             } catch (error) {
-              console.error('Error detecting tokens:', error);
+              handleError(error, {
+                context: { operation: 'detectTokens', screen: 'TokensScreen' },
+                showToast: false
+              });
               setTokens(allTokens);
             }
           } else {
@@ -295,7 +296,10 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           setTokens(allTokens);
         }
       } catch (error) {
-        console.error('Error loading tokens:', error);
+        handleError(error, {
+          context: { operation: 'loadTokens', screen: 'TokensScreen' },
+          showToast: false
+        });
         const defaultTokens = await getDefaultTokens();
         setTokens(defaultTokens);
       }
@@ -303,6 +307,20 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
     loadAndFetchTokens();
   }, [wallet]);
+
+  // Listen for wallet changes to refresh tokens
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in TokensScreen:', event.detail);
+      // TokensScreen will automatically refresh when wallet state changes
+      // since the main useEffect depends on wallet
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, []);
 
   // Save custom tokens to storage whenever tokens change
   useEffect(() => {

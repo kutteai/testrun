@@ -20,6 +20,7 @@ import { getTransactionHistory, getTokenTransactions } from '../../utils/web3-ut
 import toast from 'react-hot-toast';
 import type { ScreenProps, Transaction } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
+import { handleError, ErrorCodes, createError } from '../../utils/error-handler';
 
 // Import PNG icons
 import sendIcon from '../../assets/send.png';
@@ -73,45 +74,59 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     const fetchData = async () => {
       if (wallet) {
         try {
-          // Get UCPI ID from storage (non-blocking)
-          storage.get(['ucpiId', 'ucpiSkipped']).then(result => {
-            if (result.ucpiId) {
-              setUcpiId(result.ucpiId);
+          setIsLoading(true);
+          
+          // Parallel loading of critical data
+          const [walletAccounts, currentAccount, ucpiResult] = await Promise.allSettled([
+            getWalletAccounts(),
+            getCurrentAccount(),
+            storage.get(['ucpiId', 'ucpiSkipped'])
+          ]);
+          
+          // Handle accounts data
+          if (walletAccounts.status === 'fulfilled') {
+            setAccounts(walletAccounts.value);
+            
+            // Set current account if available
+            if (walletAccounts.value.length > 0) {
+              const accountToSet = currentAccount.status === 'fulfilled' 
+                ? currentAccount.value || walletAccounts.value[0]
+                : walletAccounts.value[0];
+              setSelectedAccount(accountToSet);
             } else {
-              setUcpiId('');
+              setSelectedAccount(null);
             }
-          }).catch(() => setUcpiId(''));
-          
-          // Load accounts from wallet
-          const walletAccounts = await getWalletAccounts();
-          setAccounts(walletAccounts);
-          
-          // Set current account if available
-          if (walletAccounts.length > 0) {
-            const currentAccount = await getCurrentAccount();
-            // Always set the account - either current account or first available
-            const accountToSet = currentAccount || walletAccounts[0];
-            setSelectedAccount(accountToSet);
-          } else {
-            setSelectedAccount(null);
           }
           
-          // Show UI immediately after accounts are loaded
+          // Handle UCPI ID
+          if (ucpiResult.status === 'fulfilled' && ucpiResult.value.ucpiId) {
+            setUcpiId(ucpiResult.value.ucpiId);
+          } else {
+            setUcpiId('');
+          }
+          
+          // Show UI immediately after critical data is loaded
           setIsLoading(false);
           
           // Update portfolio in background (non-blocking)
           updatePortfolio().catch(error => {
-            console.error('Portfolio update failed:', error);
+            handleError(error, {
+              context: { operation: 'updatePortfolio', screen: 'DashboardScreen' },
+              showToast: false // Don't show toast for background operations
+            });
           });
         } catch (error) {
-          console.error('Error fetching data:', error);
+          handleError(error, {
+            context: { operation: 'fetchDashboardData', screen: 'DashboardScreen' },
+            showToast: true
+          });
           setIsLoading(false);
         }
       }
     };
 
     fetchData();
-  }, [wallet, updatePortfolio, getWalletAccounts, getCurrentAccount, selectedAccount]);
+  }, [wallet, updatePortfolio, getWalletAccounts, getCurrentAccount]);
 
   // Update crypto assets from portfolio data
   useEffect(() => {
@@ -566,15 +581,53 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         animate={{ opacity: 1 }}
         className="h-full flex flex-col bg-gray-50"
       >
-        <div className="bg-[#180CB2] text-white px-6 py-4">
-          <div className="flex items-center justify-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+        {/* Header Skeleton */}
+        <div className="bg-[#180CB2] px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="h-6 w-6 bg-white/20 rounded animate-pulse"></div>
+            <div className="h-6 w-32 bg-white/20 rounded animate-pulse"></div>
+            <div className="h-6 w-6 bg-white/20 rounded animate-pulse"></div>
           </div>
         </div>
-        <div className="flex-1 bg-white rounded-t-3xl px-6 py-6 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#180CB2] mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading wallet data...</p>
+
+        {/* Main Content Skeleton */}
+        <div className="flex-1 bg-white rounded-t-3xl px-6 py-6">
+          {/* Balance Section Skeleton */}
+          <div className="text-center mb-8">
+            <div className="h-12 w-48 bg-gray-200 rounded animate-pulse mx-auto mb-4"></div>
+            <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mx-auto"></div>
+          </div>
+
+          {/* Action Buttons Skeleton */}
+          <div className="mb-6">
+            <div className="flex space-x-4">
+              <div className="flex-1 h-16 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="flex-1 h-16 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="flex-1 h-16 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="flex-1 h-16 bg-gray-200 rounded-xl animate-pulse"></div>
+            </div>
+          </div>
+
+          {/* Assets Section Skeleton */}
+          <div className="mb-6">
+            <div className="h-6 w-24 bg-gray-200 rounded animate-pulse mb-4"></div>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                  <div className="flex items-center space-x-3">
+                    <div className="h-10 w-10 bg-gray-200 rounded-full animate-pulse"></div>
+                    <div>
+                      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse mb-2"></div>
+                      <div className="h-3 w-16 bg-gray-200 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="h-4 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
+                    <div className="h-3 w-12 bg-gray-200 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </motion.div>
@@ -706,7 +759,10 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 </div>
               )}
             </div>
-            <button className="p-2 hover:bg-white/10 rounded-full transition-colors">
+            <button 
+              onClick={() => onNavigate('accounts')}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
               <Search className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <button 

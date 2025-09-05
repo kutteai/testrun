@@ -6,6 +6,7 @@ import { bitcoinUtils, BitcoinWallet, AddressType, BitcoinTransaction } from '..
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
+import { handleError, ErrorCodes } from '../../utils/error-handler';
 
 const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -44,7 +45,10 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
-      console.error('Failed to load Bitcoin wallets:', error);
+      handleError(error, {
+        context: { operation: 'loadBitcoinWallets', screen: 'BitcoinScreen' },
+        showToast: false
+      });
     }
   };
 
@@ -54,7 +58,10 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       await storage.set({ bitcoinWallets: wallets });
       setBitcoinWallets(wallets);
     } catch (error) {
-      console.error('Failed to save Bitcoin wallets:', error);
+      handleError(error, {
+        context: { operation: 'saveBitcoinWallets', screen: 'BitcoinScreen' },
+        showToast: false
+      });
     }
   };
 
@@ -66,7 +73,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
     setIsLoading(true);
     try {
-      const newWallet = bitcoinUtils.generateWallet(newWalletName, selectedNetwork, selectedAddressType);
+      const newWallet = await bitcoinUtils.generateWallet('', newWalletName, selectedNetwork, selectedAddressType);
       const updatedWallets = [...bitcoinWallets, newWallet];
       
       setBitcoinWallets(updatedWallets);
@@ -77,8 +84,10 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setNewWalletName('');
       toast.success('Bitcoin wallet created successfully!');
     } catch (error) {
-      console.error('Error creating Bitcoin wallet:', error);
-      toast.error('Failed to create Bitcoin wallet');
+      handleError(error, {
+        context: { operation: 'createBitcoinWallet', screen: 'BitcoinScreen' },
+        showToast: true
+      });
     } finally {
       setIsLoading(false);
     }
@@ -89,7 +98,10 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const txs = await bitcoinUtils.getTransactions(address, network);
       setTransactions(txs);
     } catch (error) {
-      console.error('Error loading transactions:', error);
+      handleError(error, {
+        context: { operation: 'loadTransactions', screen: 'BitcoinScreen' },
+        showToast: false
+      });
     }
   };
 
@@ -111,8 +123,10 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       await loadTransactions(selectedWallet.address, selectedWallet.network);
       toast.success('Wallet refreshed successfully');
     } catch (error) {
-      console.error('Error refreshing wallet:', error);
-      toast.error('Failed to refresh wallet');
+      handleError(error, {
+        context: { operation: 'refreshWallet', screen: 'BitcoinScreen' },
+        showToast: true
+      });
     } finally {
       setIsRefreshing(false);
     }
@@ -151,7 +165,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const getAddressTypeLabel = (type: AddressType) => {
     switch (type) {
       case AddressType.LEGACY: return 'Legacy';
-      case AddressType.SEGWIT: return 'SegWit';
+      case AddressType.NATIVE_SEGWIT: return 'SegWit';
       case AddressType.NATIVE_SEGWIT: return 'Native SegWit';
       default: return 'Unknown';
     }
@@ -160,7 +174,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const getAddressTypeColor = (type: AddressType) => {
     switch (type) {
       case AddressType.LEGACY: return 'from-gray-500 to-gray-600';
-      case AddressType.SEGWIT: return 'from-blue-500 to-blue-600';
+      case AddressType.NATIVE_SEGWIT: return 'from-blue-500 to-blue-600';
       case AddressType.NATIVE_SEGWIT: return 'from-green-500 to-green-600';
       default: return 'from-gray-500 to-gray-600';
     }
@@ -271,14 +285,14 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-white">
-                        {showBalance ? formatSatoshi(btcWallet.balance) : '••••••••'} BTC
+                        {showBalance ? formatSatoshi(parseFloat(btcWallet.balance)) : '••••••••'} BTC
                       </p>
                       <p className="text-slate-400 text-sm">
-                        {showBalance ? formatUSD(btcWallet.balance / 100000000) : '••••••••'}
+                        {showBalance ? formatUSD(parseFloat(btcWallet.balance) / 100000000) : '••••••••'}
                       </p>
-                      {btcWallet.unconfirmedBalance > 0 && (
+                      {parseFloat(btcWallet.unconfirmedBalance) > 0 && (
                         <p className="text-yellow-400 text-xs">
-                          +{formatSatoshi(btcWallet.unconfirmedBalance)} pending
+                          +{formatSatoshi(parseFloat(btcWallet.unconfirmedBalance))} pending
                         </p>
                       )}
                     </div>
@@ -473,7 +487,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-white"
                 >
                   <option value={AddressType.NATIVE_SEGWIT}>Native SegWit (Recommended)</option>
-                  <option value={AddressType.SEGWIT}>SegWit</option>
+                  <option value={AddressType.NATIVE_SEGWIT}>SegWit</option>
                   <option value={AddressType.LEGACY}>Legacy</option>
                 </select>
               </div>

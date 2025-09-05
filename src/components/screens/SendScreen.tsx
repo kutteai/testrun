@@ -13,6 +13,7 @@ import { useNetwork } from '../../store/NetworkContext';
 import { storage } from '../../utils/storage-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { handleError, ErrorCodes } from '../../utils/error-handler';
 
 const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork } = useWallet();
@@ -49,8 +50,10 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         const storedContacts = await storage.get('contacts');
         setContacts(storedContacts?.contacts || []);
       } catch (error) {
-        console.error('Failed to load data:', error);
-        toast.error('Failed to load accounts');
+        handleError(error, {
+          context: { operation: 'loadSendScreenData', screen: 'SendScreen' },
+          showToast: true
+        });
       } finally {
         setIsLoading(false);
       }
@@ -58,6 +61,30 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     
     loadData();
   }, [wallet, getWalletAccounts, getCurrentAccount]);
+
+  // Listen for wallet changes to refresh data
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in SendScreen:', event.detail);
+      try {
+        const walletAccounts = await getWalletAccounts();
+        setAccounts(walletAccounts);
+        
+        const current = await getCurrentAccount();
+        setFromAccount(current || walletAccounts[0] || null);
+      } catch (error) {
+        handleError(error, {
+          context: { operation: 'refreshAccountsAfterWalletChange', screen: 'SendScreen' },
+          showToast: false // Don't show toast for background refresh
+        });
+      }
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, [getWalletAccounts, getCurrentAccount]);
 
   // Set currency based on current network
   useEffect(() => {
@@ -252,8 +279,11 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="text-lg font-bold text-gray-900 bg-transparent border-none outline-none w-24"
+                  aria-label="Amount to send"
+                  aria-describedby="amount-description"
+                  inputMode="decimal"
                 />
-                <div className="text-[13px] text-gray-600">
+                <div id="amount-description" className="text-[13px] text-gray-600">
                   ${amount ? (parseFloat(amount) * (portfolioValue?.assets?.[0]?.usdValue || 0)).toFixed(2) : '0.00'}
                 </div>
               </div>
@@ -292,15 +322,22 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               value={toAddress}
               onChange={(e) => handleAddressChange(e.target.value)}
               className="flex-1 bg-transparent border-none outline-none text-gray-900 placeholder-gray-500"
+              aria-label="Recipient address"
+              aria-describedby="address-validation"
+              aria-invalid={!isAddressValid && toAddress.length > 0}
             />
-            <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+            <button 
+              className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              aria-label="Scan QR code"
+              title="Scan QR code"
+            >
               <QrCode className="w-5 h-5 text-gray-600" />
             </button>
           </div>
           
           {/* Address Validation */}
           {toAddress && (
-            <div className={`mt-2 p-3 rounded-lg ${
+            <div id="address-validation" className={`mt-2 p-3 rounded-lg ${
               isAddressValid ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'
             }`}>
               <div className="flex items-center space-x-2">

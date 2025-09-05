@@ -7,6 +7,7 @@ import type { WalletData } from '../types/index';
 
 export interface WalletAccount {
   id: string;
+  name: string;
   address: string;
   privateKey: string;
   publicKey: string;
@@ -15,6 +16,8 @@ export interface WalletAccount {
   balance: string;
   nonce: number;
   createdAt: number;
+  encryptedSeedPhrase: string; // Each account has its own seed phrase
+  isActive: boolean; // Track which account is currently active
 }
 
 // Internal wallet data structure for storage
@@ -180,6 +183,7 @@ export class WalletManager {
         
         const account: WalletAccount = {
           id: `${Date.now()}-${i}`,
+          name: `Account ${i + 1}`,
           address: walletData.address,
           privateKey: walletData.privateKey,
           publicKey: walletData.publicKey,
@@ -187,8 +191,10 @@ export class WalletManager {
           network: network,
           balance: '0',
           nonce: 0,
-      createdAt: Date.now()
-    };
+          createdAt: Date.now(),
+          encryptedSeedPhrase: '', // Will be set by the wallet's encrypted seed phrase
+          isActive: i === 0 // First account is active
+        };
 
         accounts.push(account);
       } catch (error) {
@@ -299,6 +305,110 @@ export class WalletManager {
     return undefined;
   }
 
+  // Get account private key securely
+  async getAccountPrivateKey(walletId: string, accountId: string, password: string): Promise<string | null> {
+    try {
+      const wallet = await this.getInternalWallet(walletId);
+      if (!wallet) {
+        throw new Error('Wallet not found');
+      }
+
+      // Find the account
+      const account = wallet.accounts.find(acc => acc.id === accountId);
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      // Verify password by decrypting the account's seed phrase
+      const seedPhrase = await decryptData(account.encryptedSeedPhrase, password);
+      if (!seedPhrase) {
+        throw new Error('Invalid password');
+      }
+
+      return account.privateKey;
+    } catch (error) {
+      console.error('Failed to get account private key:', error);
+      return null;
+    }
+  }
+
+  // Get account seed phrase securely
+  async getAccountSeedPhrase(walletId: string, accountId: string, password: string): Promise<string | null> {
+    try {
+      const wallet = await this.getInternalWallet(walletId);
+      if (!wallet) {
+        throw new Error('Wallet not found');
+      }
+
+      // Find the account
+      const account = wallet.accounts.find(acc => acc.id === accountId);
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      // Decrypt the account's seed phrase
+      const seedPhrase = await decryptData(account.encryptedSeedPhrase, password);
+      if (!seedPhrase) {
+        throw new Error('Invalid password');
+      }
+
+      return seedPhrase;
+    } catch (error) {
+      console.error('Failed to get account seed phrase:', error);
+      return null;
+    }
+  }
+
+  // Switch to a specific account
+  async switchToAccount(walletId: string, accountId: string): Promise<void> {
+    try {
+      const wallet = await this.getInternalWallet(walletId);
+      if (!wallet) {
+        throw new Error('Wallet not found');
+      }
+
+      // Find the account
+      const account = wallet.accounts.find(acc => acc.id === accountId);
+      if (!account) {
+        throw new Error('Account not found');
+      }
+
+      // Deactivate all accounts
+      wallet.accounts.forEach(acc => {
+        acc.isActive = false;
+      });
+
+      // Activate the selected account
+      account.isActive = true;
+
+      // Update wallet address to match the active account
+      wallet.address = account.address;
+      wallet.currentNetwork = account.network;
+
+      await this.saveWallets();
+      console.log(`✅ Switched to account: ${account.name} (${account.address})`);
+    } catch (error) {
+      console.error('Failed to switch account:', error);
+      throw error;
+    }
+  }
+
+  // Get active account for a wallet
+  async getActiveAccount(walletId: string): Promise<WalletAccount | null> {
+    try {
+      const wallet = await this.getInternalWallet(walletId);
+      if (!wallet) {
+        return null;
+      }
+
+      const activeAccount = wallet.accounts.find(acc => acc.isActive);
+      return activeAccount || null;
+    } catch (error) {
+      console.error('Failed to get active account:', error);
+      return null;
+    }
+  }
+
   // Add new account to wallet
   async addAccount(walletId: string, password: string): Promise<WalletAccount> {
     const wallet = await this.getInternalWallet(walletId);
@@ -319,6 +429,7 @@ export class WalletManager {
     
     const newAccount: WalletAccount = {
       id: `${Date.now()}-${newAccountIndex}`,
+      name: `Account ${newAccountIndex + 1}`,
       address: walletData.address,
       privateKey: walletData.privateKey,
       publicKey: walletData.publicKey,
@@ -326,7 +437,9 @@ export class WalletManager {
       network: wallet.network,
       balance: '0',
       nonce: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      encryptedSeedPhrase: '', // This will be set by the calling function
+      isActive: false
     };
 
     wallet.accounts.push(newAccount);
@@ -651,20 +764,24 @@ export class WalletManager {
       return null;
     }
     
-    // First try to find an account that matches the wallet's current network
-    let currentAccount = validAccounts.find(acc => acc.network === wallet.currentNetwork);
+    // First try to find the active account
+    let currentAccount = validAccounts.find(acc => acc.isActive);
     
-    // If not found, try to find an account that matches the wallet's address
+    // If no active account, try to find an account that matches the wallet's current network
+    if (!currentAccount) {
+      currentAccount = validAccounts.find(acc => acc.network === wallet.currentNetwork);
+    }
+    
+    // If still not found, try to find an account that matches the wallet's address
     if (!currentAccount) {
       currentAccount = validAccounts.find(acc => acc.address === wallet.address);
     }
     
-    // If still not found, use the first account but DON'T automatically update the wallet's address
-    // This prevents the wallet from switching to a new account when one is added
+    // If still not found, use the first account and make it active
     if (!currentAccount && validAccounts.length > 0) {
       currentAccount = validAccounts[0];
-      console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account (without updating wallet address):', currentAccount.address);
-      // Note: We don't update wallet.address here to avoid switching to new accounts automatically
+      currentAccount.isActive = true;
+      console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account and making it active:', currentAccount.address);
     }
     
     console.log('🔍 WalletManager.getCurrentAccountForWallet: Current account:', currentAccount ? {
@@ -738,6 +855,7 @@ export class WalletManager {
       
       const newAccount: WalletAccount = {
         id: `${Date.now()}-${newAccountIndex}`,
+        name: `Account ${newAccountIndex + 1}`,
         address: walletData.address,
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
@@ -745,7 +863,9 @@ export class WalletManager {
         network: currentNetwork,
         balance: '0',
         nonce: 0,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        encryptedSeedPhrase: '', // This will be set by the calling function
+        isActive: false
       };
 
       wallet.accounts.push(newAccount);

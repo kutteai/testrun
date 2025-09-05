@@ -1852,6 +1852,38 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     }
   };
 
+  // Get account private key securely
+  const getAccountPrivateKey = async (accountId: string, password: string): Promise<string | null> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      return await walletManager.getAccountPrivateKey(state.wallet.id, accountId, password);
+    } catch (error) {
+      console.error('Failed to get account private key:', error);
+      return null;
+    }
+  };
+
+  // Get account seed phrase securely
+  const getAccountSeedPhrase = async (accountId: string, password: string): Promise<string | null> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      return await walletManager.getAccountSeedPhrase(state.wallet.id, accountId, password);
+    } catch (error) {
+      console.error('Failed to get account seed phrase:', error);
+      return null;
+    }
+  };
+
   const value: WalletContextType = {
     ...state,
     createWallet,
@@ -1871,6 +1903,8 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     getWalletAccounts,
     getPassword, // Add missing getPassword method
     decryptPrivateKey, // Add missing decryptPrivateKey method
+    getAccountPrivateKey, // Add new function
+    getAccountSeedPhrase, // Add new function
     setGlobalPassword,
     setGlobalPasswordAndHash,
     clearError,

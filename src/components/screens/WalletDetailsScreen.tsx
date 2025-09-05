@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   ArrowLeft, 
@@ -10,33 +10,49 @@ import {
   EyeOff,
   Copy
 } from 'lucide-react';
+import { useWallet } from '../../store/WalletContext';
+import { usePortfolio } from '../../store/PortfolioContext';
+import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
+import { navigateWithHistory, goBackWithHistory } from '../../utils/navigation-utils';
 
 const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+  const { wallet, getWalletAccounts, getCurrentAccount } = useWallet();
+  const { portfolioValue } = usePortfolio();
   const [isBalanceVisible, setIsBalanceVisible] = useState(true);
   const [showSecretPhraseModal, setShowSecretPhraseModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [password, setPassword] = useState('');
   const [showSecretPhrase, setShowSecretPhrase] = useState(false);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [currentAccount, setCurrentAccount] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const accounts = [
-    {
-      id: '1',
-      name: 'Account 1',
-      address: 'af45g3.....3453tr',
-      avatar: '👤',
-      balance: '$0.00',
-      isHighlighted: true
-    },
-    {
-      id: '2',
-      name: 'Account 2',
-      address: '56eyr3.....fh5867',
-      avatar: '👤',
-      balance: '$0.00',
-      isHighlighted: false
-    }
-  ];
+  // Load real wallet data
+  useEffect(() => {
+    const loadWalletData = async () => {
+      if (!wallet) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const walletAccounts = await getWalletAccounts();
+        setAccounts(walletAccounts);
+        
+        const current = await getCurrentAccount();
+        setCurrentAccount(current);
+      } catch (error) {
+        console.error('Failed to load wallet data:', error);
+        toast.error('Failed to load wallet details');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadWalletData();
+  }, [wallet, getWalletAccounts, getCurrentAccount]);
 
   const handleViewSecretPhrase = () => {
     setShowPasswordModal(true);
@@ -52,7 +68,7 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('accounts')}
+            onClick={() => goBackWithHistory(onNavigate)}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -71,15 +87,24 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
       {/* Main Content */}
       <div className="flex-1 bg-white px-6 py-6">
-        {/* Total Balance */}
-        <motion.div
+        {isLoading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#180CB2] mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading wallet details...</p>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Total Balance */}
+            <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ duration: 0.5 }}
           className="text-center mb-8"
         >
           <div className="text-4xl font-bold text-gray-900 mb-2">
-            {isBalanceVisible ? '$0.00' : '••••'}
+            {isBalanceVisible ? `$${portfolioValue.totalUSD?.toFixed(2) || '0.00'}` : '••••'}
           </div>
           <button
             onClick={() => setIsBalanceVisible(!isBalanceVisible)}
@@ -98,7 +123,7 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         >
           <label className="block text-sm text-gray-600 mb-2">Wallet name</label>
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <span className="font-medium text-gray-900">Wallet 1</span>
+            <span className="font-medium text-gray-900">{wallet?.name || 'My Wallet'}</span>
             <button className="p-2 hover:bg-gray-200 rounded-full transition-colors">
               <Edit className="w-4 h-4 text-[#180CB2]" />
             </button>
@@ -145,7 +170,7 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 animate={{ x: 0, opacity: 1 }}
                 transition={{ duration: 0.3, delay: index * 0.1 }}
                 className={`relative bg-white rounded-xl p-4 border-2 transition-all ${
-                  account.isHighlighted 
+                  account.isActive 
                     ? 'border-[#180CB2] shadow-md' 
                     : 'border-gray-100 hover:border-gray-200'
                 }`}
@@ -153,17 +178,19 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                      <span className="text-lg">{account.avatar}</span>
+                      <span className="text-lg">👤</span>
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900">{account.name}</div>
-                      <div className="text-sm text-gray-600">{account.address}</div>
+                      <div className="font-semibold text-gray-900">{account.name || `Account ${account.id}`}</div>
+                      <div className="text-sm text-gray-600">
+                        {account.address ? `${account.address.substring(0, 8)}...${account.address.substring(account.address.length - 6)}` : 'No address'}
+                      </div>
                     </div>
                   </div>
                   
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
-                      <div className="font-semibold text-gray-900">{account.balance}</div>
+                      <div className="font-semibold text-gray-900">$0.00</div>
                       <div className="flex space-x-1">
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                         <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
@@ -180,6 +207,8 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             ))}
           </div>
         </motion.div>
+          </>
+        )}
       </div>
     </motion.div>
   );

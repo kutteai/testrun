@@ -48,6 +48,20 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     fetchPrices();
   }, []);
 
+  // Listen for wallet changes to refresh data
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in SwapScreen:', event.detail);
+      // SwapScreen will automatically update when wallet state changes
+      // since it uses wallet from context directly
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, []);
+
   // Set currency based on current network
   useEffect(() => {
     if (currentNetwork) {

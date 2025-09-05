@@ -24,6 +24,20 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     });
   }, [wallet, isWalletUnlocked, isLoading, isInitializing, currentNetwork]);
 
+  // Listen for wallet changes to refresh data
+  useEffect(() => {
+    const handleWalletChange = async (event: CustomEvent) => {
+      console.log('🔄 Wallet changed event received in ReceiveScreen:', event.detail);
+      // ReceiveScreen will automatically update when wallet state changes
+      // since it uses wallet from context directly
+    };
+
+    window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    return () => {
+      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+    };
+  }, []);
+
   // Generate QR code data for wallet address
   const getQRCodeData = (): string => {
     if (!wallet?.address) return '';
