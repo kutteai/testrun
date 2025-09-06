@@ -17,7 +17,7 @@ function injectScript() {
   console.log('Injecting PayCio Wallet script using web accessible resource...');
   
   const script = document.createElement('script');
-  script.src = runtime.getURL('injected.js');
+  script.src = runtime().getURL('injected.js');
   script.onload = () => {
     console.log('✅ PayCio Wallet injected script loaded successfully');
     script.remove();
@@ -199,7 +199,7 @@ if (document.readyState === 'loading') {
 window.addEventListener('message', handlePageMessages);
 
 // Listen for messages from the extension
-runtime.onMessage.addListener((message, sender, sendResponse) => {
+runtime().onMessage.addListener((message, sender, sendResponse) => {
   console.log('PayCio: Received message from extension:', message);
   
   switch (message.type) {

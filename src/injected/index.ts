@@ -1224,7 +1224,7 @@ try {
     detail: { connector: paycioConnector }
   }));
   
-  console.log('✅ PayCio: Page context injection completed');
+  // PayCio Wallet injection completed
   
 } catch (error) {
   console.error('❌ PayCio: Error in page context injection:', error);

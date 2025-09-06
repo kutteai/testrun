@@ -64,6 +64,9 @@ import MoreScreen from '../components/screens/MoreScreen';
 import AccountDetailsScreen from '../components/screens/AccountDetailsScreen';
 import ManageNetworksScreen from '../components/screens/ManageNetworksScreen';
 import AddCustomNetworkScreen from '../components/screens/AddCustomNetworkScreen';
+import SupportScreen from '../components/screens/SupportScreen';
+import AddressBookScreen from '../components/screens/AddressBookScreen';
+import BackupsScreen from '../components/screens/BackupsScreen';
 
 // Components
 import Navigation from '../components/common/Navigation';
@@ -84,29 +87,13 @@ const App: React.FC = () => {
   const { nfts } = useNFT();
 
   useEffect(() => {
-    console.log('🔄 Popup App: useEffect triggered');
-    console.log('🔄 Popup App: isInitializing:', isInitializing);
-    console.log('🔄 Popup App: error:', error);
-    console.log('🔄 Popup App: currentScreen:', currentScreen);
-    console.log('🔄 Popup App: hasWallet:', hasWallet);
-    console.log('🔄 Popup App: isWalletUnlocked:', isWalletUnlocked);
-    
     if (isInitializing) {
       setCurrentScreen('welcome');
       return;
     }
 
-    // Temporarily disabled redirect for debugging
-    if (error && currentScreen !== 'accounts' && currentScreen !== 'tokens' && currentScreen !== 'nfts') {
-      console.log('🚨 Redirect DISABLED - would normally redirect to error screen due to error:', error);
-      // setCurrentScreen('error');
-      // return;
-    }
-    
-    // Force reset if stuck on error screen
+    // Error handling - redirect to dashboard if on error screen
     if (currentScreen === 'error') {
-      console.log('🔄 Force resetting from error screen to dashboard');
-      toast.success('🔄 Reset from error screen to dashboard', { duration: 60000 });
       setCurrentScreen('dashboard');
       return;
     }
@@ -121,25 +108,18 @@ const App: React.FC = () => {
   }, [wallet, hasWallet, isWalletUnlocked, isInitializing, error]);
 
   const handleNavigate = (screen: ScreenId) => {
-    console.log('handleNavigate called with screen:', screen);
-    console.log('Previous screen was:', currentScreen);
     setPreviousScreen(currentScreen);
     
     // Prevent navigation to error screen
     if (screen === 'error') {
-      console.log('🚫 Navigation to error screen blocked, staying on current screen');
-      toast.error('Navigation to error screen blocked', { duration: 60000 });
+      toast.error('Navigation blocked');
       return;
     }
     
     setCurrentScreen(screen);
-    console.log('currentScreen should now be:', screen);
   };
 
   const renderScreen = () => {
-    console.log('renderScreen called with currentScreen:', currentScreen);
-    console.log('currentScreen type:', typeof currentScreen);
-    console.log('currentScreen value:', JSON.stringify(currentScreen));
     switch (currentScreen) {
       case 'welcome':
         return <WelcomeScreen onNavigate={handleNavigate} hasWallet={hasWallet} isWalletUnlocked={isWalletUnlocked} />;
@@ -252,13 +232,13 @@ const App: React.FC = () => {
       case 'import-google':
         return <div className="p-6 text-center">Import Google - Coming Soon</div>;
       case 'address-book':
-        return <div className="p-6 text-center">Address Book - Coming Soon</div>;
+        return <AddressBookScreen onNavigate={handleNavigate} />;
       case 'backups':
-        return <div className="p-6 text-center">Backups - Coming Soon</div>;
+        return <BackupsScreen onNavigate={handleNavigate} />;
       case 'expand-view':
         return <div className="p-6 text-center">Expand View - Coming Soon</div>;
       case 'support':
-        return <div className="p-6 text-center">Support - Coming Soon</div>;
+        return <SupportScreen onNavigate={handleNavigate} />;
       case 'lock-paycio':
         return <div className="p-6 text-center">Locking wallet...</div>;
 

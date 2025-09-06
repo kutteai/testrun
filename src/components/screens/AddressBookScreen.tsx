@@ -1,388 +1,381 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  ArrowLeft, 
-  Plus, 
-  Search, 
-  Copy, 
-  Check, 
-  Users, 
-  Edit, 
-  Trash2, 
-  Star, 
-  StarOff,
-  ExternalLink,
-  Globe
-} from 'lucide-react';
-import { useWallet } from '../../store/WalletContext';
-import { addressBook, Contact } from '../../utils/address-book';
-import { resolveENS, lookupENS } from '../../utils/ens-utils';
+import { ArrowLeft, Plus, Search, Edit, Trash2, Copy, Check, User, Mail } from 'lucide-react';
+import { storage } from '../../utils/storage-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
+interface Contact {
+  id: string;
+  name: string;
+  address: string;
+  network: string;
+  notes?: string;
+  createdAt: number;
+}
+
 const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
-  
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAddingContact, setIsAddingContact] = useState(false);
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
-  const [newContact, setNewContact] = useState({
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Form state for adding/editing contacts
+  const [formData, setFormData] = useState({
     name: '',
     address: '',
     network: 'ethereum',
-    tags: '',
     notes: ''
   });
 
-  // Load contacts
+  const networks = [
+    { id: 'ethereum', name: 'Ethereum', symbol: 'ETH' },
+    { id: 'polygon', name: 'Polygon', symbol: 'MATIC' },
+    { id: 'bsc', name: 'BSC', symbol: 'BNB' },
+    { id: 'arbitrum', name: 'Arbitrum', symbol: 'ETH' },
+    { id: 'optimism', name: 'Optimism', symbol: 'ETH' },
+    { id: 'bitcoin', name: 'Bitcoin', symbol: 'BTC' },
+    { id: 'solana', name: 'Solana', symbol: 'SOL' }
+  ];
+
   useEffect(() => {
     loadContacts();
   }, []);
 
-  const loadContacts = () => {
-    const allContacts = addressBook.getAllContacts();
-    setContacts(allContacts);
+  const loadContacts = async () => {
+    try {
+      const result = await storage.get(['addressBook']);
+      setContacts(result.addressBook || []);
+    } catch (error) {
+      console.error('Failed to load contacts:', error);
+      toast.error('Failed to load contacts');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const filteredContacts = contacts.filter(contact =>
-    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.ens?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.domain?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    contact.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
+  const saveContacts = async (updatedContacts: Contact[]) => {
+    try {
+      await storage.set({ addressBook: updatedContacts });
+      setContacts(updatedContacts);
+    } catch (error) {
+      console.error('Failed to save contacts:', error);
+      toast.error('Failed to save contacts');
+    }
+  };
 
-  const handleAddContact = async () => {
-    if (!newContact.name || !newContact.address) {
-      toast.error('Please fill in name and address');
+  const handleAddContact = () => {
+    if (!formData.name.trim() || !formData.address.trim()) {
+      toast.error('Please fill in all required fields');
       return;
     }
 
-    try {
-      const tags = newContact.tags.split(',').map(tag => tag.trim()).filter(tag => tag);
-      
-      const contact = await addressBook.addContact(
-        newContact.name,
-        newContact.address,
-        newContact.network as any,
-        tags,
-        newContact.notes
-      );
+    const newContact: Contact = {
+      id: Date.now().toString(),
+      name: formData.name.trim(),
+      address: formData.address.trim(),
+      network: formData.network,
+      notes: formData.notes.trim(),
+      createdAt: Date.now()
+    };
 
-      setContacts(prev => [...prev, contact]);
-      setIsAddingContact(false);
-      setNewContact({ name: '', address: '', network: 'ethereum', tags: '', notes: '' });
-      toast.success('Contact added successfully');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to add contact');
-    }
+    const updatedContacts = [...contacts, newContact];
+    saveContacts(updatedContacts);
+    
+    setFormData({ name: '', address: '', network: 'ethereum', notes: '' });
+    setShowAddContact(false);
+    toast.success('Contact added successfully');
   };
 
-  const handleDeleteContact = async (contactId: string) => {
-    try {
-      const success = addressBook.removeContact(contactId);
-      if (success) {
-        setContacts(prev => prev.filter(c => c.id !== contactId));
-        toast.success('Contact deleted');
-      }
-    } catch (error) {
-      toast.error('Failed to delete contact');
+  const handleEditContact = () => {
+    if (!editingContact || !formData.name.trim() || !formData.address.trim()) {
+      toast.error('Please fill in all required fields');
+      return;
     }
+
+    const updatedContacts = contacts.map(contact =>
+      contact.id === editingContact.id
+        ? {
+            ...contact,
+            name: formData.name.trim(),
+            address: formData.address.trim(),
+            network: formData.network,
+            notes: formData.notes.trim()
+          }
+        : contact
+    );
+
+    saveContacts(updatedContacts);
+    
+    setFormData({ name: '', address: '', network: 'ethereum', notes: '' });
+    setEditingContact(null);
+    toast.success('Contact updated successfully');
   };
 
-  const handleToggleFavorite = async (contactId: string) => {
-    try {
-      const contact = addressBook.toggleFavorite(contactId);
-      setContacts(prev => prev.map(c => c.id === contactId ? contact : c));
-    } catch (error) {
-      toast.error('Failed to update favorite status');
-    }
+  const handleDeleteContact = (contactId: string) => {
+    const updatedContacts = contacts.filter(contact => contact.id !== contactId);
+    saveContacts(updatedContacts);
+    toast.success('Contact deleted successfully');
   };
 
-  const copyAddress = async (address: string) => {
+  const handleCopyAddress = async (address: string) => {
     try {
       await navigator.clipboard.writeText(address);
       setCopied(address);
       toast.success('Address copied to clipboard');
       setTimeout(() => setCopied(null), 2000);
-    } catch {
+    } catch (error) {
       toast.error('Failed to copy address');
     }
   };
 
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  const startEditContact = (contact: Contact) => {
+    setEditingContact(contact);
+    setFormData({
+      name: contact.name,
+      address: contact.address,
+      network: contact.network,
+      notes: contact.notes || ''
+    });
+    setShowAddContact(true);
   };
 
-  const getNetworkColor = (network: string) => {
-    const colors: Record<string, string> = {
-      ethereum: 'bg-blue-500',
-      bsc: 'bg-yellow-500',
-      polygon: 'bg-[#180CB2]',
-      avalanche: 'bg-red-500',
-      arbitrum: 'bg-cyan-500',
-      optimism: 'bg-orange-500',
-      bitcoin: 'bg-orange-600',
-      solana: 'bg-[#180CB2]',
-      tron: 'bg-red-600',
-      litecoin: 'bg-gray-500',
-      xrp: 'bg-blue-600'
-    };
-    return colors[network] || 'bg-gray-500';
-  };
+  const filteredContacts = contacts.filter(contact =>
+    contact.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    contact.network.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#180CB2] mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading contacts...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-[#180CB2] to-slate-900 text-white flex flex-col">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="h-full flex flex-col bg-gray-50"
+    >
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 pb-4"
-      >
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-[#180CB2] px-6 py-4">
+        <div className="flex items-center justify-between">
           <button
             onClick={() => onNavigate('dashboard')}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
-            <ArrowLeft className="w-6 h-6" />
+            <ArrowLeft className="w-5 h-5 text-white" />
           </button>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-gradient-to-r from-green-500 to-teal-600 rounded-xl flex items-center justify-center">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">Address Book</h1>
-              <p className="text-slate-400 text-sm">Manage your contacts</p>
-            </div>
-          </div>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsAddingContact(true)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          <h1 className="text-lg font-semibold text-white">Address Book</h1>
+          <button
+            onClick={() => {
+              setFormData({ name: '', address: '', network: 'ethereum', notes: '' });
+              setEditingContact(null);
+              setShowAddContact(true);
+            }}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
-            <Plus className="w-6 h-6" />
-          </motion.button>
+            <Plus className="w-5 h-5 text-white" />
+          </button>
         </div>
+      </div>
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-slate-400" />
+      {/* Main Content */}
+      <div className="flex-1 bg-white rounded-t-3xl px-6 py-6 space-y-6">
+        {/* Search Bar */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="relative"
+        >
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
             placeholder="Search contacts..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-[13px]"
           />
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* Content */}
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-4 pb-6 flex-1 overflow-y-auto"
-      >
-        {filteredContacts.map((contact, index) => (
-          <motion.div
-            key={contact.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-teal-500 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <h3 className="font-semibold text-white">{contact.name}</h3>
-                    {contact.isFavorite && <Star className="w-4 h-4 text-yellow-400 fill-current" />}
-                    <div className={`w-2 h-2 rounded-full ${getNetworkColor(contact.network)}`}></div>
+        {/* Contacts List */}
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="space-y-3"
+        >
+          {filteredContacts.length === 0 ? (
+            <div className="text-center py-12">
+              <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No contacts found</h3>
+              <p className="text-gray-600 text-[13px] mb-6">
+                {searchQuery ? 'Try adjusting your search terms' : 'Add your first contact to get started'}
+              </p>
+              {!searchQuery && (
+                <button
+                  onClick={() => setShowAddContact(true)}
+                  className="bg-[#180CB2] text-white px-6 py-3 rounded-lg font-medium hover:bg-[#140a8f] transition-colors text-[13px]"
+                >
+                  Add Contact
+                </button>
+              )}
+            </div>
+          ) : (
+            filteredContacts.map((contact, index) => (
+              <motion.div
+                key={contact.id}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
+                className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-[#180CB2]/10 rounded-full flex items-center justify-center">
+                      <User className="w-5 h-5 text-[#180CB2]" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-900 text-[13px]">{contact.name}</h3>
+                      <p className="text-gray-600 text-[13px]">
+                        {contact.address.substring(0, 8)}...{contact.address.substring(contact.address.length - 6)}
+                      </p>
+                      <p className="text-gray-500 text-xs">{contact.network.toUpperCase()}</p>
+                    </div>
                   </div>
                   
-                  {contact.ens && (
-                    <div className="flex items-center space-x-1 mb-1">
-                      <Globe className="w-3 h-3 text-blue-400" />
-                      <p className="text-blue-400 text-sm">{contact.ens}</p>
-                    </div>
-                  )}
-                  
-                  <p className="text-slate-400 text-sm">{formatAddress(contact.address)}</p>
-                  
-                  {contact.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {contact.tags.map((tag, tagIndex) => (
-                        <span
-                          key={tagIndex}
-                          className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleCopyAddress(contact.address)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      {copied === contact.address ? (
+                        <Check className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Copy className="w-4 h-4 text-gray-600" />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => startEditContact(contact)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <Edit className="w-4 h-4 text-gray-600" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteContact(contact.id)}
+                      className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4 text-red-600" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleToggleFavorite(contact.id)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  {contact.isFavorite ? (
-                    <Star className="w-4 h-4 text-yellow-400 fill-current" />
-                  ) : (
-                    <StarOff className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
                 
-                <button
-                  onClick={() => copyAddress(contact.address)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  {copied === contact.address ? (
-                    <Check className="w-4 h-4 text-green-400" />
-                  ) : (
-                    <Copy className="w-4 h-4 text-slate-400" />
-                  )}
-                </button>
-                
-                <button
-                  onClick={() => handleDeleteContact(contact.id)}
-                  className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
-                >
-                  <Trash2 className="w-4 h-4 text-red-400" />
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ))}
+                {contact.notes && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <p className="text-gray-600 text-[13px]">{contact.notes}</p>
+                  </div>
+                )}
+              </motion.div>
+            ))
+          )}
+        </motion.div>
+      </div>
 
-        {filteredContacts.length === 0 && (
-          <div className="text-center py-8">
-            <Users className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-400">No contacts found</p>
-            <p className="text-slate-500 text-sm">
-              {searchQuery ? 'Try adjusting your search' : 'Add contacts to get started'}
-            </p>
-          </div>
-        )}
-      </motion.div>
-
-      {/* Add Contact Modal */}
-      {isAddingContact && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      {/* Add/Edit Contact Modal */}
+      {showAddContact && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mx-4 border border-white/20"
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-white rounded-xl p-6 w-full max-w-md"
           >
-            <h3 className="text-lg font-semibold text-white mb-4">Add New Contact</h3>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              {editingContact ? 'Edit Contact' : 'Add New Contact'}
+            </h2>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Name
-                </label>
+                <label className="block text-sm text-gray-600 mb-2">Name *</label>
                 <input
                   type="text"
-                  value={newContact.name}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Contact name"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-slate-400"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-[13px]"
+                  placeholder="Enter contact name"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Address or ENS Name
-                </label>
+                <label className="block text-sm text-gray-600 mb-2">Address *</label>
                 <input
                   type="text"
-                  value={newContact.address}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="0x... or ENS name (.eth)"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-slate-400"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-[13px]"
+                  placeholder="Enter wallet address"
                 />
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Network
-                </label>
+                <label className="block text-sm text-gray-600 mb-2">Network</label>
                 <select
-                  value={newContact.network}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, network: e.target.value }))}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-white"
+                  value={formData.network}
+                  onChange={(e) => setFormData({ ...formData, network: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-[13px]"
                 >
-                  <option value="ethereum">Ethereum</option>
-                  <option value="bsc">BSC</option>
-                  <option value="polygon">Polygon</option>
-                  <option value="avalanche">Avalanche</option>
-                  <option value="arbitrum">Arbitrum</option>
-                  <option value="optimism">Optimism</option>
-                  <option value="bitcoin">Bitcoin</option>
-                  <option value="solana">Solana</option>
-                  <option value="tron">TRON</option>
-                  <option value="litecoin">Litecoin</option>
-                  <option value="xrp">XRP</option>
+                  {networks.map(network => (
+                    <option key={network.id} value={network.id}>
+                      {network.name} ({network.symbol})
+                    </option>
+                  ))}
                 </select>
               </div>
-
+              
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Tags (comma-separated)
-                </label>
-                <input
-                  type="text"
-                  value={newContact.tags}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, tags: e.target.value }))}
-                  placeholder="friend, work, family"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-slate-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Notes (optional)
-                </label>
+                <label className="block text-sm text-gray-600 mb-2">Notes</label>
                 <textarea
-                  value={newContact.notes}
-                  onChange={(e) => setNewContact(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Additional notes..."
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-[13px]"
+                  placeholder="Optional notes about this contact"
                   rows={3}
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-white placeholder-slate-400 resize-none"
                 />
               </div>
             </div>
-
+            
             <div className="flex space-x-3 mt-6">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsAddingContact(false)}
-                className="flex-1 px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700"
+              <button
+                onClick={() => {
+                  setShowAddContact(false);
+                  setEditingContact(null);
+                  setFormData({ name: '', address: '', network: 'ethereum', notes: '' });
+                }}
+                className="flex-1 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors text-[13px]"
               >
                 Cancel
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleAddContact}
-                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+              </button>
+              <button
+                onClick={editingContact ? handleEditContact : handleAddContact}
+                className="flex-1 py-2 px-4 bg-[#180CB2] text-white rounded-lg font-medium hover:bg-[#140a8f] transition-colors text-[13px]"
               >
-                Add Contact
-              </motion.button>
+                {editingContact ? 'Update' : 'Add'} Contact
+              </button>
             </div>
           </motion.div>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
 

@@ -194,8 +194,6 @@ const App: React.FC = () => {
 
   // Render current screen
   const renderScreen = () => {
-    console.log('🎬 App.tsx: renderScreen called with currentScreen:', currentScreen);
-    console.log('🎬 App.tsx: Stack trace:', new Error().stack);
     switch (currentScreen) {
       case 'welcome':
         return (

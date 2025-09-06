@@ -15,7 +15,7 @@ const safeExecute = async (fn: () => Promise<any>) => {
 };
 
 // Handle messages from content scripts
-runtime.onMessage.addListener((message, sender, sendResponse) => {
+runtime().onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background received message:', message);
   
   // Handle different message types
@@ -134,12 +134,12 @@ runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Handle extension installation
-runtime.onInstalled.addListener((details) => {
+runtime().onInstalled.addListener((details) => {
   console.log('PayCio Wallet extension installed:', details.reason);
 });
 
 // Handle extension startup
-runtime.onStartup.addListener(() => {
+runtime().onStartup.addListener(() => {
   console.log('PayCio Wallet extension started');
 });
 

@@ -52,14 +52,14 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       name: 'Solana Account',
       logo: '🟠',
       description: 'Create new Solana account from seed phrase',
-      supported: false // Not yet implemented
+      supported: true
     },
     {
       id: 'bitcoin',
       name: 'Bitcoin Account',
       logo: '🟠',
       description: 'Create new Bitcoin account from seed phrase',
-      supported: false // Not yet implemented
+      supported: true
     }
   ];
 

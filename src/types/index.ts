@@ -247,7 +247,7 @@ export interface WalletContextType {
   initializeWallet: () => Promise<void>;
   addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
-  addAccount: (password: string) => Promise<void>;
+  addAccount: (password: string) => Promise<any>;
   removeAccount: (accountId: string) => Promise<void>;
   getCurrentAccount: () => Promise<any>;
   getWalletAccounts: () => Promise<any[]>;

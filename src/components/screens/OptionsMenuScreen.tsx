@@ -53,16 +53,16 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       // Implement cross-browser integration for expand view
       try {
         // Open wallet in new tab for better user experience
-        tabs.query({ active: true, currentWindow: true }, (activeTabs) => {
+        tabs().query({ active: true, currentWindow: true }, (activeTabs) => {
           if (activeTabs && activeTabs[0]) {
-            tabs.sendMessage(activeTabs[0].id, {
+            tabs().sendMessage(activeTabs[0].id, {
               type: 'OPEN_WALLET_IN_TAB',
-              url: runtime.getURL("popup.html")
+              url: runtime().getURL("popup.html")
             });
           }
         });
         // Close the popup after opening in new tab
-        action.setPopup({ popup: "" });
+        action().setPopup({ popup: "" });
       } catch (error) {
         console.error('Failed to expand view:', error);
         // Don't navigate on error - let user retry

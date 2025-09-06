@@ -204,83 +204,21 @@ export async function getOwnedNFTs(
     
     console.log('📊 NFT Utils: Real NFTs found:', allNFTs.length);
     
-    // If no NFTs found, add some demo NFTs for testing
+    // If no NFTs found, return empty array (no dummy data)
     if (allNFTs.length === 0) {
-      console.log('ℹ️ NFT Utils: No real NFTs found, adding demo NFTs for testing');
-      const demoNFTs = generateDemoNFTs(walletAddress, network);
-      allNFTs.push(...demoNFTs);
-      console.log('✅ NFT Utils: Added demo NFTs:', demoNFTs.length);
+      console.log('ℹ️ NFT Utils: No NFTs found for this wallet');
+      return [];
     }
     
     console.log('🎯 NFT Utils: Total NFTs to return:', allNFTs.length);
     return allNFTs;
   } catch (error) {
     console.error('❌ NFT Utils: Error fetching owned NFTs:', error);
-    console.log('🔄 NFT Utils: Returning demo NFTs due to error');
-    // Return demo NFTs if all real NFT fetching fails (for now)
-    console.log('⚠️ All NFT fetching methods failed, returning demo NFTs');
-    return generateDemoNFTs(walletAddress, network);
+    // Return empty array on error (no dummy data)
+    return [];
   }
 }
 
-// Generate demo NFTs for testing (keeping for now until real API is configured)
-function generateDemoNFTs(walletAddress: string, network: string): NFT[] {
-  console.log('🎨 NFT Utils: Generating demo NFTs for:', walletAddress);
-  const demoCollections = [
-    {
-      name: 'CryptoPunks',
-      symbol: 'PUNK',
-      address: '0xb47e3cd837dDF8e4c57F05d70Ab865de6e193BBB'
-    },
-    {
-      name: 'Bored Ape Yacht Club',
-      symbol: 'BAYC',
-      address: '0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D'
-    },
-    {
-      name: 'Doodles',
-      symbol: 'DOODLE',
-      address: '0x8a90CAb2b38dba80c64b7734e58Ee1dB38B8992e'
-    }
-  ];
-  
-  const demoNFTs: NFT[] = [];
-  
-  demoCollections.forEach((collection, collectionIndex) => {
-    // Generate 1-3 NFTs per collection
-    const numNFTs = Math.floor(Math.random() * 3) + 1;
-    console.log(`🎨 NFT Utils: Generating ${numNFTs} NFTs for ${collection.name}`);
-    
-    for (let i = 0; i < numNFTs; i++) {
-      const tokenId = (collectionIndex * 1000 + i + 1).toString();
-      const nft: NFT = {
-        id: `${collection.address}-${tokenId}`,
-        tokenId,
-        contractAddress: collection.address,
-        name: collection.name,
-        symbol: collection.symbol,
-        metadata: {
-          name: `${collection.name} #${tokenId}`,
-          description: `A unique ${collection.name} NFT with special traits and characteristics.`,
-          image: `https://picsum.photos/400/400?random=${collectionIndex * 1000 + i}`,
-          attributes: [
-            { trait_type: 'Background', value: ['Blue', 'Red', 'Green', 'Purple'][Math.floor(Math.random() * 4)] },
-            { trait_type: 'Eyes', value: ['Normal', 'Laser', 'Sleepy', 'Wink'][Math.floor(Math.random() * 4)] },
-            { trait_type: 'Mouth', value: ['Smile', 'Frown', 'Open', 'Tongue'][Math.floor(Math.random() * 4)] },
-            { trait_type: 'Rarity', value: ['Common', 'Rare', 'Epic', 'Legendary'][Math.floor(Math.random() * 4)] }
-          ]
-        },
-        owner: walletAddress,
-        network
-      };
-      
-      demoNFTs.push(nft);
-    }
-  });
-  
-  console.log('✅ NFT Utils: Generated demo NFTs:', demoNFTs.length);
-  return demoNFTs;
-}
 
 // Set NFT as profile picture
 export async function setNFTAsProfilePicture(nft: NFT): Promise<void> {

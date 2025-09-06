@@ -1220,7 +1220,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const walletManager = new WalletManager();
       
       // Wait a bit for the wallet manager to initialize
-      await new Promise(resolve => setTimeout(resolve, 100));
       
       await walletManager.switchAccount(state.wallet.id, accountId);
       
@@ -1237,7 +1236,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   };
 
   // Add new account
-  const addAccount = async (password: string): Promise<void> => {
+  const addAccount = async (password: string): Promise<any> => {
   try {
             console.log('🔄 Starting add account process...');
       
@@ -1274,7 +1273,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       console.log('✅ WalletManager imported and instantiated');
     
     // Wait a bit for the wallet manager to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
     
       // Verify WalletManager can find the wallet
       const foundWallet = await walletManager.getWallet(state.wallet.id);
@@ -1287,7 +1285,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         
         // Try to create a new WalletManager instance
         const newWalletManager = new WalletManager();
-        await new Promise(resolve => setTimeout(resolve, 100));
         
         const retryWallet = await newWalletManager.getWallet(state.wallet.id);
         if (!retryWallet) {
@@ -1316,7 +1313,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         // Force reload the wallet manager to ensure we have the latest data
         await new Promise(resolve => setTimeout(resolve, 200));
         const freshWalletManager = new WalletManager();
-        await new Promise(resolve => setTimeout(resolve, 100));
         const freshWallet = await freshWalletManager.getWallet(state.wallet.id);
         
         if (freshWallet) {
@@ -1331,6 +1327,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         }
         
       toast.success('New account added successfully');
+      return newAccount; // Return the created account
       } else {
         throw new Error('Failed to retrieve updated wallet');
     }
@@ -1345,6 +1342,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     const errorMessage = error instanceof Error ? error.message : 'Failed to add account';
     toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
+      throw error; // Re-throw the error so the caller can handle it
   }
 };
 
@@ -1359,7 +1357,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const walletManager = new WalletManager();
       
       // Wait a bit for the wallet manager to initialize
-      await new Promise(resolve => setTimeout(resolve, 100));
       
       await walletManager.removeAccountFromWallet(state.wallet.id, accountId);
       
@@ -1380,83 +1377,38 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Get current account
   const getCurrentAccount = async (): Promise<any> => {
     if (!state.wallet) {
-      console.log('🔍 getCurrentAccount: No wallet in state');
       return null;
     }
-
-    console.log('🔍 getCurrentAccount: Looking for current account for wallet:', {
-      walletId: state.wallet.id,
-      walletAddress: state.wallet.address,
-      accountsCount: state.wallet.accounts?.length || 0
-    });
 
     const { WalletManager } = await import('../core/wallet-manager');
     const walletManager = new WalletManager();
     
-    // Wait a bit for the wallet manager to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     let currentAccount = await walletManager.getCurrentAccountForWallet(state.wallet.id);
-    console.log('🔍 getCurrentAccount: Found current account from WalletManager:', currentAccount ? {
-      id: currentAccount.id,
-      address: currentAccount.address
-    } : 'null');
-    
-    // Debug logging (console only)
-    console.log('🔍 WM Current Account:', currentAccount ? 'Found' : 'Not Found');
-    if (currentAccount) {
-      console.log('🔍 WM Current Type:', typeof currentAccount, 'Value:', currentAccount);
-    }
     
     // If no current account found, return null instead of creating fallback
     if (!currentAccount) {
-      console.log('⚠️ getCurrentAccount: No current account found');
       return null;
     }
     
-    console.log('🔍 getCurrentAccount: Final return value:', currentAccount);
-    console.log('🔍 getCurrentAccount FINAL RETURN: Type=', typeof currentAccount, 'Value=', currentAccount);
     return currentAccount;
   };
 
   // Get all accounts for current wallet
   const getWalletAccounts = async (): Promise<any[]> => {
     if (!state.wallet) {
-      console.log('🔍 getWalletAccounts: No wallet in state');
       return [];
     }
-
-    console.log('🔍 getWalletAccounts: Getting accounts for wallet:', {
-      walletId: state.wallet.id,
-      stateAccountsCount: state.wallet.accounts?.length || 0
-    });
 
     const { WalletManager } = await import('../core/wallet-manager');
     const walletManager = new WalletManager();
     
-    // Wait a bit for the wallet manager to initialize
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
     let accounts = await walletManager.getWalletAccounts(state.wallet.id);
-    console.log('🔍 getWalletAccounts: Retrieved accounts from WalletManager:', {
-      count: accounts.length,
-      addresses: accounts.map(acc => acc?.address)
-    });
-    
-    // Debug logging (console only)
-    console.log('🔍 WM Retrieved:', accounts.length, 'accounts');
-    if (accounts.length > 0) {
-      console.log('🔍 WM First Account Type:', typeof accounts[0], 'Value:', accounts[0]);
-    }
     
     // If no accounts found, return empty array instead of creating fallback
     if (accounts.length === 0) {
-      console.log('⚠️ getWalletAccounts: No accounts found');
       return [];
     }
     
-    console.log('🔍 getWalletAccounts: Final return value:', accounts);
-    console.log('🔍 getWalletAccounts FINAL RETURN: Length=', accounts.length, 'Type=', typeof accounts, 'FirstType=', accounts.length > 0 ? typeof accounts[0] : 'none');
     return accounts;
   };
 

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayCio Content Script Fix Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #180CB2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #1409a0;
+        }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 PayCio Content Script Fix Test</h1>
+        
+        <div class="status info">
+            <strong>Test Purpose:</strong> Verify that the content script no longer throws "Tabs API not available" errors
+        </div>
+
+        <div id="status" class="status info">
+            <strong>Status:</strong> Waiting for content script to load...
+        </div>
+
+        <div>
+            <button onclick="testWalletConnection()">Test Wallet Connection</button>
+            <button onclick="testWalletStatus()">Test Wallet Status</button>
+            <button onclick="clearLog()">Clear Log</button>
+        </div>
+
+        <div class="log" id="log">
+            <div>Console log will appear here...</div>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('log');
+        let statusElement = document.getElementById('status');
+        let resultsElement = document.getElementById('results');
+        let errorCount = 0;
+        let successCount = 0;
+
+        // Capture console errors
+        const originalConsoleError = console.error;
+        const originalConsoleLog = console.log;
+        const originalConsoleWarn = console.warn;
+
+        function addToLog(message, type = 'log') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.style.color = type === 'error' ? '#dc3545' : type === 'warn' ? '#ffc107' : '#28a745';
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        console.error = function(...args) {
+            const message = args.join(' ');
+            addToLog(`ERROR: ${message}`, 'error');
+            
+            // Check for the specific Tabs API error
+            if (message.includes('Tabs API not available')) {
+                errorCount++;
+                updateStatus(`❌ FAILED: Tabs API error detected (${errorCount} times)`, 'error');
+            }
+            
+            originalConsoleError.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            const message = args.join(' ');
+            addToLog(`WARN: ${message}`, 'warn');
+            originalConsoleWarn.apply(console, args);
+        };
+
+        console.log = function(...args) {
+            const message = args.join(' ');
+            addToLog(`LOG: ${message}`, 'log');
+            originalConsoleLog.apply(console, args);
+        };
+
+        function updateStatus(message, type) {
+            statusElement.textContent = message;
+            statusElement.className = `status ${type}`;
+        }
+
+        function clearLog() {
+            logElement.innerHTML = '<div>Console log cleared...</div>';
+            errorCount = 0;
+            successCount = 0;
+        }
+
+        function testWalletConnection() {
+            addToLog('Testing wallet connection...');
+            
+            if (window.ethereum && window.ethereum.isPayCioWallet) {
+                addToLog('✅ PayCio Wallet provider detected');
+                successCount++;
+                
+                window.ethereum.request({ method: 'eth_requestAccounts' })
+                    .then(accounts => {
+                        addToLog(`✅ Connection successful: ${accounts.length} accounts`);
+                        successCount++;
+                        updateStatus(`✅ SUCCESS: Wallet connection working (${successCount} successes, ${errorCount} errors)`, 'success');
+                    })
+                    .catch(error => {
+                        addToLog(`❌ Connection failed: ${error.message}`);
+                        errorCount++;
+                        updateStatus(`❌ FAILED: Connection error (${successCount} successes, ${errorCount} errors)`, 'error');
+                    });
+            } else {
+                addToLog('❌ PayCio Wallet provider not found');
+                errorCount++;
+                updateStatus(`❌ FAILED: No PayCio provider (${successCount} successes, ${errorCount} errors)`, 'error');
+            }
+        }
+
+        function testWalletStatus() {
+            addToLog('Testing wallet status...');
+            
+            if (window.paycioWalletContentScript) {
+                addToLog('✅ Content script detected');
+                successCount++;
+                updateStatus(`✅ SUCCESS: Content script loaded (${successCount} successes, ${errorCount} errors)`, 'success');
+            } else {
+                addToLog('❌ Content script not detected');
+                errorCount++;
+                updateStatus(`❌ FAILED: No content script (${successCount} successes, ${errorCount} errors)`, 'error');
+            }
+        }
+
+        // Monitor for content script loading
+        let checkCount = 0;
+        const maxChecks = 50; // 5 seconds
+
+        function checkContentScript() {
+            checkCount++;
+            
+            if (window.paycioWalletContentScript) {
+                addToLog('✅ Content script loaded successfully');
+                successCount++;
+                updateStatus(`✅ SUCCESS: Content script loaded without errors (${successCount} successes, ${errorCount} errors)`, 'success');
+                return;
+            }
+            
+            if (checkCount < maxChecks) {
+                setTimeout(checkContentScript, 100);
+            } else {
+                addToLog('⚠️ Content script not detected after 5 seconds');
+                updateStatus(`⚠️ WARNING: Content script not detected (${successCount} successes, ${errorCount} errors)`, 'info');
+            }
+        }
+
+        // Start monitoring
+        setTimeout(checkContentScript, 100);
+
+        // Also listen for PayCio events
+        window.addEventListener('paycio-wallet-ready', (event) => {
+            addToLog('✅ PayCio Wallet ready event received');
+            successCount++;
+            updateStatus(`✅ SUCCESS: PayCio Wallet ready (${successCount} successes, ${errorCount} errors)`, 'success');
+        });
+
+        window.addEventListener('paycio-connector-ready', (event) => {
+            addToLog('✅ PayCio Connector ready event received');
+            successCount++;
+        });
+
+        // Final status check after 10 seconds
+        setTimeout(() => {
+            if (errorCount === 0) {
+                updateStatus(`🎉 SUCCESS: No Tabs API errors detected! (${successCount} successes, ${errorCount} errors)`, 'success');
+                resultsElement.innerHTML = `
+                    <div class="status success">
+                        <strong>✅ Test Passed!</strong><br>
+                        The content script fix appears to be working correctly. No "Tabs API not available" errors were detected.
+                    </div>
+                `;
+            } else {
+                updateStatus(`❌ FAILED: ${errorCount} Tabs API errors detected (${successCount} successes)`, 'error');
+                resultsElement.innerHTML = `
+                    <div class="status error">
+                        <strong>❌ Test Failed!</strong><br>
+                        The content script is still throwing "Tabs API not available" errors. The fix may not have been applied correctly.
+                    </div>
+                `;
+            }
+        }, 10000);
+    </script>
+</body>
+</html>

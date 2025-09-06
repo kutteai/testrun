@@ -109,21 +109,64 @@ export const getStorageChangeAPI = (): StorageChangeAPI => {
   throw new Error('Storage Change API not available in this browser');
 };
 
-// Convenience exports
-export const runtime = getRuntimeAPI();
-export const tabs = getTabsAPI();
-export const action = getActionAPI();
-export const alarms = getAlarmsAPI();
-export const notifications = getNotificationsAPI();
-export const storageChange = getStorageChangeAPI();
+// Lazy API getters - only initialize when actually used
+let _runtime: RuntimeAPI | null = null;
+let _tabs: TabsAPI | null = null;
+let _action: ActionAPI | null = null;
+let _alarms: AlarmsAPI | null = null;
+let _notifications: NotificationsAPI | null = null;
+let _storageChange: StorageChangeAPI | null = null;
+
+export const runtime = (): RuntimeAPI => {
+  if (!_runtime) {
+    _runtime = getRuntimeAPI();
+  }
+  return _runtime;
+};
+
+export const tabs = (): TabsAPI => {
+  if (!_tabs) {
+    _tabs = getTabsAPI();
+  }
+  return _tabs;
+};
+
+export const action = (): ActionAPI => {
+  if (!_action) {
+    _action = getActionAPI();
+  }
+  return _action;
+};
+
+export const alarms = (): AlarmsAPI => {
+  if (!_alarms) {
+    _alarms = getAlarmsAPI();
+  }
+  return _alarms;
+};
+
+export const notifications = (): NotificationsAPI => {
+  if (!_notifications) {
+    _notifications = getNotificationsAPI();
+  }
+  return _notifications;
+};
+
+export const storageChange = (): StorageChangeAPI => {
+  if (!_storageChange) {
+    _storageChange = getStorageChangeAPI();
+  }
+  return _storageChange;
+};
 
 // Safe message sending with error handling
 export const safeSendMessage = (message: any): Promise<any> => {
   return new Promise((resolve, reject) => {
     try {
-      runtime.sendMessage(message, (response) => {
-        if (runtime.lastError) {
-          reject(new Error(runtime.lastError.message));
+      const runtimeAPI = runtime();
+      runtimeAPI.sendMessage(message, (response) => {
+        if (runtimeAPI.lastError) {
+          reject(new Error(runtimeAPI.lastError.message));
         } else {
           resolve(response);
         }
@@ -138,7 +181,8 @@ export const safeSendMessage = (message: any): Promise<any> => {
 export const safeQueryTabs = (queryInfo: any): Promise<any[]> => {
   return new Promise((resolve, reject) => {
     try {
-      tabs.query(queryInfo, (tabs) => {
+      const tabsAPI = tabs();
+      tabsAPI.query(queryInfo, (tabs) => {
         resolve(tabs);
       });
     } catch (error) {
@@ -151,9 +195,11 @@ export const safeQueryTabs = (queryInfo: any): Promise<any[]> => {
 export const safeSendMessageToTab = (tabId: number, message: any): Promise<any> => {
   return new Promise((resolve, reject) => {
     try {
-      tabs.sendMessage(tabId, message, (response) => {
-        if (runtime.lastError) {
-          reject(new Error(runtime.lastError.message));
+      const tabsAPI = tabs();
+      const runtimeAPI = runtime();
+      tabsAPI.sendMessage(tabId, message, (response) => {
+        if (runtimeAPI.lastError) {
+          reject(new Error(runtimeAPI.lastError.message));
         } else {
           resolve(response);
         }
@@ -170,15 +216,17 @@ export const crossBrowserSendMessage = (message: any): Promise<any> => {
   return new Promise((resolve, reject) => {
     try {
       // Try to use the runtime API if available
-      if (typeof runtime !== 'undefined' && runtime.sendMessage) {
-        runtime.sendMessage(message, (response) => {
-          if (runtime.lastError) {
-            reject(new Error(runtime.lastError.message));
+      try {
+        const runtimeAPI = runtime();
+        runtimeAPI.sendMessage(message, (response) => {
+          if (runtimeAPI.lastError) {
+            reject(new Error(runtimeAPI.lastError.message));
           } else {
             resolve(response);
           }
         });
-      } else {
+      } catch (runtimeError) {
+        // Runtime API not available, fall back to postMessage
         // Use postMessage for cross-context communication
         const messageId = Date.now().toString();
         const messageWithId = { ...message, _id: messageId };
