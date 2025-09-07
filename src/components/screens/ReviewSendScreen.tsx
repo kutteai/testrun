@@ -61,14 +61,14 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           console.warn('No transaction data found in session storage');
           // Set default values if no data found
           setTransactionDetails({
-            amount: '0',
+            amount: '',
             currency: 'ETH',
-            fiatValue: '$0.00',
-            fromAccount: wallet?.name || 'Account 1',
+            fiatValue: '',
+            fromAccount: wallet?.name || '',
             fromAddress: wallet?.address || '',
             toAddress: '',
-            network: currentNetwork?.name || 'Ethereum',
-            networkFee: '0.001',
+            network: currentNetwork?.name || '',
+            networkFee: '',
             speed: 'Standard'
           });
           return;
@@ -78,7 +78,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         console.log('Loaded transaction data:', parsedData);
         
         // Get current account and network info
-        const accountAddress = wallet?.address || wallet?.accounts?.[0];
+        const accountAddress = wallet?.address || wallet?.accounts?.[0]?.addresses?.ethereum || '';
         const networkInfo = network || currentNetwork;
         
         if (!accountAddress || !networkInfo) {
@@ -86,11 +86,11 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           setTransactionDetails({
             amount: parsedData.amount || '0',
             currency: parsedData.currency || 'ETH',
-            fiatValue: '$0.00',
-            fromAccount: parsedData.fromAccount || 'Account 1',
+            fiatValue: '',
+            fromAccount: parsedData.fromAccount || '',
             fromAddress: parsedData.fromAddress || '',
             toAddress: parsedData.toAddress || '',
-            network: parsedData.network || 'Ethereum',
+            network: parsedData.network || '',
             networkFee: '0.001',
             speed: 'Standard'
           });
@@ -109,7 +109,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
         
         // Get real fiat conversion and transaction speed
-        let fiatValue = '$0.00';
+        let fiatValue = '';
         let transactionSpeed = 'Standard';
         
         try {
@@ -151,7 +151,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     const tx = {
       to: toAddress,
       value: ethers.parseEther(amount),
-      from: wallet?.address || wallet?.accounts?.[0]
+      from: wallet?.address || wallet?.accounts?.[0]?.addresses?.ethereum || ''
     };
     
     const gasEstimate = await provider.estimateGas(tx);

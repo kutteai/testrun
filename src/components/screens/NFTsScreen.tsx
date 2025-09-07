@@ -10,7 +10,7 @@ import type { ScreenProps } from '../../types/index';
 const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   console.log('🎨 NFTsScreen: Component rendered');
   
-  const { wallet } = useWallet();
+  const { wallet, currentNetwork } = useWallet();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,13 +19,28 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [isSettingProfile, setIsSettingProfile] = useState(false);
 
   useEffect(() => {
-    console.log('🔄 NFTsScreen: useEffect triggered, wallet address:', wallet?.address);
+    console.log('🔄 NFTsScreen: useEffect triggered, wallet address:', wallet?.address, 'network:', currentNetwork?.id);
     if (wallet?.address) {
       loadNFTs();
       loadProfilePicture();
     } else {
       console.log('❌ NFTsScreen: No wallet address available');
     }
+  }, [wallet?.address, currentNetwork?.id]);
+
+  // Listen for network changes to refresh NFTs
+  useEffect(() => {
+    const handleNetworkChange = async (event: CustomEvent) => {
+      console.log('🔄 Network changed event received in NFTsScreen:', event.detail);
+      if (wallet?.address) {
+        await loadNFTs();
+      }
+    };
+
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
   }, [wallet?.address]);
 
   const loadNFTs = async () => {
@@ -36,7 +51,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
     setIsLoading(true);
     try {
-      const network = wallet.currentNetwork || 'ethereum';
+      const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
       const rpcUrl = getNetworkRPCUrl(network);
       
       console.log('🔍 NFTsScreen: Loading NFTs for address:', wallet.address);
@@ -141,7 +156,21 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">NFTs</h1>
-              <p className="text-gray-600 text-sm">Your NFT Collections</p>
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
+                  currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
+                  currentNetwork?.id === 'solana' ? 'bg-purple-500' :
+                  currentNetwork?.id === 'tron' ? 'bg-red-500' :
+                  currentNetwork?.id === 'ton' ? 'bg-blue-400' :
+                  currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
+                  currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
+                  'bg-gray-500'
+                }`}></div>
+                <p className="text-gray-600 text-sm">
+                  {currentNetwork?.name || 'Select Network'}
+                </p>
+              </div>
             </div>
           </div>
           <button

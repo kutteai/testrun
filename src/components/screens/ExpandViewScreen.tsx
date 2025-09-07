@@ -52,9 +52,9 @@ const ExpandViewScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           // Get UCPI ID from storage
           const result = await storage.get(['ucpiId', 'ucpiSkipped']);
           if (result.ucpiSkipped) {
-            setUcpiId(result.ucpiId || 'user...@eth');
+            setUcpiId(result.ucpiId || '');
           } else {
-            setUcpiId(result.ucpiId || 'itsmewilliam...@eth');
+            setUcpiId(result.ucpiId || '');
           }
           
           // Update portfolio with real data

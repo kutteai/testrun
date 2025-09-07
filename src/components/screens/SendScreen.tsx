@@ -16,9 +16,9 @@ import type { ScreenProps } from '../../types/index';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 
 const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork } = useWallet();
+  const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork, switchNetwork } = useWallet();
   const { portfolioValue } = usePortfolio();
-  const { networks } = useNetwork();
+  const { networks, currentNetwork: networkContextCurrent } = useNetwork();
   
   const [fromAccount, setFromAccount] = useState<any>(null);
   const [toAddress, setToAddress] = useState('');
@@ -40,16 +40,40 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
       
       try {
+        console.log('🔄 SendScreen: Loading data for wallet:', wallet);
+        
         // Load accounts
         const walletAccounts = await getWalletAccounts();
+        console.log('📊 SendScreen: Loaded accounts:', walletAccounts);
         setAccounts(walletAccounts);
-        const current = await getCurrentAccount();
-        setFromAccount(current || walletAccounts[0] || null);
+        
+        // Get current account with proper fallback
+        let current = await getCurrentAccount();
+        console.log('👤 SendScreen: Current account:', current);
+        
+        // If no current account, use the first available account
+        if (!current && walletAccounts.length > 0) {
+          current = walletAccounts[0];
+          console.log('🔄 SendScreen: Using first account as fallback:', current);
+        }
+        
+        setFromAccount(current);
         
         // Load contacts from storage
-        const storedContacts = await storage.get('contacts');
-        setContacts(storedContacts?.contacts || []);
+        const storedContacts = await storage.get(['addressBook']);
+        const contactsData = storedContacts?.addressBook || [];
+        console.log('📇 SendScreen: Loaded contacts:', contactsData);
+        setContacts(contactsData);
+        
+        // If still no account, try to get from wallet directly
+        if (!current && wallet.accounts && wallet.accounts.length > 0) {
+          const directAccount = wallet.accounts.find((acc: any) => acc.isActive) || wallet.accounts[0];
+          console.log('🔄 SendScreen: Using direct wallet account:', directAccount);
+          setFromAccount(directAccount);
+        }
+        
       } catch (error) {
+        console.error('❌ SendScreen: Error loading data:', error);
         handleError(error, {
           context: { operation: 'loadSendScreenData', screen: 'SendScreen' },
           showToast: true
@@ -68,11 +92,27 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       console.log('🔄 Wallet changed event received in SendScreen:', event.detail);
       try {
         const walletAccounts = await getWalletAccounts();
+        console.log('📊 SendScreen: Refreshed accounts after wallet change:', walletAccounts);
         setAccounts(walletAccounts);
         
-        const current = await getCurrentAccount();
-        setFromAccount(current || walletAccounts[0] || null);
+        let current = await getCurrentAccount();
+        console.log('👤 SendScreen: Refreshed current account:', current);
+        
+        // Fallback to first account if no current account
+        if (!current && walletAccounts.length > 0) {
+          current = walletAccounts[0];
+          console.log('🔄 SendScreen: Using first account as fallback after wallet change:', current);
+        }
+        
+        setFromAccount(current);
+        
+        // Also refresh contacts
+        const storedContacts = await storage.get(['addressBook']);
+        const contactsData = storedContacts?.addressBook || [];
+        setContacts(contactsData);
+        
       } catch (error) {
+        console.error('❌ SendScreen: Error refreshing after wallet change:', error);
         handleError(error, {
           context: { operation: 'refreshAccountsAfterWalletChange', screen: 'SendScreen' },
           showToast: false // Don't show toast for background refresh
@@ -86,12 +126,35 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     };
   }, [getWalletAccounts, getCurrentAccount]);
 
-  // Set currency based on current network
+  // Set currency based on current network and refresh data when network changes
   useEffect(() => {
     if (currentNetwork) {
       setSelectedCurrency(currentNetwork.symbol || 'ETH');
+      // Refresh accounts when network changes
+      const refreshData = async () => {
+        try {
+          console.log('🔄 SendScreen: Refreshing data for network change to:', currentNetwork.id);
+          const walletAccounts = await getWalletAccounts();
+          console.log('📊 SendScreen: Refreshed accounts for network:', walletAccounts);
+          setAccounts(walletAccounts);
+          
+          let current = await getCurrentAccount();
+          console.log('👤 SendScreen: Refreshed current account for network:', current);
+          
+          // Fallback to first account if no current account
+          if (!current && walletAccounts.length > 0) {
+            current = walletAccounts[0];
+            console.log('🔄 SendScreen: Using first account as fallback for network:', current);
+          }
+          
+          setFromAccount(current);
+        } catch (error) {
+          console.error('❌ SendScreen: Error refreshing accounts on network change:', error);
+        }
+      };
+      refreshData();
     }
-  }, [currentNetwork]);
+  }, [currentNetwork, getWalletAccounts, getCurrentAccount]);
 
   const addressTypes = [
     { id: 'address', label: 'Address', icon: Check },
@@ -100,13 +163,21 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   ];
 
   const getAccountBalance = (account: any) => {
-    if (!portfolioValue?.assets || !account?.address) {
+    if (!portfolioValue?.assets) {
       return { balance: '0', usdValue: 0 };
     }
     
-    // Find assets for this account's address
-    const accountAssets = portfolioValue.assets.filter(asset => 
-      asset.network?.toLowerCase() === account.network?.toLowerCase()
+    // Get the correct address for the current network
+    const accountAddress = account?.address || account?.addresses?.[currentNetwork?.id || 'ethereum'];
+    
+    if (!accountAddress) {
+      return { balance: '0', usdValue: 0 };
+    }
+    
+    // Find assets for this account's address and current network
+    const accountAssets = portfolioValue.assets.filter((asset: any) => 
+      asset.address === accountAddress && 
+      asset.network?.toLowerCase() === (currentNetwork?.id || 'ethereum').toLowerCase()
     );
     
     if (accountAssets.length === 0) {
@@ -114,11 +185,11 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
     
     // Calculate total balance
-    const totalBalance = accountAssets.reduce((sum, asset) => {
+    const totalBalance = accountAssets.reduce((sum: number, asset: any) => {
       return sum + parseFloat(asset.balance || '0');
     }, 0);
     
-    const totalUsdValue = accountAssets.reduce((sum, asset) => {
+    const totalUsdValue = accountAssets.reduce((sum: number, asset: any) => {
       return sum + (asset.usdValue || 0);
     }, 0);
     
@@ -223,9 +294,25 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="flex-1 text-center text-xl font-bold">
-            Send
-          </h1>
+          <div className="flex-1 text-center">
+            <h1 className="text-xl font-bold">Send</h1>
+            <div className="flex items-center justify-center space-x-2 mt-1">
+              <div className={`w-4 h-4 rounded-full ${
+                currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
+                currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
+                currentNetwork?.id === 'solana' ? 'bg-purple-500' :
+                currentNetwork?.id === 'tron' ? 'bg-red-500' :
+                currentNetwork?.id === 'ton' ? 'bg-blue-400' :
+                currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
+                currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
+                'bg-gray-500'
+              }`}></div>
+              <span className="text-xs text-white/80">
+                {currentNetwork?.name || 'Select Network'}
+              </span>
+            </div>
+          </div>
+          <div className="w-10"></div>
         </div>
       </div>
 
@@ -246,11 +333,11 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </div>
               <div>
                 <div className="font-medium text-gray-900 text-[13px]">
-                  {fromAccount?.name || `Account ${fromAccount?.id || '1'}`}
+                  {fromAccount?.name || fromAccount?.id || 'Account 1'}
                 </div>
                 <div className="text-[13px] text-gray-600">
-                  {fromAccount?.address ? 
-                    `${fromAccount.address.substring(0, 6)}...${fromAccount.address.substring(fromAccount.address.length - 4)}` : 
+                  {fromAccount?.address || fromAccount?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
+                    `${(fromAccount.address || fromAccount.addresses?.[currentNetwork?.id || 'ethereum']).substring(0, 6)}...${(fromAccount.address || fromAccount.addresses?.[currentNetwork?.id || 'ethereum']).substring((fromAccount.address || fromAccount.addresses?.[currentNetwork?.id || 'ethereum']).length - 4)}` : 
                     'No address'
                   }
                 </div>
@@ -406,6 +493,19 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           </div>
         </motion.div>
 
+        {/* Debug Info */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
+            <div><strong>Debug Info:</strong></div>
+            <div>Wallet: {wallet ? '✅' : '❌'}</div>
+            <div>From Account: {fromAccount ? '✅' : '❌'}</div>
+            <div>Accounts Count: {accounts.length}</div>
+            <div>Contacts Count: {contacts.length}</div>
+            <div>Current Network: {currentNetwork?.id || 'None'}</div>
+            <div>From Account Address: {fromAccount?.address || fromAccount?.addresses?.[currentNetwork?.id || 'ethereum'] || 'None'}</div>
+          </div>
+        )}
+
         {/* Account/Contact List */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
@@ -415,13 +515,13 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         >
           {activeTab === 'accounts' ? (
             // Show accounts
-            accounts.map((account, index) => {
+            accounts.length > 0 ? accounts.map((account, index) => {
               const accountBalance = getAccountBalance(account);
               return (
                 <div
                   key={account.id}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                  onClick={() => setToAddress(account.address)}
+                  onClick={() => setToAddress(account.address || account.addresses?.[currentNetwork?.id || 'ethereum'])}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
@@ -432,8 +532,8 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                         {account?.name || `Account ${account?.id || '1'}`}
                       </div>
                       <div className="text-[13px] text-gray-600">
-                        {account?.address ? 
-                          `${account.address.substring(0, 6)}...${account.address.substring(account.address.length - 4)}` : 
+                        {account?.address || account?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
+                          `${(account.address || account.addresses?.[currentNetwork?.id || 'ethereum']).substring(0, 6)}...${(account.address || account.addresses?.[currentNetwork?.id || 'ethereum']).substring((account.address || account.addresses?.[currentNetwork?.id || 'ethereum']).length - 4)}` : 
                           'No address'
                         }
                       </div>
@@ -452,7 +552,12 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   </div>
                 </div>
               );
-            })
+            }) : (
+              <div className="text-center py-8">
+                <div className="text-gray-500 text-[13px]">No accounts found</div>
+                <div className="text-gray-400 text-[12px] mt-1">Create an account to get started</div>
+              </div>
+            )
           ) : (
             // Show contacts
             contacts.length > 0 ? (

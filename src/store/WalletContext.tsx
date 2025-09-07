@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useReducer, useEffect, useRef } from 'react';
-import toast from 'react-hot-toast';
 import { getRealBalance } from '../utils/web3-utils';
 import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validateBIP39SeedPhraseWithFeedback, validatePrivateKey, hashPassword, verifyPassword, encryptData, decryptData, importFromPrivateKey } from '../utils/crypto-utils';
 import { deriveWalletFromSeed } from '../utils/key-derivation';
@@ -293,7 +292,7 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
         ...state, 
         wallet: action.payload,
         address: action.payload.address,
-        accounts: action.payload.accounts || [action.payload.address],
+        accounts: action.payload.accounts || [],
         isWalletUnlocked: true,
         hasWallet: true
       };
@@ -397,10 +396,8 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (result.sessionPassword) {
               console.log('✅ WalletContext: Restored password from session storage');
               dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: result.sessionPassword });
-              toast('🔐 Password restored from session - real address derivation available', { duration: 5000 });
             } else {
               console.log('⚠️ WalletContext: No password in session storage - will use fallback addresses');
-              toast('⚠️ Password not in session - using deterministic addresses', { duration: 5000 });
             }
           } catch (error) {
             console.log('⚠️ WalletContext: Could not access session storage:', error);
@@ -443,7 +440,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       if (!sessionResult.sessionPassword && state.isWalletUnlocked) {
         console.log('⚠️ WARNING: Wallet is unlocked but no session password found!');
-        toast('⚠️ Password session issue detected', { duration: 3000 });
       }
     } catch (error) {
       console.log('⚠️ Could not check password status:', error);
@@ -604,7 +600,6 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     autoLockTimerRef.current = setTimeout(() => {
               if (state.isWalletUnlocked) {
           lockWallet();
-          toast('Wallet auto-locked due to inactivity');
         }
     }, AUTO_LOCK_TIMEOUT);
   };
@@ -650,11 +645,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       dispatch({ type: 'SET_WALLET', payload: walletData });
       dispatch({ type: 'SET_WALLET_CREATED', payload: true });
       dispatch({ type: 'SET_HAS_WALLET', payload: true });
-      toast.success('Wallet created successfully');
     } catch (error) {
       console.error('Wallet creation failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create wallet';
-      toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
     } finally {
       dispatch({ type: 'SET_LOADING', payload: false });
@@ -709,11 +702,9 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
     };
     dispatch({ type: 'SET_CURRENT_NETWORK', payload: networkData });
     
-    toast.success('Wallet imported successfully');
   } catch (error) {
       console.error('Wallet import failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to import wallet';
-      toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
   } finally {
     dispatch({ type: 'SET_LOADING', payload: false });
@@ -754,7 +745,26 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       privateKey: walletData.privateKey,
       publicKey: walletData.publicKey,
       encryptedSeedPhrase: '', // Not available when importing from private key
-      accounts: [walletData.address],
+      accounts: [{
+        id: `${Date.now()}-0`,
+        name: 'Account 1',
+        addresses: {
+          [network]: walletData.address
+        },
+        privateKey: walletData.privateKey,
+        publicKey: walletData.publicKey,
+        derivationPath: "m/44'/60'/0'/0/0",
+        networks: [network],
+        balances: {
+          [network]: '0'
+        },
+        nonces: {
+          [network]: 0
+        },
+        createdAt: Date.now(),
+        encryptedSeedPhrase: '',
+        isActive: true
+      }],
       networks: [network],
       currentNetwork: network,
       derivationPath: walletData.derivationPath,
@@ -793,11 +803,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     };
     dispatch({ type: 'SET_CURRENT_NETWORK', payload: networkData });
     
-    toast.success('Wallet imported successfully');
   } catch (error) {
       console.error('Private key import failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to import wallet from private key';
-      toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
   } finally {
     dispatch({ type: 'SET_LOADING', payload: false });
@@ -815,10 +823,8 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const hash = await hashPassword(password);
       await storePasswordHash(hash);
       dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
-      toast.success('Password set successfully');
     } catch (error) {
       console.error('Failed to set password:', error);
-      toast.error('Failed to set password');
       throw error;
     }
   };
@@ -856,7 +862,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         }
         
         await storeUnlockTime(Date.now());
-        toast.success('Wallet unlocked successfully');
         return true;
       }
 
@@ -876,16 +881,13 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         }
         
         await storeUnlockTime(Date.now());
-        toast.success('Wallet unlocked successfully');
         return true;
       } else {
-        toast.error('Invalid password');
         return false;
       }
     } catch (error) {
       console.error('Unlock wallet failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to unlock wallet';
-      toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
       return false;
     }
@@ -900,32 +902,19 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     // Clear password from all storage
     await clearPassword();
     
-    toast.success('Wallet locked');
   };
 
    // Switch network
    const switchNetwork = async (networkId: string): Promise<void> => {
     try {
-      console.log(`🔄 Starting network switch to: ${networkId}`);
       
-      // Debug: Check current wallet state
-      console.log('🔍 Wallet State Check:');
-      console.log('- Has Wallet:', state.hasWallet);
-      console.log('- Wallet Created:', state.isWalletCreated);
-      console.log('- Wallet Unlocked:', state.isWalletUnlocked);
-      console.log('- Current Address:', state.wallet?.address || 'NONE');
-      console.log('- Current Network:', state.wallet?.currentNetwork || 'NONE');
-      console.log('- Has Encrypted Seed:', !!state.wallet?.encryptedSeedPhrase);
-      console.log('- Has Global Password:', !!state.globalPassword);
       
       // Always try to restore password at the start of network switch
       if (state.isWalletUnlocked) {
         const storedPassword = await getPassword();
         if (storedPassword) {
-          console.log('✅ Restored password at start of network switch');
           dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: storedPassword });
         } else {
-          console.log('⚠️ No password found at start of network switch - will prompt user if needed');
         }
       }
       
@@ -940,32 +929,27 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         throw new Error(`Network '${networkId}' not found`);
       }
 
-      console.log(`✅ Found network: ${network.name}`);
       
       // Update current network first
       dispatch({ type: 'SET_CURRENT_NETWORK', payload: network });
       
       if (!state.wallet) {
-        console.log('⚠️ No wallet available for address derivation');
         return;
       }
       
         let newAddress = state.wallet.address;
-      const isEvmNetwork = !['bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'].includes(networkId);
+      // Custom networks are always EVM networks (they have RPC URLs and Chain IDs)
+      const isEvmNetwork = network.isCustom || !['bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'].includes(networkId);
       
       // Always derive the correct address for the target network
-      console.log(`🔄 Deriving address for network: ${networkId} (EVM: ${isEvmNetwork})`);
       
       // Ensure we have a password for address derivation
       let passwordToUse = state.globalPassword;
       if (!passwordToUse && state.isWalletUnlocked) {
-        console.log('🔑 No password in state, attempting to restore from storage...');
         passwordToUse = await getPassword();
         if (passwordToUse) {
-          console.log('✅ Password restored from storage');
           dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: passwordToUse });
         } else {
-          console.log('⚠️ No password in storage, prompting user...');
           // Prompt user for password immediately
           const userPassword = prompt(`Please enter your wallet password to derive real ${networkId} address:`);
           if (userPassword && userPassword.trim()) {
@@ -975,15 +959,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
               passwordToUse = userPassword.trim();
               dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: passwordToUse });
               await storePassword(passwordToUse);
-              console.log('✅ User password validated and stored');
             } catch (passwordError) {
-              console.log('❌ Invalid password provided - cancelling network switch');
-              toast.error('Invalid password provided');
               // Don't proceed with network switch if password is invalid
               return;
             }
           } else {
-            console.log('⚠️ No password provided by user - cancelling network switch');
             // User cancelled the password prompt, don't proceed with network switch
             return;
           }
@@ -999,18 +979,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
             const { ethers } = await import('ethers');
             const wallet = ethers.Wallet.fromPhrase(seedPhrase);
             newAddress = wallet.address;
-            console.log(`🔄 Derived EVM address: ${newAddress}`);
           } else {
             // For non-EVM networks, derive network-specific address
             newAddress = await deriveNetworkSpecificAddress(networkId, seedPhrase);
-            console.log(`🔄 Derived ${networkId} address: ${newAddress}`);
           }
         } catch (error) {
-          console.error(`Failed to derive address for ${networkId}:`, error);
           throw new Error(`Unable to derive address for ${networkId}`);
         }
               } else {
-          console.log('⚠️ No seed phrase or password available');
           throw new Error('No seed phrase or password available for address derivation');
         }
       
@@ -1022,18 +998,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const isTonAddress = newAddress.startsWith('EQ') && newAddress.length === 48;
       const isXrpAddress = newAddress.startsWith('r') && newAddress.length === 34;
       
-      console.log(`🔄 Address validation:`);
-      console.log(`- Network: ${networkId}`);
-      console.log(`- Address: ${newAddress}`);
-      console.log(`- EVM format: ${isEvmAddress}`);
-      console.log(`- Bitcoin format: ${isBitcoinAddress}`);
-      console.log(`- Solana format: ${isSolanaAddress}`);
-      console.log(`- TRON format: ${isTronAddress}`);
-      console.log(`- TON format: ${isTonAddress}`);
-      console.log(`- XRP format: ${isXrpAddress}`);
       
-      console.log(`🔄 Address update: ${state.wallet.address} -> ${newAddress}`);
-      console.log(`🔄 Network change: ${state.wallet.currentNetwork} -> ${networkId}`);
       
       // Create updated wallet
         const updatedWallet = { 
@@ -1050,8 +1015,20 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // Log the change
       const addressChanged = state.wallet.address !== newAddress;
-      console.log(`✅ Network switched to ${network.name}. Address changed: ${addressChanged}`);
-      console.log(`✅ Final address: ${newAddress}`);
+      
+      // FORCE UPDATE: Always add the network address to the current account
+      try {
+        const { WalletManager } = await import('../core/wallet-manager');
+        const walletManager = new WalletManager();
+        
+        // Get the current account and FORCE add the network address
+        const currentAccount = await walletManager.getCurrentAccountForWallet(updatedWallet.id);
+        if (currentAccount) {
+          await walletManager.addNetworkToAccount(currentAccount.id, networkId, newAddress);
+        } else {
+        }
+      } catch (forceError) {
+      }
       
       // Check if we need to create an account for this network and update wallet address
       try {
@@ -1059,32 +1036,46 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         const walletManager = new WalletManager();
         const existingAccounts = await walletManager.getWalletAccounts(updatedWallet.id);
         
-        // Check if we have an account for this network
-        const hasAccountForNetwork = existingAccounts.some(account => 
-          account.network === networkId || 
-          (isEvmNetwork && ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(account.network))
-        );
         
-        if (!hasAccountForNetwork) {
-          console.log(`No account found for ${network.name}, creating one automatically...`);
-          try {
+        // Always add the network address to the current account
+        try {
+          // Get the current account
+          const currentAccount = await walletManager.getCurrentAccountForWallet(updatedWallet.id);
+          if (currentAccount) {
+            
+            // Check if account already has this network
+            const hasNetwork = currentAccount.networks.includes(networkId);
+            
+            // Always add/update the network address
+            
+            await walletManager.addNetworkToAccount(currentAccount.id, networkId, newAddress);
+            
+            // Verify the address was added
+            const updatedAccount = await walletManager.getCurrentAccountForWallet(updatedWallet.id);
+            
+            // Force a small delay to ensure the data is saved
+            await new Promise(resolve => setTimeout(resolve, 50));
+          } else {
+            // If no current account, create a new one
             await walletManager.addAccountToWallet(updatedWallet.id, passwordToUse);
-            console.log(`✅ Account created for ${network.name}`);
-          } catch (accountError) {
-            console.warn(`Failed to create account for ${network.name}:`, accountError);
           }
+        } catch (accountError) {
         }
+        
         
         // Update wallet address to match the current account for this network
         const currentAccountForNetwork = await walletManager.getCurrentAccountForWallet(updatedWallet.id);
-        if (currentAccountForNetwork && currentAccountForNetwork.address !== updatedWallet.address) {
-          console.log(`🔄 Updating wallet address to match current account: ${updatedWallet.address} -> ${currentAccountForNetwork.address}`);
-          const finalUpdatedWallet = { ...updatedWallet, address: currentAccountForNetwork.address };
-          dispatch({ type: 'SET_WALLET', payload: finalUpdatedWallet });
-          await storeWallet(finalUpdatedWallet);
+        if (currentAccountForNetwork) {
+          const currentAccountAddress = currentAccountForNetwork.addresses[networkId] || Object.values(currentAccountForNetwork.addresses)[0];
+          if (currentAccountAddress !== updatedWallet.address) {
+            const finalUpdatedWallet = { ...updatedWallet, address: currentAccountAddress };
+            dispatch({ type: 'SET_WALLET', payload: finalUpdatedWallet });
+            await storeWallet(finalUpdatedWallet);
+          }
+          
+          // Final verification: Log the account data that will be used by the dashboard
         }
       } catch (accountCheckError) {
-        console.warn('Failed to check/create account for network:', accountCheckError);
       }
       
       // Dispatch wallet changed event to notify components
@@ -1101,14 +1092,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // Show detailed toast with address info
       if (addressChanged) {
-        toast.success(`Switched to ${network.name}\nNew address: ${newAddress.slice(0, 8)}...${newAddress.slice(-6)}\nFormat: ${isEvmAddress ? 'EVM' : isBitcoinAddress ? 'Bitcoin' : isSolanaAddress ? 'Solana' : isTronAddress ? 'TRON' : isTonAddress ? 'TON' : isXrpAddress ? 'XRP' : 'Unknown'}`);
       } else {
-        toast.success(`Switched to ${network.name} (address unchanged)`);
       }
       
     } catch (error) {
       console.error('Network switch failed:', error);
-      toast.error(`Failed to switch network: ${error.message}`);
       throw error;
     }
   };
@@ -1134,77 +1122,149 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         return ltcWallet.address;
         
       case 'tron':
-        const crypto = await import('crypto');
-        const seedHash = crypto.createHash('sha256').update(seedPhrase + 'tron').digest('hex');
-        const addressHash = crypto.createHash('sha256').update(Buffer.from(seedHash, 'hex')).digest('hex');
-        return `T${addressHash.slice(0, 33)}`;
+        // Derive TRON address from seed phrase using proper BIP32 derivation
+        const bip39_tron = await import('bip39');
+        const { BIP32Factory } = await import('bip32');
+        const ecc_tron = await import('tiny-secp256k1');
+        const crypto_tron = await import('crypto');
+        
+        // Initialize BIP32 for TRON
+        const bip32_tron = BIP32Factory(ecc_tron);
+        
+        // Generate seed from mnemonic
+        const seed_tron = await bip39_tron.mnemonicToSeed(seedPhrase);
+        
+        // Create master key (TRON uses mainnet network config)
+        const root_tron = bip32_tron.fromSeed(seed_tron);
+        
+        // Derive TRON key using BIP44 path: m/44'/195'/0'/0/0
+        const derivationPath_tron = "m/44'/195'/0'/0/0";
+        const child_tron = root_tron.derivePath(derivationPath_tron);
+        
+        if (!child_tron.publicKey) {
+          throw new Error('Failed to derive TRON public key');
+        }
+        
+        // Generate TRON address from derived public key
+        const publicKey_tron = Buffer.from(child_tron.publicKey).slice(0, 33);
+        const prefix_tron = Buffer.from([0x41]);
+        const hash_tron = crypto_tron.createHash('sha256').update(publicKey_tron).digest();
+        const ripemd160_tron = crypto_tron.createHash('ripemd160').update(hash_tron).digest();
+        const addressBytes_tron = Buffer.concat([prefix_tron, ripemd160_tron]);
+        
+        // Double SHA256 for checksum
+        const checksum_tron = crypto_tron.createHash('sha256')
+          .update(crypto_tron.createHash('sha256').update(addressBytes_tron).digest())
+          .digest()
+          .slice(0, 4);
+        
+        const finalBytes_tron = Buffer.concat([addressBytes_tron, checksum_tron]);
+        
+        // Base58 encoding
+        const base58Alphabet_tron = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        let result_tron = '';
+        let num_tron = BigInt('0x' + finalBytes_tron.toString('hex'));
+        
+        while (num_tron > 0n) {
+          result_tron = base58Alphabet_tron[Number(num_tron % 58n)] + result_tron;
+          num_tron = num_tron / 58n;
+        }
+        
+        return result_tron;
         
       case 'ton':
-        const crypto_ton = await import('crypto');
+        // Derive TON address from seed phrase using proper BIP32 derivation
         const bip39_ton = await import('bip39');
+        const { BIP32Factory: BIP32Factory_ton } = await import('bip32');
+        const ecc_ton = await import('tiny-secp256k1');
+        const crypto_ton = await import('crypto');
+        
+        // Initialize BIP32 for TON
+        const bip32_ton = BIP32Factory_ton(ecc_ton);
+        
+        // Generate seed from mnemonic
         const seed_ton = await bip39_ton.mnemonicToSeed(seedPhrase);
-        // Generate TON address using deterministic derivation
-        const tonSeed = crypto_ton.createHash('sha256').update(seedPhrase + 'ton').digest('hex');
-        const tonAddress = crypto_ton.createHash('sha256').update(Buffer.from(tonSeed, 'hex')).digest('hex');
-        return `EQ${tonAddress.slice(0, 48)}`; // TON address format
+        
+        // Create master key
+        const root_ton = bip32_ton.fromSeed(seed_ton);
+        
+        // Derive TON key using BIP44 path: m/44'/396'/0'/0/0
+        const derivationPath_ton = "m/44'/396'/0'/0/0";
+        const child_ton = root_ton.derivePath(derivationPath_ton);
+        
+        if (!child_ton.publicKey) {
+          throw new Error('Failed to derive TON public key');
+        }
+        
+        // Generate TON address from derived public key
+        const publicKey_ton = Buffer.from(child_ton.publicKey).slice(0, 32);
+        
+        // TON address format: EQ + base64url encoded public key
+        const base64url_ton = publicKey_ton.toString('base64')
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=/g, '');
+        
+        return `EQ${base64url_ton}`;
         
       case 'xrp':
-        try {
-          // Generate XRP address from seed phrase using proper derivation
-          const crypto = await import('crypto');
-          const bip39 = await import('bip39');
-          
-          // Convert seed phrase to seed
-          const seed = await bip39.mnemonicToSeed(seedPhrase);
-          
-          // Use XRP derivation path: m/44'/144'/0'/0/0
-          const derivationPath = "m/44'/144'/0'/0/0";
-          
-          // For XRP, we'll use a deterministic method based on the seed
-          // XRP addresses are base58 encoded with specific format
-          const seedHash = crypto.createHash('sha256').update(seed).digest();
-          const addressHash = crypto.createHash('ripemd160').update(seedHash).digest();
+        // Derive XRP address from seed phrase using proper BIP32 derivation
+        const bip39_xrp = await import('bip39');
+        const { BIP32Factory: BIP32Factory_xrp } = await import('bip32');
+        const ecc_xrp = await import('tiny-secp256k1');
+        const crypto_xrp = await import('crypto');
+        
+        // Initialize BIP32 for XRP
+        const bip32_xrp = BIP32Factory_xrp(ecc_xrp);
+        
+        // Generate seed from mnemonic
+        const seed_xrp = await bip39_xrp.mnemonicToSeed(seedPhrase);
+        
+        // Create master key
+        const root_xrp = bip32_xrp.fromSeed(seed_xrp);
+        
+        // Derive XRP key using BIP44 path: m/44'/144'/0'/0/0
+        const derivationPath_xrp = "m/44'/144'/0'/0/0";
+        const child_xrp = root_xrp.derivePath(derivationPath_xrp);
+        
+        if (!child_xrp.publicKey) {
+          throw new Error('Failed to derive XRP public key');
+        }
+        
+        // Generate XRP address from derived public key
+        const publicKey_xrp = Buffer.from(child_xrp.publicKey);
+        const addressHash_xrp = crypto_xrp.createHash('ripemd160').update(publicKey_xrp).digest();
           
           // XRP address format: starts with 'r' and is 34 characters long
-          // We'll create a deterministic address that looks like XRP format
-          const addressBytes = Buffer.concat([
+        const addressBytes_xrp = Buffer.concat([
             Buffer.from([0x00]), // XRP address prefix
-            addressHash
+          addressHash_xrp
           ]);
           
           // Create checksum
-          const checksum = crypto.createHash('sha256')
-            .update(crypto.createHash('sha256').update(addressBytes).digest())
+        const checksum_xrp = crypto_xrp.createHash('sha256')
+          .update(crypto_xrp.createHash('sha256').update(addressBytes_xrp).digest())
             .digest()
             .slice(0, 4);
           
-          const finalBytes = Buffer.concat([addressBytes, checksum]);
-          
-          // Simple base58-like encoding for XRP format
-          const base58Alphabet = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
-          let result = '';
-          let num = BigInt('0x' + finalBytes.toString('hex'));
-          
-          while (num > 0n) {
-            result = base58Alphabet[Number(num % 58n)] + result;
-            num = num / 58n;
+        const finalBytes_xrp = Buffer.concat([addressBytes_xrp, checksum_xrp]);
+        
+        // Base58 encoding
+        const base58Alphabet_xrp = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz';
+        let result_xrp = '';
+        let num_xrp = BigInt('0x' + finalBytes_xrp.toString('hex'));
+        
+        while (num_xrp > 0n) {
+          result_xrp = base58Alphabet_xrp[Number(num_xrp % 58n)] + result_xrp;
+          num_xrp = num_xrp / 58n;
           }
           
           // Ensure it starts with 'r' and is proper length
-          const xrpAddress = 'r' + result.slice(0, 33);
+        const xrpAddress = 'r' + result_xrp.slice(0, 33);
           return xrpAddress;
-          
-        } catch (xrpError) {
-          console.error('XRP derivation failed:', xrpError);
-          // Simple fallback: Generate deterministic XRP-like address
-          const crypto = await import('crypto');
-          const seedHash = crypto.createHash('sha256').update(seedPhrase + 'xrp').digest('hex');
-          const addressHash = crypto.createHash('sha256').update(Buffer.from(seedHash, 'hex')).digest('hex');
-          return `r${addressHash.slice(0, 33)}`; // XRP address format (r...)
-        }
         
       default:
-        return state.wallet?.address || '';
+        throw new Error(`Unsupported network: ${networkId}`);
     }
   };
 
@@ -1227,10 +1287,8 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const updatedWallet = await walletManager.getWallet(state.wallet.id);
       if (updatedWallet) {
         dispatch({ type: 'SET_WALLET', payload: updatedWallet });
-        toast.success('Account switched successfully');
       }
     } catch (error) {
-      toast.error('Failed to switch account');
       // Don't set error state to avoid persistent "something went wrong"
     }
   };
@@ -1302,7 +1360,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       console.log('✅ New account created:', { 
         accountId: newAccount.id, 
-        address: newAccount.address 
+        addresses: newAccount.addresses 
       });
     
     // Get the updated wallet with the new account
@@ -1326,7 +1384,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           await storeWallet(updatedWallet);
         }
         
-      toast.success('New account added successfully');
       return newAccount; // Return the created account
       } else {
         throw new Error('Failed to retrieve updated wallet');
@@ -1340,7 +1397,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         passwordProvided: !!password
       });
     const errorMessage = error instanceof Error ? error.message : 'Failed to add account';
-    toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
       throw error; // Re-throw the error so the caller can handle it
   }
@@ -1364,12 +1420,10 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const updatedWallet = await walletManager.getWallet(state.wallet.id);
       if (updatedWallet) {
         dispatch({ type: 'SET_WALLET', payload: updatedWallet });
-        toast.success('Account removed successfully');
       }
     } catch (error) {
       console.error('Error removing account:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove account';
-      toast.error(errorMessage);
       // Don't set error state to avoid persistent "something went wrong"
     }
   };
@@ -1418,7 +1472,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const balance = await getRealBalance(address, network);
       return balance;
     } catch (error) {
-      toast.error('Failed to get balance');
       // Don't set error state to avoid persistent "something went wrong"
       return '0';
     }
@@ -1590,7 +1643,28 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           ? await hardwareWalletManager.exportPublicKeyLedger()
           : await hardwareWalletManager.exportPublicKeyTrezor(),
         encryptedSeedPhrase: '', // Hardware wallets don't expose seed phrases
-        accounts: [address],
+        accounts: [{
+          id: `hw_${type}_${Date.now()}_0`,
+          name: 'Hardware Account 1',
+          addresses: {
+            'ethereum': address
+          },
+          privateKey: '', // Hardware wallets don't expose private keys
+          publicKey: type === 'ledger'
+            ? await hardwareWalletManager.exportPublicKeyLedger()
+            : await hardwareWalletManager.exportPublicKeyTrezor(),
+          derivationPath: derivationPath,
+          networks: ['ethereum'],
+          balances: {
+            'ethereum': '0'
+          },
+          nonces: {
+            'ethereum': 0
+          },
+          createdAt: Date.now(),
+          encryptedSeedPhrase: '',
+          isActive: true
+        }],
         networks: ['ethereum'],
         currentNetwork: 'ethereum',
         derivationPath,
@@ -1608,9 +1682,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       dispatch({ type: 'SET_WALLET', payload: hardwareWallet });
       dispatch({ type: 'SET_HAS_WALLET', payload: true });
-      toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} wallet added successfully`);
     } catch (error) {
-      toast.error(`Failed to add ${type} wallet`);
       // Don't set error state to avoid persistent "something went wrong"
     }
   };
@@ -1658,12 +1730,16 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
     
     events.forEach(event => {
+      if (typeof document !== 'undefined') {
       document.addEventListener(event, handleUserActivity, { passive: true });
+      }
     });
 
     return () => {
       events.forEach(event => {
+        if (typeof document !== 'undefined') {
         document.removeEventListener(event, handleUserActivity);
+        }
       });
     };
   }, [state.isWalletUnlocked]);

@@ -290,16 +290,12 @@ async function handleSignTransaction() {
         }
         // Create wallet instance
         const wallet = new ethers.Wallet(privateKey);
-        // Get transaction data from the request (this would come from the dApp)
-        // The transaction data should be passed from the dApp
-        const transaction = request.transaction || {
-            to: '0x0000000000000000000000000000000000000000',
-            value: '0x0',
-            data: '0x',
-            gasLimit: '0x5208',
-            gasPrice: ethers.parseUnits('20', 'gwei'),
-            nonce: 0
-        };
+        // Get transaction data from the request (this should come from the dApp)
+        if (!request.transaction) {
+            throw new Error('Transaction data is required from the dApp');
+        }
+        
+        const transaction = request.transaction;
         // Sign the transaction
         const signedTx = await wallet.signTransaction(transaction);
         return {

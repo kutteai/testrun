@@ -4,10 +4,11 @@ import { ArrowLeft, Copy, Share2, Download, Check, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
+import { copyToClipboardWithFeedback } from '../../utils/clipboard-utils';
 import type { ScreenProps } from '../../types/index';
 
 const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet, currentNetwork, isWalletUnlocked, isLoading, isInitializing } = useWallet();
+  const { wallet, currentNetwork, isWalletUnlocked, isLoading, isInitializing, getCurrentAccount } = useWallet();
   const [copied, setCopied] = useState(false);
   const [qrSize, setQrSize] = useState(200);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +39,27 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     };
   }, []);
 
+  // Listen for network changes to refresh current account
+  useEffect(() => {
+    const handleNetworkChange = async (event: CustomEvent) => {
+      console.log('🔄 Network changed event received in ReceiveScreen:', event.detail);
+      // Refresh current account when network changes
+      try {
+        const currentAccount = await getCurrentAccount();
+        if (currentAccount) {
+          console.log('✅ Updated current account for ReceiveScreen:', currentAccount);
+        }
+      } catch (error) {
+        console.error('Error refreshing account on network change:', error);
+      }
+    };
+
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
+  }, [getCurrentAccount]);
+
   // Generate QR code data for wallet address
   const getQRCodeData = (): string => {
     if (!wallet?.address) return '';
@@ -57,13 +79,15 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const copyAddress = async () => {
     if (!wallet?.address) return;
     
-    try {
-      await navigator.clipboard.writeText(wallet.address);
+    const success = await copyToClipboardWithFeedback(
+      wallet.address,
+      'Address copied to clipboard',
+      'Failed to copy address'
+    );
+    
+    if (success) {
       setCopied(true);
-      toast.success('Address copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Failed to copy address');
     }
   };
 
@@ -237,7 +261,21 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Receive</h1>
-              <p className="text-gray-600 text-[13px]">Get crypto</p>
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
+                  currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
+                  currentNetwork?.id === 'solana' ? 'bg-purple-500' :
+                  currentNetwork?.id === 'tron' ? 'bg-red-500' :
+                  currentNetwork?.id === 'ton' ? 'bg-blue-400' :
+                  currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
+                  currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
+                  'bg-gray-500'
+                }`}></div>
+                <p className="text-gray-600 text-[13px]">
+                  {currentNetwork?.name || 'Select Network'}
+                </p>
+              </div>
             </div>
           </div>
           <div className="w-10"></div>
@@ -255,14 +293,13 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div className="text-center mb-6">
             <h2 className="text-lg font-semibold mb-2 text-gray-900">Your Address</h2>
             <p className="text-gray-600 text-[13px]">
-              Share this QR code or address to receive {currentNetwork?.symbol || 'ETH'}
+              Share this QR code or address to receive {currentNetwork?.symbol  }
             </p>
           </div>
 
           <div className="flex justify-center mb-6">
             <div className="bg-white p-4 rounded-2xl">
               <QRCodeSVG
-                id="qr-code-svg"
                 value={getQRCodeData()}
                 size={qrSize}
                 level="M"

@@ -6,7 +6,8 @@ import {
   DollarSign,
   Loader,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
@@ -24,8 +25,11 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [transactionStatus, setTransactionStatus] = useState<'idle' | 'processing' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showFiatDropdown, setShowFiatDropdown] = useState(false);
+  const [showCryptoDropdown, setShowCryptoDropdown] = useState(false);
+  const [priceError, setPriceError] = useState(false);
   
-  const { wallet } = useWallet();
+  const { wallet, currentNetwork, switchNetwork } = useWallet();
 
   const fiatCurrencies = [
     { symbol: 'USD', name: 'US Dollar', icon: '💵', color: 'bg-yellow-500' },
@@ -34,14 +38,67 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   ];
 
   const cryptoCurrencies = [
-    { symbol: 'ETH', name: 'Ethereum', icon: '🔷', color: 'bg-blue-500' },
-    { symbol: 'BTC', name: 'Bitcoin', icon: '🟠', color: 'bg-orange-500' },
-    { symbol: 'USDT', name: 'Tether', icon: '🟢', color: 'bg-green-500' },
-    { symbol: 'BNB', name: 'BNB', icon: '🟡', color: 'bg-yellow-500' }
+    { symbol: 'ETH', name: 'Ethereum', network: 'ethereum', icon: '🔷', color: 'bg-blue-500' },
+    { symbol: 'BTC', name: 'Bitcoin', network: 'bitcoin', icon: '🟠', color: 'bg-orange-500' },
+    { symbol: 'SOL', name: 'Solana', network: 'solana', icon: '🟣', color: 'bg-purple-500' },
+    { symbol: 'TRX', name: 'TRON', network: 'tron', icon: '🔴', color: 'bg-red-500' },
+    { symbol: 'TON', name: 'TON', network: 'ton', icon: '🔵', color: 'bg-blue-400' },
+    { symbol: 'XRP', name: 'XRP', network: 'xrp', icon: '🔵', color: 'bg-blue-300' },
+    { symbol: 'LTC', name: 'Litecoin', network: 'litecoin', icon: '⚪', color: 'bg-gray-400' },
+    { symbol: 'USDT', name: 'Tether', network: 'ethereum', icon: '🟢', color: 'bg-green-500' },
+    { symbol: 'BNB', name: 'BNB', network: 'bsc', icon: '🟡', color: 'bg-yellow-500' },
+    { symbol: 'MATIC', name: 'Polygon', network: 'polygon', icon: '🟣', color: 'bg-purple-600' }
   ];
 
   const selectedFiat = fiatCurrencies.find(c => c.symbol === selectedFiatCurrency) || fiatCurrencies[0];
   const selectedCrypto = cryptoCurrencies.find(c => c.symbol === selectedCryptoCurrency) || cryptoCurrencies[0];
+
+  // Set crypto currency based on current network
+  useEffect(() => {
+    if (currentNetwork) {
+      setSelectedCryptoCurrency(currentNetwork.symbol);
+      // Reset amounts when network changes
+      setSpendAmount('0');
+      setBuyAmount('0');
+    }
+  }, [currentNetwork]);
+
+  // Dropdown handlers
+  const handleFiatCurrencySelect = (currency: any) => {
+    setSelectedFiatCurrency(currency.symbol);
+    setShowFiatDropdown(false);
+  };
+
+  const handleCryptoCurrencySelect = async (currency: any) => {
+    setSelectedCryptoCurrency(currency.symbol);
+    setShowCryptoDropdown(false);
+    
+    // Switch network if different from current
+    if (currency.network !== currentNetwork?.id) {
+      try {
+        await switchNetwork(currency.network);
+        toast.success(`🌐 Switched to ${currency.name} network`);
+      } catch (error) {
+        toast.error(`Failed to switch to ${currency.name} network`);
+      }
+    }
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.dropdown-container')) {
+        setShowFiatDropdown(false);
+        setShowCryptoDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Save buy/sell transactions
   const saveTransactions = async (transactions: any[]): Promise<void> => {
@@ -54,13 +111,14 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   };
 
+
   // Fetch real crypto prices from CoinGecko API
   useEffect(() => {
     const fetchPrices = async () => {
       try {
         setIsLoadingPrices(true);
         const response = await fetch(
-          `https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin,tether,binancecoin&vs_currencies=usd`
+          `https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin,solana,tron,the-open-network,ripple,litecoin,tether,binancecoin,matic-network&vs_currencies=usd`
         );
         
         if (!response.ok) {
@@ -73,16 +131,24 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         const prices = {
           'ETH': data.ethereum?.usd,
           'BTC': data.bitcoin?.usd,
+          'SOL': data.solana?.usd,
+          'TRX': data.tron?.usd,
+          'TON': data['the-open-network']?.usd,
+          'XRP': data.ripple?.usd,
+          'LTC': data.litecoin?.usd,
           'USDT': data.tether?.usd,
-          'BNB': data.binancecoin?.usd
+          'BNB': data.binancecoin?.usd,
+          'MATIC': data['matic-network']?.usd
         };
         
         setCryptoPrices(prices);
+        setPriceError(false);
+        console.log('✅ BuySellScreen: Fetched crypto prices:', prices);
       } catch (error) {
-        console.error('Error fetching prices:', error);
-        toast.error('Failed to fetch crypto prices. Please check your connection.');
-        // Don't set fallback prices - let the user know there's an issue
+        console.error('❌ BuySellScreen: Error fetching prices:', error);
         setCryptoPrices({});
+        setPriceError(true);
+        toast.error('Unable to get prices. Please check your connection.');
       } finally {
         setIsLoadingPrices(false);
       }
@@ -93,6 +159,45 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       // This catch block ensures the error doesn't propagate to the console
     });
   }, []);
+
+  // Retry price fetching
+  const retryPriceFetch = async () => {
+    try {
+      setPriceError(false);
+      setIsLoadingPrices(true);
+      const response = await fetch(
+        `https://api.coingecko.com/api/v3/simple/price?ids=ethereum,bitcoin,solana,tron,the-open-network,ripple,litecoin,tether,binancecoin,matic-network&vs_currencies=usd`
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        const prices = {
+          'ETH': data.ethereum?.usd,
+          'BTC': data.bitcoin?.usd,
+          'SOL': data.solana?.usd,
+          'TRX': data.tron?.usd,
+          'TON': data['the-open-network']?.usd,
+          'XRP': data.ripple?.usd,
+          'LTC': data.litecoin?.usd,
+          'USDT': data.tether?.usd,
+          'BNB': data.binancecoin?.usd,
+          'MATIC': data['matic-network']?.usd
+        };
+        setCryptoPrices(prices);
+        setPriceError(false);
+        toast.success('✅ Price data updated successfully!');
+      } else {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('❌ BuySellScreen: Retry failed:', error);
+      setCryptoPrices({});
+      setPriceError(true);
+      toast.error('Unable to get prices. Please check your connection.');
+    } finally {
+      setIsLoadingPrices(false);
+    }
+  };
 
   // Listen for wallet changes to refresh data
   useEffect(() => {
@@ -237,9 +342,38 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="flex-1 text-center text-xl font-bold">
-            {activeTab === 'buy' ? 'Buy' : 'Sell'}
-          </h1>
+          <div className="flex-1 text-center">
+            <h1 className="text-xl font-bold">
+              {activeTab === 'buy' ? 'Buy' : 'Sell'}
+            </h1>
+            <div className="flex items-center justify-center space-x-2 mt-1">
+              <div className={`w-4 h-4 rounded-full ${
+                currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
+                currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
+                currentNetwork?.id === 'solana' ? 'bg-purple-500' :
+                currentNetwork?.id === 'tron' ? 'bg-red-500' :
+                currentNetwork?.id === 'ton' ? 'bg-blue-400' :
+                currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
+                currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
+                'bg-gray-500'
+              }`}></div>
+              <span className="text-xs text-white/80">
+                {currentNetwork?.name || 'Select Network'}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center">
+            {priceError && (
+              <button
+                onClick={retryPriceFetch}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                title="Retry price fetch"
+              >
+                <RefreshCw className="w-5 h-5" />
+              </button>
+            )}
+            <div className="w-2"></div>
+          </div>
         </div>
       </div>
 
@@ -285,13 +419,41 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               placeholder="0"
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-lg font-bold text-gray-900 max-w-[200px]"
             />
-            <button className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-2 hover:bg-gray-200 transition-colors">
-              <div className={`w-6 h-6 ${selectedFiat.color} rounded-full flex items-center justify-center`}>
-                <DollarSign className="w-4 h-4 text-white" />
-              </div>
-              <span className="font-medium text-gray-900 text-[13px]">{selectedFiat.symbol}</span>
-              <ChevronDown className="w-4 h-4 text-gray-600" />
-            </button>
+            <div className="relative dropdown-container">
+              <button 
+                onClick={() => setShowFiatDropdown(!showFiatDropdown)}
+                className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-2 hover:bg-gray-200 transition-colors"
+              >
+                <div className={`w-6 h-6 ${selectedFiat.color} rounded-full flex items-center justify-center`}>
+                  <DollarSign className="w-4 h-4 text-white" />
+                </div>
+                <span className="font-medium text-gray-900 text-[13px]">{selectedFiat.symbol}</span>
+                <ChevronDown className="w-4 h-4 text-gray-600" />
+              </button>
+              
+              {showFiatDropdown && (
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10">
+                  {fiatCurrencies.map((currency) => (
+                    <button
+                      key={currency.symbol}
+                      onClick={() => handleFiatCurrencySelect(currency)}
+                      className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className={`w-6 h-6 ${currency.color} rounded-full flex items-center justify-center`}>
+                        <span className="text-white text-sm">{currency.icon}</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 text-[13px]">{currency.symbol}</div>
+                        <div className="text-[12px] text-gray-600">{currency.name}</div>
+                      </div>
+                      {selectedFiatCurrency === currency.symbol && (
+                        <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -313,13 +475,41 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               placeholder="0"
               className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] text-lg font-bold text-gray-900 max-w-[200px]"
             />
-            <button className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-2 hover:bg-gray-200 transition-colors">
-              <div className={`w-6 h-6 ${selectedCrypto.color} rounded-full flex items-center justify-center`}>
-                <span className="text-white text-sm">{selectedCrypto.icon}</span>
-              </div>
-              <span className="font-medium text-gray-900 text-[13px]">{selectedCrypto.symbol}</span>
-              <ChevronDown className="w-4 h-4 text-gray-600" />
-            </button>
+            <div className="relative dropdown-container">
+              <button 
+                onClick={() => setShowCryptoDropdown(!showCryptoDropdown)}
+                className="flex items-center space-x-2 bg-gray-100 rounded-lg px-3 py-2 hover:bg-gray-200 transition-colors"
+              >
+                <div className={`w-6 h-6 ${selectedCrypto.color} rounded-full flex items-center justify-center`}>
+                  <span className="text-white text-sm">{selectedCrypto.icon}</span>
+                </div>
+                <span className="font-medium text-gray-900 text-[13px]">{selectedCrypto.symbol}</span>
+                <ChevronDown className="w-4 h-4 text-gray-600" />
+              </button>
+              
+              {showCryptoDropdown && (
+                <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                  {cryptoCurrencies.map((currency) => (
+                    <button
+                      key={currency.symbol}
+                      onClick={() => handleCryptoCurrencySelect(currency)}
+                      className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className={`w-6 h-6 ${currency.color} rounded-full flex items-center justify-center`}>
+                        <span className="text-white text-sm">{currency.icon}</span>
+                      </div>
+                      <div>
+                        <div className="font-medium text-gray-900 text-[13px]">{currency.symbol}</div>
+                        <div className="text-[12px] text-gray-600">{currency.name}</div>
+                      </div>
+                      {selectedCryptoCurrency === currency.symbol && (
+                        <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </motion.div>
 
@@ -384,7 +574,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <span className="text-lg font-bold text-gray-900">
                 {cryptoPrices[selectedCrypto.symbol] ? 
                   `$${cryptoPrices[selectedCrypto.symbol].toLocaleString()}` : 
-                  'Price unavailable'
+                  'Unable to get prices'
                 }
               </span>
             </div>

@@ -5,6 +5,7 @@ import { ArrowLeft, Copy, Share2, Download, Check } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
+import { copyToClipboardWithFeedback } from '../../utils/clipboard-utils';
 const ReceiveScreen = ({ onNavigate }) => {
     const { wallet, currentNetwork } = useWallet();
     const [copied, setCopied] = useState(false);
@@ -26,14 +27,14 @@ const ReceiveScreen = ({ onNavigate }) => {
     const copyAddress = async () => {
         if (!wallet?.address)
             return;
-        try {
-            await navigator.clipboard.writeText(wallet.address);
+        const success = await copyToClipboardWithFeedback(
+            wallet.address,
+            'Address copied to clipboard',
+            'Failed to copy address'
+        );
+        if (success) {
             setCopied(true);
-            toast.success('Address copied to clipboard');
             setTimeout(() => setCopied(false), 2000);
-        }
-        catch {
-            toast.error('Failed to copy address');
         }
     };
     const downloadQRCode = () => {

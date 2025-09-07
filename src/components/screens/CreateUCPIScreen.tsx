@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
+import { ucpiService, type UCPIData, type UCPIRegistrationResult } from '../../services/ucpi-service';
 
 const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -21,9 +22,9 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   useEffect(() => {
     const loadInitialData = async () => {
       try {
-        // Load popular UCPI IDs
+        // Load popular UCPI IDs (mix of ENS and local)
         const popularUcpiIds = [
-          'alice.eth', 'bob.btc', 'charlie.sol', 'diana.pay', 'eve.wallet',
+          'alice.eth', 'bob.eth', 'charlie.eth', 'diana.pay', 'eve.wallet',
           'frank.pro', 'grace.max', 'henry.plus', 'iris.v2', 'jack.beta'
         ];
         setPopularIds(popularUcpiIds);
@@ -192,16 +193,30 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setIsAvailable(null);
     
     try {
-      // Check availability
-      const available = await checkUcpiIdAvailability(query);
-      setIsAvailable(available);
+      // Use hybrid UCPI service to check availability
+      const availabilityResult = await ucpiService.checkAvailability(query);
+      setIsAvailable(availabilityResult.available);
       
-      if (!available) {
+      if (!availabilityResult.available) {
         // Generate smart suggestions
         const smartSuggestions = generateSuggestions(query);
         setSuggestions(smartSuggestions);
+        
+        // Show error message with registry type
+        if (availabilityResult.existingAddress) {
+          toast.error(`❌ ${query} is already taken locally`, { duration: 3000 });
+        } else {
+          toast.error(`❌ ${query} is not available`, { duration: 3000 });
+        }
       } else {
         setSuggestions([]);
+        
+        // Show success message with registry type
+        if (query.endsWith('.eth')) {
+          toast.success(`✅ ${query} is available on ENS!`, { duration: 3000 });
+        } else {
+          toast.success(`✅ ${query} is available locally!`, { duration: 3000 });
+        }
       }
       
       // Add to search history
@@ -235,37 +250,56 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setIsCreating(true);
     
     try {
-      // Local UCPI ID creation (no external API needed)
+      // Use hybrid UCPI service to register
       const ucpiData = {
         id: ucpiId,
         walletAddress: wallet.address,
-        createdAt: new Date().toISOString(),
-        status: 'active',
         network: 'ethereum',
-        isPrimary: true,
-        transactionHash: `0x${Date.now().toString(16)}`, // Mock transaction hash
-        blockNumber: Math.floor(Math.random() * 1000000) + 18000000 // Mock block number
+        publicKey: wallet.publicKey || '',
+        createdAt: new Date().toISOString(),
+        status: 'active' as const
       };
+
+      toast.loading('🌍 Registering UCPI ID globally...', { id: 'ucpi-registration' });
       
-      // Save to storage
-      await saveUCPIData(ucpiData);
+      const registrationResult = await ucpiService.registerUCPI(ucpiData);
       
-      // Also save the UCPI ID separately for easy access
-      await storage.set({ 
-        ucpiId: ucpiId,
-        ucpiSkipped: false,
-        ucpiTimestamp: Date.now()
-      });
-      
-      toast.success(`UCPI ID "${ucpiId}" created successfully!`);
-      
-      // Navigate to dashboard immediately
-      onNavigate('dashboard');
+      if (registrationResult.success) {
+        // Show success message based on registration type
+        if (ucpiId.endsWith('.eth')) {
+          toast.success(`🌍 UCPI ID "${ucpiId}" registered on ENS!`, { 
+            id: 'ucpi-registration',
+            duration: 4000
+          });
+        } else {
+          toast.success(`🏠 UCPI ID "${ucpiId}" registered locally!`, { 
+            id: 'ucpi-registration',
+            duration: 4000
+          });
+        }
+        
+        // Navigate to dashboard immediately
+        onNavigate('dashboard');
+      } else {
+        // Show specific error message for ENS registration
+        if (ucpiId.endsWith('.eth') && registrationResult.error?.includes('ENS registration requires ETH')) {
+          toast.error(`🌍 ENS registration requires ETH and gas fees. Please register at ens.domains or use a local UCPI ID.`, { 
+            id: 'ucpi-registration',
+            duration: 6000
+          });
+        } else {
+          toast.error(`Failed to create UCPI ID: ${registrationResult.error}`, { 
+            id: 'ucpi-registration'
+          });
+        }
+      }
       
     } catch (error) {
       console.error('Failed to create UCPI ID:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast.error(`Failed to create UCPI ID: ${errorMessage}`);
+      toast.error(`Failed to create UCPI ID: ${errorMessage}`, { 
+        id: 'ucpi-registration'
+      });
     } finally {
       setIsCreating(false);
     }

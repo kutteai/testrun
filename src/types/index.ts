@@ -66,6 +66,27 @@ export type ScreenId =
   | 'loading'
   | 'error';
 
+export interface WalletAccount {
+  id: string;
+  name: string;
+  addresses: {           // Multiple addresses for different networks
+    [networkId: string]: string;
+  };
+  privateKey: string;
+  publicKey: string;
+  derivationPath: string;
+  networks: string[];    // Multiple networks this account supports
+  balances: {            // Multiple balances for different networks
+    [networkId: string]: string;
+  };
+  nonces: {              // Multiple nonces for different networks
+    [networkId: string]: number;
+  };
+  createdAt: number;
+  encryptedSeedPhrase: string;
+  isActive: boolean;
+}
+
 export interface WalletData {
   id: string;
   name: string;
@@ -73,7 +94,7 @@ export interface WalletData {
   privateKey: string;
   publicKey: string;
   encryptedSeedPhrase: string;
-  accounts: string[];
+  accounts: WalletAccount[];
   networks: string[];
   currentNetwork: string;
   derivationPath: string;
@@ -170,7 +191,7 @@ export interface WalletState {
   currentNetwork: Network | null;
   currentAccount: any; // Add missing currentAccount property
   networks: Network[];
-  accounts: string[];
+  accounts: WalletAccount[];
   privateKey: string | null;
   globalPassword: string | null;
 }
@@ -232,7 +253,7 @@ export interface WalletContextType {
   currentNetwork: Network | null;
   currentAccount: any; // Add missing currentAccount property
   networks: Network[];
-  accounts: string[];
+  accounts: WalletAccount[];
   privateKey: string | null;
 
   globalPassword: string | null;

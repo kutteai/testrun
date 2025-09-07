@@ -190,7 +190,18 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
-                      <div className="font-semibold text-gray-900">$0.00</div>
+                      <div className="font-semibold text-gray-900">
+                        {(() => {
+                          // Get the current network from the account or default to ethereum
+                          const currentNetwork = account.network || 'ethereum';
+                          const asset = portfolioValue?.assets?.find(asset => 
+                            asset.network === currentNetwork
+                          );
+                          return asset?.usdValue ? 
+                            `$${asset.usdValue.toFixed(2)}` : 
+                            'Loading...';
+                        })()}
+                      </div>
                       <div className="flex space-x-1">
                         <div className="w-3 h-3 bg-green-500 rounded-full"></div>
                         <div className="w-3 h-3 bg-orange-500 rounded-full"></div>

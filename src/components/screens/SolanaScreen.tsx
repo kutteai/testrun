@@ -8,7 +8,7 @@ import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 
 const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
+  const { wallet, currentNetwork } = useWallet();
   const [solanaWallets, setSolanaWallets] = useState<SolanaWallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<SolanaWallet | null>(null);
   const [transactions, setTransactions] = useState<SolanaTransaction[]>([]);
@@ -27,6 +27,23 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     loadSolanaWallets();
     loadNetworkStatus();
   }, []);
+
+  // Listen for network changes
+  useEffect(() => {
+    const handleNetworkChange = async (event: CustomEvent) => {
+      console.log('🔄 Network changed event received in SolanaScreen:', event.detail);
+      if (currentNetwork?.id === 'solana') {
+        // Refresh Solana data when switching to Solana network
+        await loadSolanaWallets();
+        await loadNetworkStatus();
+      }
+    };
+
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
+  }, [currentNetwork]);
 
   // Load transactions and tokens when wallet is selected
   useEffect(() => {
@@ -229,7 +246,12 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold">Solana</h1>
-              <p className="text-slate-400 text-sm">SOL Wallet Management</p>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                <p className="text-slate-400 text-sm">
+                  {currentNetwork?.id === 'solana' ? 'Active Network' : 'SOL Wallet Management'}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">

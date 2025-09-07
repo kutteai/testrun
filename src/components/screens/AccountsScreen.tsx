@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 import { useWallet } from '../../store/WalletContext';
 import { useNetwork } from '../../store/NetworkContext';
 import { usePortfolio } from '../../store/PortfolioContext';
-import { toast } from 'react-hot-toast';
 import { ChevronLeft, Search, Plus, MoreVertical, Eye, EyeOff, Pin, User, Key } from 'lucide-react';
 import { navigateWithHistory, goBackWithHistory, shouldShowBackButton, getDefaultBackTarget } from '../../utils/navigation-utils';
 
@@ -47,7 +46,6 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setSelectedAccount(currentAccount);
       } catch (error) {
         console.error('Failed to load accounts:', error);
-        toast.error('Failed to load accounts');
       } finally {
         setIsLoading(false);
       }
@@ -102,13 +100,10 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         const [pinnedAccount] = updatedAccounts.splice(accountIndex, 1);
         updatedAccounts.unshift(pinnedAccount);
         setAccounts(updatedAccounts);
-        toast.success(`${account.name || `Account ${account.id}`} pinned to top`);
       } else {
-        toast('Account is already at the top');
       }
     } catch (error) {
       console.error('Failed to pin account:', error);
-      toast.error('Failed to pin account');
     }
   };
 
@@ -125,29 +120,24 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
       
-      toast.success(`${account.name || `Account ${account.id}`} hidden`);
     } catch (error) {
       console.error('Failed to hide account:', error);
-      toast.error('Failed to hide account');
     }
   };
 
   const handleCreateAccount = async () => {
     if (!newAccountName.trim()) {
-      toast.error('Please enter an account name');
       return;
     }
     
     try {
       // Check if wallet exists
       if (!wallet) {
-        toast.error('No wallet found. Please create or import a wallet first.');
         return;
       }
       
       const password = await getPassword();
       if (!password) {
-        toast.error('Password required to create new account');
         return;
       }
       
@@ -173,28 +163,23 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       
       setShowCreateAccountModal(false);
       setNewAccountName('');
-      toast.success(`Account "${newAccountName}" created successfully`);
     } catch (error) {
       console.error('Failed to create new account:', error);
-      toast.error('Failed to create new account');
     }
   };
 
   const handleViewSecretPhrase = async () => {
     if (!secretPhrasePassword.trim()) {
-      toast.error('Please enter your password');
       return;
     }
     
     try {
       // Check if wallet exists
       if (!wallet) {
-        toast.error('No wallet found. Please create or import a wallet first.');
         return;
       }
       
       if (!wallet.encryptedSeedPhrase) {
-        toast.error('No encrypted seed phrase found in wallet');
         return;
       }
       
@@ -211,7 +196,6 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setSecretPhrasePassword('');
     } catch (error) {
       console.error('Invalid password:', error);
-      toast.error('Invalid password');
     }
   };
 
@@ -241,6 +225,32 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }, 0);
     
     return `$${totalBalance.toFixed(2)}`;
+  };
+
+  // Get the address for the current network
+  const getAccountAddress = (account: any) => {
+    if (!account) return null;
+    
+    // If account has addresses object (new format), get address for current network
+    if (account.addresses && currentNetwork) {
+      return account.addresses[currentNetwork.id] || account.addresses[currentNetwork.name] || account.addresses.ethereum;
+    }
+    
+    // Fallback to single address (old format)
+    return account.address;
+  };
+
+  // Get the network name for display
+  const getAccountNetwork = (account: any) => {
+    if (!account) return 'Unknown';
+    
+    // If account has networks array, use the first one or current network
+    if (account.networks && account.networks.length > 0) {
+      return account.networks[0];
+    }
+    
+    // Fallback to account.network or current network
+    return account.network || (currentNetwork ? currentNetwork.name : 'Unknown');
   };
 
   if (isLoading) {
@@ -343,13 +353,15 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                         {account?.name || `Account ${account?.id || 'Unknown'}`}
                       </h3>
                       <p className="text-[13px] text-gray-500 font-mono">
-                        {account?.address ? 
-                          `${account.address.substring(0, 6)}...${account.address.substring(account.address.length - 4)}` : 
-                          'No address'
-                        }
+                        {(() => {
+                          const address = getAccountAddress(account);
+                          return address ? 
+                            `${address.substring(0, 6)}...${address.substring(address.length - 4)}` : 
+                            'No address';
+                        })()}
                       </p>
                       <p className="text-[11px] text-gray-400">
-                        {account?.network || 'Unknown'} • {account?.derivationPath || 'Unknown path'}
+                        {getAccountNetwork(account)} • {account?.derivationPath || 'Unknown path'}
                       </p>
                     </div>
                   </div>
@@ -430,14 +442,16 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       </div>
                       
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Address ({currentNetwork?.name || 'Current Network'})</label>
                 <div className="flex items-center space-x-2">
-                  <p className="text-gray-900 font-mono text-sm">{selectedAccount?.address || 'No address'}</p>
-                  {selectedAccount?.address && (
+                  <p className="text-gray-900 font-mono text-sm">{getAccountAddress(selectedAccount) || 'No address'}</p>
+                  {getAccountAddress(selectedAccount) && (
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText(selectedAccount.address);
-                        toast.success('Address copied to clipboard');
+                        const address = getAccountAddress(selectedAccount);
+                        if (address) {
+                          navigator.clipboard.writeText(address);
+                        }
                       }}
                       className="text-blue-600 hover:text-blue-800"
                     >
@@ -451,7 +465,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                         
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Network</label>
-                <p className="text-gray-900 capitalize">{selectedAccount.network}</p>
+                <p className="text-gray-900 capitalize">{getAccountNetwork(selectedAccount)}</p>
               </div>
               
               <div>

@@ -27,7 +27,7 @@ interface Token {
 }
 
 const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
+  const { wallet, currentNetwork } = useWallet();
   const { setSelectedToken } = useSend();
   
   // Component state
@@ -306,9 +306,9 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     };
 
     loadAndFetchTokens();
-  }, [wallet]);
+  }, [wallet, currentNetwork]);
 
-  // Listen for wallet changes to refresh tokens
+  // Listen for wallet and network changes to refresh tokens
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
       console.log('🔄 Wallet changed event received in TokensScreen:', event.detail);
@@ -316,9 +316,60 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       // since the main useEffect depends on wallet
     };
 
+    const handleNetworkChange = async (event: CustomEvent) => {
+      console.log('🔄 Network changed event received in TokensScreen:', event.detail);
+      // Refresh tokens when network changes
+      const loadAndFetchTokens = async () => {
+        try {
+          // Load custom tokens from storage
+          const result = await storage.get(['customTokens']);
+          const savedCustomTokens = result.customTokens || [];
+          
+          if (wallet && wallet.accounts && wallet.accounts.length > 0) {
+            const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
+            
+            if (currentAccount && currentAccount.address) {
+              // Real token balance detection
+              const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
+              const rpcUrl = getNetworkRPCUrl(network);
+              
+              const tokensWithBalances = await detectTokensWithBalances(currentAccount.address, rpcUrl);
+              
+              // Convert to Token format - only tokens with real balances > 0
+              const autoDetectedTokens = tokensWithBalances.map((token: TokenBalance) => ({
+                id: token.address,
+                symbol: token.symbol,
+                name: token.name,
+                address: token.address,
+                balance: token.balance,
+                decimals: token.decimals,
+                price: token.price || 0,
+                change24h: 0,
+                isCustom: false,
+                isAutoDetected: true
+              }));
+              
+              setTokens([...autoDetectedTokens, ...savedCustomTokens]);
+            } else {
+              setTokens(savedCustomTokens);
+            }
+          } else {
+            setTokens(savedCustomTokens);
+          }
+        } catch (error) {
+          console.error('Error refreshing tokens on network change:', error);
+          const defaultTokens = await getDefaultTokens();
+          setTokens(defaultTokens);
+        }
+      };
+      loadAndFetchTokens();
+    };
+
     window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
     return () => {
       window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
     };
   }, []);
 
@@ -350,12 +401,12 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const handleRefreshTokens = async () => {
     setIsRefreshing(true);
     try {
-              if (wallet && wallet.accounts && wallet.accounts.length > 0) {
-          const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
-          
-          if (currentAccount && currentAccount.address) {
+      if (wallet && wallet.accounts && wallet.accounts.length > 0) {
+        const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
+        
+        if (currentAccount && currentAccount.address) {
           // Real token balance detection
-          const network = wallet.currentNetwork || 'ethereum';
+          const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
           const rpcUrl = getNetworkRPCUrl(network);
           
           const tokensWithBalances = await detectTokensWithBalances(currentAccount.address, rpcUrl);
@@ -378,12 +429,55 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           const savedCustomTokens = result.customTokens || [];
           
           setTokens([...autoDetectedTokens, ...savedCustomTokens]);
-          toast.success(`Found ${autoDetectedTokens.length} tokens with balances > 0`);
+          toast.success(`🎯 Found ${autoDetectedTokens.length} tokens with balances > 0`);
         }
       }
     } catch (error) {
       console.error('Error refreshing tokens:', error);
       toast.error('Failed to refresh tokens');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // New function to discover all popular tokens (including 0 balances)
+  const handleDiscoverAllTokens = async () => {
+    setIsRefreshing(true);
+    try {
+      if (wallet && wallet.accounts && wallet.accounts.length > 0) {
+        const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
+        
+        if (currentAccount && currentAccount.address) {
+          const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
+          const rpcUrl = getNetworkRPCUrl(network);
+          
+          // Get all popular tokens (including 0 balances)
+          const allTokens = await getAllPopularTokens(currentAccount.address, rpcUrl);
+          
+          // Convert to Token format
+          const discoveredTokens = allTokens.map((token: TokenBalance) => ({
+            id: token.address,
+            symbol: token.symbol,
+            name: token.name,
+            address: token.address,
+            balance: token.balance,
+            decimals: token.decimals,
+            price: token.price || 0,
+            change24h: 0,
+            isCustom: false,
+            isAutoDetected: true
+          }));
+          
+          const result = await storage.get(['customTokens']);
+          const savedCustomTokens = result.customTokens || [];
+          
+          setTokens([...discoveredTokens, ...savedCustomTokens]);
+          toast.success(`🔍 Discovered ${discoveredTokens.length} popular tokens`);
+        }
+      }
+    } catch (error) {
+      console.error('Error discovering tokens:', error);
+      toast.error('Failed to discover tokens');
     } finally {
       setIsRefreshing(false);
     }
@@ -670,7 +764,21 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">Tokens</h1>
-              <p className="text-gray-600 text-sm">Manage your tokens</p>
+              <div className="flex items-center space-x-2">
+                <div className={`w-3 h-3 rounded-full ${
+                  currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
+                  currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
+                  currentNetwork?.id === 'solana' ? 'bg-purple-500' :
+                  currentNetwork?.id === 'tron' ? 'bg-red-500' :
+                  currentNetwork?.id === 'ton' ? 'bg-blue-400' :
+                  currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
+                  currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
+                  'bg-gray-500'
+                }`}></div>
+                <p className="text-gray-600 text-sm">
+                  {currentNetwork?.name || 'Select Network'}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -727,6 +835,31 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           >
             ✕
           </button>
+        </div>
+
+        {/* Auto-Discovery Buttons */}
+        <div className="flex space-x-3 mb-6">
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleRefreshTokens}
+            disabled={isRefreshing}
+            className="flex-1 bg-[#180CB2] text-white px-4 py-3 rounded-xl font-medium flex items-center justify-center space-x-2 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>🎯 Find Tokens with Balances</span>
+          </motion.button>
+          
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={handleDiscoverAllTokens}
+            disabled={isRefreshing}
+            className="flex-1 bg-green-600 text-white px-4 py-3 rounded-xl font-medium flex items-center justify-center space-x-2 disabled:opacity-50"
+          >
+            <Coins className="w-4 h-4" />
+            <span>🔍 Discover All Popular Tokens</span>
+          </motion.button>
         </div>
         
         {/* Search Results Info */}

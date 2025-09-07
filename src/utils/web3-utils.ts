@@ -47,58 +47,110 @@ declare global {
 
 // Get configuration from environment
 const getConfig = () => {
-  if (typeof window !== 'undefined' && window.CONFIG) {
-    return window.CONFIG;
+  try {
+    // Only access window if we're in a browser environment
+    if (typeof window !== 'undefined' && window.CONFIG) {
+      console.log('PayCio: Using window.CONFIG:', window.CONFIG);
+      return window.CONFIG;
+    }
+  } catch (error) {
+    console.log('PayCio: Window access failed, using default config:', error.message);
   }
-  return {
-    INFURA_PROJECT_ID: '',
+  
+  const defaultConfig = {
+    INFURA_PROJECT_ID: 'f9231922e4914834b76b67b67367f3f2',
     ETHERSCAN_API_KEY: '',
     ALCHEMY_API_KEY: '',
     ALCHEMY_NFT_API_KEY: '',
-    ENS_RPC_URL: '',
+    ENS_RPC_URL: 'https://eth.llamarpc.com',
     COINGECKO_API_KEY: '',
     OPENSEA_API_KEY: '',
     COINMARKETCAP_API_KEY: '',
     DEFI_PULSE_API_KEY: '',
-    IPFS_GATEWAY: ''
+    IPFS_GATEWAY: 'https://ipfs.io/ipfs/'
   };
+  console.log('PayCio: Using default config:', defaultConfig);
+  return defaultConfig;
 };
 
 // Network configurations with dynamic RPC URLs
-export const NETWORKS: Record<string, NetworkConfig> = {
-  ethereum: {
-    name: 'Ethereum',
-    symbol: 'ETH',
-    chainId: '1',
-    rpcUrl: `https://mainnet.infura.io/v3/${getConfig().INFURA_PROJECT_ID}`,
-    explorerUrl: 'https://etherscan.io',
-    apiKey: getConfig().ETHERSCAN_API_KEY,
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18
+let config: any = null;
+let INFURA_PROJECT_ID = 'f9231922e4914834b76b67b67367f3f2';
+let ethereumRpcUrl = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`;
+
+// Safe config loading - only load when needed
+const getSafeConfig = () => {
+  if (!config) {
+    try {
+      config = getConfig();
+      console.log('PayCio: Config loaded:', config);
+      console.log('PayCio: Infura Project ID:', config.INFURA_PROJECT_ID);
+      
+      // Use your specific Infura key directly
+      INFURA_PROJECT_ID = config.INFURA_PROJECT_ID || 'f9231922e4914834b76b67b67367f3f2';
+      ethereumRpcUrl = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`;
+    } catch (error) {
+      console.log('PayCio: Config loading failed, using defaults:', error.message);
+      config = {
+        INFURA_PROJECT_ID: 'f9231922e4914834b76b67b67367f3f2',
+        ETHERSCAN_API_KEY: '',
+        ALCHEMY_API_KEY: '',
+        ALCHEMY_NFT_API_KEY: '',
+        ENS_RPC_URL: 'https://eth.llamarpc.com',
+        COINGECKO_API_KEY: '',
+        OPENSEA_API_KEY: '',
+        COINMARKETCAP_API_KEY: '',
+        DEFI_PULSE_API_KEY: '',
+        IPFS_GATEWAY: 'https://ipfs.io/ipfs/'
+      };
+      INFURA_PROJECT_ID = 'f9231922e4914834b76b67b67367f3f2';
+      ethereumRpcUrl = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`;
     }
-  },
-  bsc: {
-    name: 'Binance Smart Chain',
-    symbol: 'BNB',
-    chainId: '56',
-    rpcUrl: 'https://bsc-dataseed1.binance.org',
-    explorerUrl: 'https://bscscan.com',
-    apiKey: getConfig().ETHERSCAN_API_KEY,
-    nativeCurrency: {
-      name: 'BNB',
-      symbol: 'BNB',
-      decimals: 18
-    }
-  },
+  }
+  return config;
+};
+
+console.log('PayCio: Using Infura RPC URL:', ethereumRpcUrl);
+
+// Lazy-loaded networks configuration
+let _networks: Record<string, NetworkConfig> | null = null;
+
+export const getNetworks = (): Record<string, NetworkConfig> => {
+  if (!_networks) {
+    _networks = {
+      ethereum: {
+        name: 'Ethereum',
+        symbol: 'ETH',
+        chainId: '1',
+        rpcUrl: ethereumRpcUrl,
+        explorerUrl: 'https://etherscan.io',
+        apiKey: getSafeConfig()?.ETHERSCAN_API_KEY || '',
+        nativeCurrency: {
+          name: 'Ether',
+          symbol: 'ETH',
+          decimals: 18
+        }
+      },
+      bsc: {
+        name: 'Binance Smart Chain',
+        symbol: 'BNB',
+        chainId: '56',
+        rpcUrl: 'https://bsc-dataseed1.binance.org',
+        explorerUrl: 'https://bscscan.com',
+        apiKey: getSafeConfig()?.ETHERSCAN_API_KEY || '',
+        nativeCurrency: {
+          name: 'BNB',
+          symbol: 'BNB',
+          decimals: 18
+        }
+      },
   polygon: {
     name: 'Polygon',
     symbol: 'MATIC',
     chainId: '137',
     rpcUrl: 'https://polygon-rpc.com',
     explorerUrl: 'https://polygonscan.com',
-    apiKey: getConfig().ETHERSCAN_API_KEY,
+    apiKey: getSafeConfig()?.ETHERSCAN_API_KEY || '',
     nativeCurrency: {
       name: 'MATIC',
     symbol: 'MATIC',
@@ -235,28 +287,44 @@ export const NETWORKS: Record<string, NetworkConfig> = {
       decimals: 18
     }
   },
-  'arbitrum-nova': {
-    name: 'Arbitrum Nova',
-    symbol: 'ETH',
-    chainId: '42170',
-    rpcUrl: 'https://nova.arbitrum.io/rpc',
-    explorerUrl: 'https://nova.arbiscan.io',
-    apiKey: '',
-    nativeCurrency: {
-      name: 'Ether',
-      symbol: 'ETH',
-      decimals: 18
-    }
+      'arbitrum-nova': {
+        name: 'Arbitrum Nova',
+        symbol: 'ETH',
+        chainId: '42170',
+        rpcUrl: 'https://nova.arbitrum.io/rpc',
+        explorerUrl: 'https://nova.arbiscan.io',
+        apiKey: '',
+        nativeCurrency: {
+          name: 'Ether',
+          symbol: 'ETH',
+          decimals: 18
+        }
+      }
+    };
   }
+  return _networks;
 };
+
+// Backward compatibility - export NETWORKS as a getter
+export const NETWORKS = new Proxy({} as Record<string, NetworkConfig>, {
+  get(target, prop) {
+    return getNetworks()[prop as string];
+  }
+});
 
 // Get balance from RPC (real implementation)
 export async function getBalance(address: string, network: string): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
+    
+    console.log(`PayCio: Getting balance for ${address} on ${network} using RPC: ${networkConfig.rpcUrl}`);
+
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
     const response = await fetch(networkConfig.rpcUrl, {
       method: 'POST',
@@ -268,14 +336,18 @@ export async function getBalance(address: string, network: string): Promise<stri
         method: 'eth_getBalance',
         params: [address, 'latest'],
         id: 1
-      })
+      }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new Error(`RPC request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log(`PayCio: RPC response for balance:`, data);
     
     if (data.error) {
       throw new Error(data.error.message);
@@ -283,8 +355,12 @@ export async function getBalance(address: string, network: string): Promise<stri
 
     return data.result || '0x0';
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Balance request timed out');
+      throw new Error('Request timeout');
+    }
     console.error('Error getting balance:', error);
-    return '0x0';
+    throw error;
   }
 }
 
@@ -300,7 +376,7 @@ export async function getTokenBalance(
   network: string
 ): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
@@ -341,10 +417,16 @@ export async function getTokenBalance(
 // Get gas price (real implementation)
 export async function getGasPrice(network: string): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
+
+    console.log(`PayCio: Getting gas price for ${network} using RPC: ${networkConfig.rpcUrl}`);
+
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
     const response = await fetch(networkConfig.rpcUrl, {
       method: 'POST',
@@ -356,14 +438,18 @@ export async function getGasPrice(network: string): Promise<string> {
         method: 'eth_gasPrice',
         params: [],
         id: 1
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
 
     const data = await response.json();
+    console.log(`PayCio: Gas price response:`, data);
     
     if (data.error) {
       throw new Error(data.error.message);
@@ -371,8 +457,12 @@ export async function getGasPrice(network: string): Promise<string> {
 
     return data.result || '0x0';
   } catch (error) {
+    if (error.name === 'AbortError') {
+      console.error('Gas price request timed out');
+      throw new Error('Request timeout');
+    }
     console.error('Error getting gas price:', error);
-    return '0x0';
+    throw error;
   }
 }
 
@@ -385,7 +475,7 @@ export async function estimateGas(
   network: string
 ): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
@@ -428,7 +518,7 @@ export async function estimateGas(
 // Get transaction count (nonce) - real implementation
 export async function getTransactionCount(address: string, network: string): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
@@ -498,7 +588,7 @@ export async function signTransaction(
 // Send signed transaction - real implementation
 export async function sendSignedTransaction(signedTransaction: string, network: string): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
@@ -573,7 +663,7 @@ export async function signTypedData(
 // Send raw transaction (real implementation)
 export async function sendRawTransaction(signedTransaction: string, network: string): Promise<string> {
   try {
-    const networkConfig = NETWORKS[network];
+    const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }

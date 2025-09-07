@@ -48,14 +48,11 @@ export interface TransactionResult {
 
 export class TransactionManager {
   private transactions: Transaction[] = [];
-  private pendingTransactions: Transaction[] = [];
-  private pendingTimeouts: Map<string, any> = new Map();
   private walletManager: WalletManager;
 
   constructor() {
     this.walletManager = new WalletManager();
     this.loadTransactions();
-    this.startPendingTransactionMonitoring();
   }
 
   // Load transactions from storage
@@ -66,7 +63,7 @@ export class TransactionManager {
         this.transactions = result.transactions;
       }
     } catch (error) {
-      console.error('Failed to load transactions:', error);
+      // console.error('Failed to load transactions:', error);
     }
   }
 
@@ -75,48 +72,52 @@ export class TransactionManager {
     try {
       await storage.set({ transactions: this.transactions });
     } catch (error) {
-      console.error('Failed to save transactions:', error);
+      // console.error('Failed to save transactions:', error);
     }
   }
 
-  // Save pending transactions to storage
-  private async savePendingTransactions(): Promise<void> {
+  // Get wallet data from storage
+  private async getWalletFromStorage(): Promise<{ address: string; currentNetwork: string } | null> {
     try {
-      await storage.set({ pendingTransactions: this.pendingTransactions });
+      const result = await storage.get(['currentWallet', 'currentNetwork']);
+      if (result.currentWallet && result.currentNetwork) {
+        return {
+          address: result.currentWallet.address,
+          currentNetwork: result.currentNetwork
+        };
+      }
+      return null;
     } catch (error) {
-      console.error('Failed to save pending transactions:', error);
-    }
-  }
-
-  // Get wallet from storage
-  private async getWalletFromStorage(): Promise<any> {
-    try {
-      const result = await storage.get(['wallet']);
-      return result.wallet || null;
-    } catch (error) {
-      console.error('Failed to get wallet from storage:', error);
+      // console.error('Failed to get wallet from storage:', error);
       return null;
     }
   }
 
-  // Send transaction with real implementation
-  async sendTransaction(to: string, value: string, network: string): Promise<string> {
+  // Send transaction
+  async sendTransaction(request: TransactionRequest): Promise<TransactionResult> {
     try {
+      const { to, value, data = '0x', network, password } = request;
+
+      // Get current account
       const currentWallet = this.walletManager.getCurrentWallet();
       if (!currentWallet) {
-        throw new Error('No wallet available');
+        throw new Error('No wallet found');
       }
 
       const currentAccount = this.walletManager.getCurrentAccount();
       if (!currentAccount) {
-        throw new Error('No account available');
+        throw new Error('No account found');
       }
 
-      // Import real blockchain utilities
-      const { ethers } = await import('ethers');
+      // Get the address for the current network
+      const fromAddress = currentAccount.addresses[network] || Object.values(currentAccount.addresses)[0];
+      if (!fromAddress) {
+        throw new Error('No address found for the specified network');
+      }
+
+      // Import web3 utilities
       const { 
         getRealBalance, 
-        estimateGas, 
         getGasPrice, 
         getTransactionCount,
         signTransaction,
@@ -124,7 +125,7 @@ export class TransactionManager {
       } = await import('../utils/web3-utils');
 
       // Validate balance
-      const balance = await getRealBalance(currentAccount.address, network);
+      const balance = await getRealBalance(fromAddress, network);
       const valueWei = ethers.parseEther(value);
       const balanceWei = BigInt(balance);
       
@@ -135,23 +136,21 @@ export class TransactionManager {
       // Get gas price and estimate gas
       const gasPrice = await getGasPrice(network);
       const gasLimit = await estimateGas(
-        currentAccount.address,
+        fromAddress,
         to,
-        valueWei.toString(),
-        '0x',
+        value,
+        data,
         network
       );
 
-      // Calculate total cost
-      const gasCost = BigInt(gasLimit) * BigInt(gasPrice);
-      const totalCost = valueWei + gasCost;
-
-      if (balanceWei < totalCost) {
+      // Check if balance is sufficient for gas fees
+      const gasFee = BigInt(gasLimit) * BigInt(gasPrice);
+      if (balanceWei < valueWei + gasFee) {
         throw new Error('Insufficient balance for gas fees');
       }
 
       // Get nonce
-      const nonce = await getTransactionCount(currentAccount.address, network);
+      const nonce = await getTransactionCount(fromAddress, network);
 
       // Create transaction object
       const transaction = {
@@ -173,7 +172,7 @@ export class TransactionManager {
       const pendingTx: Transaction = {
         id: txHash,
         hash: txHash,
-        from: currentAccount.address,
+        from: fromAddress,
         to: to,
         value: value,
         network: network,
@@ -188,75 +187,53 @@ export class TransactionManager {
         type: 'send'
       };
 
-      this.pendingTransactions.push(pendingTx);
-      this.savePendingTransactions();
+      this.transactions.push(pendingTx);
+      await this.saveTransactions();
 
-      return txHash;
+      return {
+        success: true,
+        hash: txHash,
+        transaction: pendingTx
+      };
     } catch (error) {
-      console.error('Error sending transaction:', error);
-      throw error;
+      // console.error('Transaction failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 
-  // Monitor transaction status
-  private async monitorTransaction(transaction: Transaction): Promise<void> {
-    const networkConfig = NETWORKS[transaction.network];
-    if (!networkConfig) return;
+  // Get transaction by hash
+  async getTransaction(hash: string): Promise<Transaction | null> {
+    const transaction = this.transactions.find(tx => tx.hash === hash);
+    if (!transaction) {
+      return null;
+    }
 
-    const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl);
-    
-    const checkStatus = async () => {
+    // Update transaction status if it's pending
+    if (transaction.status === 'pending') {
       try {
-        const receipt = await getTransactionReceipt(transaction.hash, transaction.network);
+        const { getTransactionReceipt } = await import('../utils/web3-utils');
+        const receipt = await getTransactionReceipt(hash, transaction.network);
         
         if (receipt) {
-          // Transaction confirmed
-          transaction.status = receipt.status === '0x1' ? 'confirmed' : 'failed';
-          transaction.blockNumber = parseInt(receipt.blockNumber, 16);
-          transaction.confirmations = parseInt(receipt.confirmations, 16);
-          
-          // Update in storage
+          transaction.status = receipt.status === 1 ? 'confirmed' : 'failed';
+          transaction.blockNumber = receipt.blockNumber;
+          transaction.confirmations = receipt.confirmations;
           await this.saveTransactions();
-          
-          // Stop monitoring
-          const timeoutId = this.pendingTimeouts.get(transaction.hash);
-          if (timeoutId) {
-            clearTimeout(timeoutId);
-            this.pendingTimeouts.delete(transaction.hash);
-          }
-        } else {
-          // Still pending, check again in 10 seconds
-          const timeoutId = setTimeout(checkStatus, 10000);
-          this.pendingTimeouts.set(transaction.hash, timeoutId);
         }
       } catch (error) {
-        console.error(`Error monitoring transaction ${transaction.hash}:`, error);
-        // Continue monitoring even if there's an error
-        const timeoutId = setTimeout(checkStatus, 30000);
-        this.pendingTimeouts.set(transaction.hash, timeoutId);
+        // console.error('Failed to update transaction status:', error);
       }
-    };
+    }
 
-    // Start monitoring
-    checkStatus();
-  }
-
-  // Start monitoring all pending transactions
-  private startPendingTransactionMonitoring(): void {
-    const pendingTxs = this.transactions.filter(tx => tx.status === 'pending');
-    pendingTxs.forEach(tx => {
-      this.monitorTransaction(tx);
-    });
-  }
-
-  // Get transaction by hash
-  getTransaction(hash: string): Transaction | undefined {
-    return this.transactions.find(tx => tx.hash === hash);
+    return transaction;
   }
 
   // Get all transactions
   getAllTransactions(): Transaction[] {
-    return this.transactions;
+    return [...this.transactions];
   }
 
   // Get transactions by network
@@ -269,93 +246,40 @@ export class TransactionManager {
     return this.transactions.filter(tx => tx.status === 'pending');
   }
 
-  // Get transaction history
-  getTransactionHistory(limit: number = 50): Transaction[] {
-    return this.transactions.slice(0, limit);
-  }
-
-  // Refresh transaction status
-  async refreshTransaction(hash: string): Promise<Transaction | null> {
-    const transaction = this.getTransaction(hash);
-    if (!transaction) return null;
-
-    try {
-      const receipt = await getTransactionReceipt(hash, transaction.network);
-      
-      if (receipt) {
-        transaction.status = receipt.status === '0x1' ? 'confirmed' : 'failed';
-        transaction.blockNumber = parseInt(receipt.blockNumber, 16);
-        transaction.confirmations = parseInt(receipt.confirmations, 16);
-        
-        await this.saveTransactions();
-        return transaction;
+  // Update transaction status
+  async updateTransactionStatus(hash: string, status: 'confirmed' | 'failed', blockNumber?: number): Promise<void> {
+    const transaction = this.transactions.find(tx => tx.hash === hash);
+    if (transaction) {
+      transaction.status = status;
+      if (blockNumber) {
+        transaction.blockNumber = blockNumber;
       }
-    } catch (error) {
-      console.error(`Error refreshing transaction ${hash}:`, error);
-    }
-
-    return transaction;
-  }
-
-  // Refresh all pending transactions
-  async refreshPendingTransactions(): Promise<void> {
-    const pendingTxs = this.getPendingTransactions();
-    
-    for (const tx of pendingTxs) {
-      await this.refreshTransaction(tx.hash);
+      await this.saveTransactions();
     }
   }
 
-  // Clear transaction history
-  async clearTransactionHistory(): Promise<void> {
+  // Clear all transactions
+  async clearTransactions(): Promise<void> {
     this.transactions = [];
     await this.saveTransactions();
   }
 
-  // Get transaction statistics
-  getTransactionStats(): {
-    total: number;
-    pending: number;
-    confirmed: number;
-    failed: number;
-    totalValue: string;
-    totalFees: string;
-  } {
-    const total = this.transactions.length;
-    const pending = this.transactions.filter(tx => tx.status === 'pending').length;
-    const confirmed = this.transactions.filter(tx => tx.status === 'confirmed').length;
-    const failed = this.transactions.filter(tx => tx.status === 'failed').length;
-    
-    const totalValue = this.transactions
-      .filter(tx => tx.type === 'send')
-      .reduce((sum, tx) => sum + parseFloat(tx.value), 0)
-      .toString();
-    
-    const totalFees = this.transactions
-      .reduce((sum, tx) => sum + parseFloat(tx.fee), 0)
-      .toString();
-
-    return {
-      total,
-      pending,
-      confirmed,
-      failed,
-      totalValue,
-      totalFees
-    };
+  // Get transaction history for an address
+  async getTransactionHistory(address: string, network: string): Promise<Transaction[]> {
+    return this.transactions.filter(tx => 
+      (tx.from.toLowerCase() === address.toLowerCase() || 
+       tx.to.toLowerCase() === address.toLowerCase()) &&
+      tx.network === network
+    );
   }
 
-  // Estimate transaction fee
-  async estimateTransactionFee(
-    to: string,
-    value: string,
-    data: string = '0x',
+  // Estimate gas for a transaction
+  async estimateTransactionGas(
+    to: string, 
+    value: string, 
+    data: string = '0x', 
     network: string
-  ): Promise<{
-    gasLimit: string;
-    gasPrice: string;
-    totalFee: string;
-  }> {
+  ): Promise<string> {
     try {
       const networkConfig = NETWORKS[network];
       if (!networkConfig) {
@@ -379,20 +303,109 @@ export class TransactionManager {
         network
       );
 
-      // Get current gas price
-      const feeData = await provider.getFeeData();
-      const gasPrice = feeData.gasPrice?.toString() || '20000000000';
-
-      const totalFee = (BigInt(estimatedGas) * BigInt(gasPrice)).toString();
-
-      return {
-        gasLimit: estimatedGas.toString(),
-        gasPrice,
-        totalFee
-      };
+      return estimatedGas;
     } catch (error) {
-      console.error('Failed to estimate transaction fee:', error);
+      // console.error('Failed to estimate gas:', error);
       throw error;
     }
+  }
+
+  // Get gas price for a network
+  async getGasPrice(network: string): Promise<string> {
+    try {
+      const { getGasPrice } = await import('../utils/web3-utils');
+      return await getGasPrice(network);
+    } catch (error) {
+      // console.error('Failed to get gas price:', error);
+      throw error;
+    }
+  }
+
+  // Get transaction count (nonce) for an address
+  async getTransactionCount(address: string, network: string): Promise<number> {
+    try {
+      const { getTransactionCount } = await import('../utils/web3-utils');
+      const nonceString = await getTransactionCount(address, network);
+      return parseInt(nonceString, 16);
+    } catch (error) {
+      // console.error('Failed to get transaction count:', error);
+      throw error;
+    }
+  }
+
+  // Sign a transaction
+  async signTransaction(transaction: any, privateKey: string, network: string): Promise<string> {
+    try {
+      const { signTransaction } = await import('../utils/web3-utils');
+      return await signTransaction(transaction, privateKey, network);
+    } catch (error) {
+      // console.error('Failed to sign transaction:', error);
+      throw error;
+    }
+  }
+
+  // Send a signed transaction
+  async sendSignedTransaction(signedTx: string, network: string): Promise<string> {
+    try {
+      const { sendSignedTransaction } = await import('../utils/web3-utils');
+      return await sendSignedTransaction(signedTx, network);
+    } catch (error) {
+      // console.error('Failed to send signed transaction:', error);
+      throw error;
+    }
+  }
+
+  // Get transaction receipt
+  async getTransactionReceipt(hash: string, network: string): Promise<any> {
+    try {
+      const { getTransactionReceipt } = await import('../utils/web3-utils');
+      return await getTransactionReceipt(hash, network);
+    } catch (error) {
+      // console.error('Failed to get transaction receipt:', error);
+      throw error;
+    }
+  }
+
+  // Get balance for an address
+  async getBalance(address: string, network: string): Promise<string> {
+    try {
+      const { getRealBalance } = await import('../utils/web3-utils');
+      return await getRealBalance(address, network);
+    } catch (error) {
+      // console.error('Failed to get balance:', error);
+      throw error;
+    }
+  }
+
+  // Get transaction statistics
+  getTransactionStats(): {
+    total: number;
+    pending: number;
+    confirmed: number;
+    failed: number;
+    totalValue: string;
+    totalFees: string;
+  } {
+    const total = this.transactions.length;
+    const pending = this.transactions.filter(tx => tx.status === 'pending').length;
+    const confirmed = this.transactions.filter(tx => tx.status === 'confirmed').length;
+    const failed = this.transactions.filter(tx => tx.status === 'failed').length;
+    
+    const totalValue = this.transactions.reduce((sum, tx) => {
+      return sum + parseFloat(tx.value || '0');
+    }, 0).toString();
+    
+    const totalFees = this.transactions.reduce((sum, tx) => {
+      return sum + parseFloat(tx.fee || '0');
+    }, 0).toString();
+
+    return {
+      total,
+      pending,
+      confirmed,
+      failed,
+      totalValue,
+      totalFees
+    };
   }
 } 

@@ -14,7 +14,6 @@ import {
 } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
 import { usePortfolio } from '../../store/PortfolioContext';
-import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
 const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
@@ -52,7 +51,6 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       } catch (error) {
         console.error('Failed to load account data:', error);
-        toast.error('Failed to load account details');
       } finally {
         setIsLoading(false);
       }
@@ -89,9 +87,7 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const handleCopyAddress = () => {
     if (currentAccount?.address) {
       navigator.clipboard.writeText(currentAccount.address);
-      toast.success('Address copied to clipboard!');
     } else {
-      toast.error('No address available to copy');
     }
   };
 
@@ -223,6 +219,61 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   >
                     <Edit className="w-4 h-4 text-gray-600" />
                   </button>
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Account Creation Details Card */}
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ duration: 0.3, delay: 0.1 }}
+              className="bg-white rounded-2xl p-4 shadow-sm border border-gray-200"
+            >
+              <div className="flex items-center space-x-3 mb-3">
+                <Key className="w-5 h-5 text-gray-600" />
+                <span className="font-medium text-gray-900 text-[13px]">Account Creation Details</span>
+              </div>
+              
+              <div className="space-y-2 text-[12px]">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Account ID:</span>
+                  <span className="text-gray-700 font-mono">{currentAccount.id}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Derivation Path:</span>
+                  <span className="text-gray-700 font-mono">{currentAccount.derivationPath || 'N/A'}</span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Created:</span>
+                  <span className="text-gray-700">
+                    {currentAccount.createdAt ? new Date(currentAccount.createdAt).toLocaleDateString() : 'N/A'}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Account Index:</span>
+                  <span className="text-gray-700">
+                    {currentAccount.derivationPath ? 
+                      currentAccount.derivationPath.split('/').pop() : 'N/A'}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Address:</span>
+                  <span className="text-gray-700 font-mono">
+                    {currentAccount.address ? 
+                      `${currentAccount.address.slice(0, 8)}...${currentAccount.address.slice(-6)}` : 'N/A'}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Networks:</span>
+                  <span className="text-gray-700">
+                    {currentAccount.networks ? currentAccount.networks.join(', ') : 'N/A'}
+                  </span>
                 </div>
               </div>
             </motion.div>

@@ -67,14 +67,76 @@ function addIndicator() {
 function handlePageMessages(event: MessageEvent) {
   if (event.source !== window) return;
   
+  // Handle crossBrowserSendMessage format (with _id field)
+  if (event.data._id && event.data.type) {
+    console.log('PayCio: Received crossBrowserSendMessage:', event.data);
+    
+    switch (event.data.type) {
+      case 'WALLET_REQUEST':
+        console.log('PayCio: Processing WALLET_REQUEST via crossBrowserSendMessage:', event.data.method);
+        
+        // Send message to background script to process wallet request
+        console.log('PayCio: Sending message to background script:', {
+          type: 'WALLET_REQUEST',
+          method: event.data.method,
+          params: event.data.params
+        });
+        
+        safeSendMessage({
+          type: 'WALLET_REQUEST',
+          method: event.data.method,
+          params: event.data.params
+        }).then((response) => {
+          console.log('PayCio: Received response from background script:', response);
+          console.log('PayCio: Response type:', typeof response);
+          console.log('PayCio: Response success:', response?.success);
+          console.log('PayCio: Response result:', response?.result);
+          
+          if (response?.success) {
+            console.log('PayCio: Sending success response to injected script');
+            window.postMessage({
+              _id: event.data._id,
+              response: response
+            }, '*');
+          } else {
+            console.log('PayCio: Sending error response to injected script');
+            window.postMessage({
+              _id: event.data._id,
+              error: response?.error || 'Unknown error'
+            }, '*');
+          }
+        }).catch((error) => {
+          console.error('Error processing wallet request:', error);
+          window.postMessage({
+            _id: event.data._id,
+            error: error.message || 'Unknown error'
+          }, '*');
+        });
+        return;
+    }
+  }
+  
   switch (event.data.type) {
     case 'PAYCIO_GET_WALLET_ADDRESS':
-      console.log('PayCio: Received wallet address request from page');
+      console.log('PayCio: Received wallet address request from page with ID:', event.data.id);
       
-      // Get wallet address from storage
-      storage.get(['wallet']).then((result) => {
-        const address = result.wallet && result.wallet.address ? result.wallet.address : null;
-        console.log('PayCio: Sending wallet address response:', address);
+      // Get wallet address from storage using correct structure
+      storage.get(['wallet', 'network']).then((result) => {
+        console.log('PayCio: Storage result:', result);
+        const wallet = result.wallet;
+        const currentNetwork = result.network;
+        
+        console.log('PayCio: Wallet data:', wallet);
+        console.log('PayCio: Current network:', currentNetwork);
+        
+        // Get current account address
+        const currentAccount = wallet?.accounts?.find((acc: any) => acc.isActive) || wallet?.accounts?.[0];
+        console.log('PayCio: Current account:', currentAccount);
+        
+        const address = currentAccount?.addresses?.[currentNetwork?.id || 'ethereum'];
+        console.log('PayCio: Derived address:', address);
+        
+        console.log('PayCio: Sending wallet address response with ID:', event.data.id);
         
         window.postMessage({
           type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
@@ -92,12 +154,14 @@ function handlePageMessages(event: MessageEvent) {
       break;
 
     case 'PAYCIO_CHECK_WALLET_STATUS':
-      console.log('PayCio: Received wallet status check from page');
+      console.log('PayCio: Received wallet status check from page with ID:', event.data.id);
       
       // Check wallet unlock status
       storage.get(['walletState']).then((result) => {
+        console.log('PayCio: Wallet state result:', result);
         const isUnlocked = result.walletState?.isWalletUnlocked || false;
-        console.log('PayCio: Sending wallet status response:', isUnlocked);
+        console.log('PayCio: Wallet unlocked status:', isUnlocked);
+        console.log('PayCio: Sending wallet status response with ID:', event.data.id);
         
         window.postMessage({
           type: 'PAYCIO_WALLET_STATUS_RESPONSE',
@@ -140,6 +204,7 @@ function handlePageMessages(event: MessageEvent) {
       break;
 
     case 'PAYCIO_WALLET_REQUEST':
+    case 'WALLET_REQUEST':
       console.log('PayCio: Received wallet request from page:', event.data.method);
       
       // Send message to background script to process wallet request
@@ -148,6 +213,7 @@ function handlePageMessages(event: MessageEvent) {
         method: event.data.method,
         params: event.data.params
       }).then((response) => {
+        console.log('PayCio: Received response from background script:', response);
         if (response?.success) {
           window.postMessage({
             type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
@@ -167,6 +233,32 @@ function handlePageMessages(event: MessageEvent) {
         console.error('Error processing wallet request:', error);
         window.postMessage({
           type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
+          id: event.data.id,
+          success: false,
+          error: error.message || 'Unknown error'
+        }, '*');
+      });
+      break;
+
+    case 'STORAGE_CHECK_REQUEST':
+      console.log('PayCio: Received storage check request from page with ID:', event.data.id);
+      
+      // Check storage and send response
+      storage.get(['wallet', 'walletState', 'network']).then((result) => {
+        console.log('PayCio: Storage result:', result);
+        
+        window.postMessage({
+          type: 'STORAGE_CHECK_RESPONSE',
+          id: event.data.id,
+          success: true,
+          wallet: result.wallet,
+          walletState: result.walletState,
+          network: result.network
+        }, '*');
+      }).catch((error) => {
+        console.error('Error checking storage:', error);
+        window.postMessage({
+          type: 'STORAGE_CHECK_RESPONSE',
           id: event.data.id,
           success: false,
           error: error.message || 'Unknown error'

@@ -22,9 +22,9 @@ interface Transaction {
 }
 
 const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
-  const { currentNetwork } = useNetwork();
-  const currentNetworkData = currentNetwork;
+  const { wallet, currentNetwork } = useWallet();
+  const { currentNetwork: networkContextNetwork } = useNetwork();
+  const currentNetworkData = currentNetwork || networkContextNetwork;
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<'all' | 'receive' | 'send'>('all');
@@ -33,14 +33,29 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
     if (wallet?.address) {
       loadTransactions();
     }
-  }, [wallet?.address, wallet?.currentNetwork]);
+  }, [wallet?.address, currentNetworkData?.id]);
+
+  // Listen for network changes to refresh transactions
+  useEffect(() => {
+    const handleNetworkChange = async (event: CustomEvent) => {
+      console.log('🔄 Network changed event received in TransactionsScreen:', event.detail);
+      if (wallet?.address) {
+        await loadTransactions();
+      }
+    };
+
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
+  }, [wallet?.address]);
 
   const loadTransactions = async () => {
     if (!wallet?.address) return;
     
     setIsLoading(true);
     try {
-      const network = wallet.currentNetwork || 'ethereum';
+      const network = currentNetworkData?.id || wallet.currentNetwork || 'ethereum';
       
       if (network === 'bitcoin') {
         // Load Bitcoin transactions
@@ -152,7 +167,24 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
             <ArrowLeft className="w-5 h-5" />
             <span>Back</span>
           </button>
-          <h1 className="text-xl font-bold">Transaction History</h1>
+          <div className="text-center">
+            <h1 className="text-xl font-bold">Transaction History</h1>
+            <div className="flex items-center justify-center space-x-2 mt-1">
+              <div className={`w-3 h-3 rounded-full ${
+                currentNetworkData?.id === 'bitcoin' ? 'bg-orange-500' : 
+                currentNetworkData?.id === 'ethereum' ? 'bg-blue-500' :
+                currentNetworkData?.id === 'solana' ? 'bg-purple-500' :
+                currentNetworkData?.id === 'tron' ? 'bg-red-500' :
+                currentNetworkData?.id === 'ton' ? 'bg-blue-400' :
+                currentNetworkData?.id === 'xrp' ? 'bg-blue-300' :
+                currentNetworkData?.id === 'litecoin' ? 'bg-gray-400' :
+                'bg-gray-500'
+              }`}></div>
+              <span className="text-xs text-white/80">
+                {currentNetworkData?.name || 'Select Network'}
+              </span>
+            </div>
+          </div>
           <button
             onClick={loadTransactions}
             disabled={isLoading}

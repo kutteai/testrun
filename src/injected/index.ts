@@ -76,6 +76,228 @@ async function showWalletUnlockPopup(): Promise<boolean> {
   });
 }
 
+// Create a simple unlock modal on the current page
+function createUnlockModal(): Promise<boolean> {
+  return new Promise((resolve) => {
+    // Remove any existing unlock modal
+    const existingModal = document.getElementById('paycio-unlock-modal');
+    if (existingModal) {
+      existingModal.remove();
+    }
+
+    // Create modal overlay
+    const modal = document.createElement('div');
+    modal.id = 'paycio-unlock-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: white;
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+      text-align: center;
+    `;
+
+    // Create header
+    const header = document.createElement('div');
+    header.style.cssText = `
+      margin-bottom: 24px;
+    `;
+    
+    const icon = document.createElement('img');
+    icon.style.cssText = `
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      display: block;
+      margin: 0 auto 16px;
+      object-fit: contain;
+    `;
+    // Try to get the logo URL, with fallback for local testing
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+        icon.src = chrome.runtime.getURL('assets/logo.png');
+      } else {
+        // Fallback for local testing - use a data URL or placeholder
+        icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiM2MzY2RjEiLz4KPHBhdGggZD0iTTMyIDE2TDQ4IDMyTDMyIDQ4TDE2IDMyTDMyIDE2WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
+      }
+    } catch (error) {
+      // Fallback if chrome.runtime is not available
+      icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiM2MzY2RjEiLz4KPHBhdGggZD0iTTMyIDE2TDQ4IDMyTDMyIDQ4TDE2IDMyTDMyIDE2WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
+    }
+    icon.alt = 'PayCio Wallet';
+    
+    const title = document.createElement('h2');
+    title.style.cssText = `
+      margin: 0 0 8px 0;
+      font-size: 24px;
+      font-weight: 700;
+      color: #111827;
+    `;
+    title.textContent = 'Unlock PayCio Wallet';
+    
+    const subtitle = document.createElement('p');
+    subtitle.style.cssText = `
+      margin: 0;
+      font-size: 16px;
+      color: #6b7280;
+    `;
+    subtitle.textContent = 'Enter your password to continue';
+    
+    header.appendChild(icon);
+    header.appendChild(title);
+    header.appendChild(subtitle);
+
+    // Create form
+    const form = document.createElement('form');
+    form.style.cssText = `
+      margin-bottom: 24px;
+    `;
+    
+    const passwordInput = document.createElement('input');
+    passwordInput.type = 'password';
+    passwordInput.placeholder = 'Enter your password';
+    passwordInput.style.cssText = `
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 16px;
+      margin-bottom: 16px;
+      box-sizing: border-box;
+    `;
+    
+    const unlockBtn = document.createElement('button');
+    unlockBtn.type = 'submit';
+    unlockBtn.textContent = 'Unlock Wallet';
+    unlockBtn.style.cssText = `
+      width: 100%;
+      padding: 12px 16px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    `;
+    
+    unlockBtn.onmouseover = () => {
+      unlockBtn.style.background = '#5855eb';
+    };
+    unlockBtn.onmouseout = () => {
+      unlockBtn.style.background = '#6366f1';
+    };
+    
+    form.appendChild(passwordInput);
+    form.appendChild(unlockBtn);
+
+    // Create cancel button
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.style.cssText = `
+      width: 100%;
+      padding: 12px 16px;
+      background: transparent;
+      color: #6b7280;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    `;
+    
+    cancelBtn.onmouseover = () => {
+      cancelBtn.style.background = '#f9fafb';
+    };
+    cancelBtn.onmouseout = () => {
+      cancelBtn.style.background = 'transparent';
+    };
+
+    // Handle form submission
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = passwordInput.value;
+      
+      if (!password) {
+        alert('Please enter your password');
+        return;
+      }
+      
+      unlockBtn.textContent = 'Unlocking...';
+      unlockBtn.disabled = true;
+      
+      try {
+        // Send unlock request to background script
+        const response = await crossBrowserSendMessage({
+          type: 'WALLET_REQUEST',
+          method: 'unlock_wallet',
+          params: [password]
+        });
+        
+        if (response?.success) {
+          modal.remove();
+          resolve(true);
+        } else {
+          alert('Invalid password. Please try again.');
+          unlockBtn.textContent = 'Unlock Wallet';
+          unlockBtn.disabled = false;
+        }
+      } catch (error) {
+        console.error('Unlock error:', error);
+        alert('Failed to unlock wallet. Please try again.');
+        unlockBtn.textContent = 'Unlock Wallet';
+        unlockBtn.disabled = false;
+      }
+    });
+    
+    // Handle cancel
+    cancelBtn.addEventListener('click', () => {
+      modal.remove();
+      resolve(false);
+    });
+    
+    // Handle overlay click
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        modal.remove();
+        resolve(false);
+      }
+    });
+
+    // Assemble modal
+    modalContent.appendChild(header);
+    modalContent.appendChild(form);
+    modalContent.appendChild(cancelBtn);
+    modal.appendChild(modalContent);
+    document.body.appendChild(modal);
+    
+    // Focus password input
+    setTimeout(() => {
+      passwordInput.focus();
+    }, 100);
+  });
+}
+
 // Process wallet request using postMessage
 async function processWalletRequest(method: string, params: any[]): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -111,6 +333,41 @@ async function processWalletRequest(method: string, params: any[]): Promise<any>
       reject(new Error('Request timeout'));
     }, 30000);
   });
+}
+
+// Enhanced request handler with automatic wallet unlock
+async function handleWalletRequest(method: string, params: any[]): Promise<any> {
+  // Methods that should work even when wallet is locked
+  const bypassLockMethods = ['eth_chainId', 'net_version', 'eth_accounts'];
+  
+  // First, try the request directly
+  try {
+    const result = await processWalletRequest(method, params);
+    return result;
+  } catch (error: any) {
+    // If the error is "Wallet is locked" and it's not a bypass method, try to unlock
+    if (error.message === 'Wallet is locked' && !bypassLockMethods.includes(method)) {
+      console.log('🔍 PayCio: Wallet is locked, attempting to unlock...');
+      
+      // Check current unlock status
+      const isUnlocked = await checkWalletUnlockStatus();
+      if (!isUnlocked) {
+        console.log('🔍 PayCio: Showing unlock modal...');
+        const unlockSuccess = await createUnlockModal();
+        
+        if (unlockSuccess) {
+          console.log('🔍 PayCio: Wallet unlocked successfully, retrying request...');
+          // Retry the request after unlock
+          return await processWalletRequest(method, params);
+        } else {
+          throw new Error('User cancelled wallet unlock');
+        }
+      }
+    }
+    
+    // Re-throw the original error
+    throw error;
+  }
 }
 
 // Handle pending connection requests
@@ -192,8 +449,8 @@ function interceptExistingProvider(provider: any) {
       if (!isUnlocked) {
         console.log('PayCio: Wallet is locked, showing unlock popup...');
         
-        // Show unlock popup
-        const unlockSuccess = await showWalletUnlockPopup();
+        // Show unlock modal
+        const unlockSuccess = await createUnlockModal();
         
         if (!unlockSuccess) {
           throw new Error('User cancelled wallet unlock');
@@ -221,9 +478,9 @@ function interceptExistingProvider(provider: any) {
       }
     }
     
-    // Process the request
+    // Process the request with automatic unlock handling
     try {
-      const result = await processWalletRequest(args.method, args.params || []);
+      const result = await handleWalletRequest(args.method, args.params || []);
       return result;
     } catch (error) {
       console.error('PayCio: Error processing wallet request:', error);
@@ -250,8 +507,8 @@ function interceptExistingProvider(provider: any) {
         if (!isUnlocked) {
           console.log('PayCio: Wallet is locked, showing unlock popup...');
           
-          // Show unlock popup
-          const unlockSuccess = await showWalletUnlockPopup();
+          // Show unlock modal
+          const unlockSuccess = await createUnlockModal();
           
           if (!unlockSuccess) {
             const error = { code: 4001, message: 'User rejected request' };
@@ -283,9 +540,9 @@ function interceptExistingProvider(provider: any) {
         }
       }
       
-      // Process the request
+      // Process the request with automatic unlock handling
       try {
-        const result = await processWalletRequest(payload.method, payload.params || []);
+        const result = await handleWalletRequest(payload.method, payload.params || []);
         callback(null, { result });
       } catch (error) {
         console.error('PayCio: Error processing wallet request:', error);
@@ -520,6 +777,8 @@ try {
   
   // Create MetaMask-style confirmation popup
   function createConfirmationPopup(message: string, onApprove: () => void, onReject: () => void) {
+    console.log('PayCio: Creating confirmation popup:', message);
+    
     // Remove existing popup if any
     const existingPopup = document.getElementById('paycio-confirmation-popup');
     if (existingPopup) {
@@ -562,20 +821,28 @@ try {
       border-bottom: 1px solid #e5e7eb;
     `;
     
-    const icon = document.createElement('div');
+    const icon = document.createElement('img');
     icon.style.cssText = `
       width: 32px;
       height: 32px;
-      background: #6366f1;
       border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: block;
       margin-right: 12px;
-      color: white;
-      font-weight: bold;
+      object-fit: contain;
     `;
-    icon.textContent = 'P';
+    // Try to get the logo URL, with fallback for local testing
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+        icon.src = chrome.runtime.getURL('assets/logo.png');
+      } else {
+        // Fallback for local testing - use a data URL or placeholder
+        icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
+      }
+    } catch (error) {
+      // Fallback if chrome.runtime is not available
+      icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
+    }
+    icon.alt = 'PayCio Wallet';
     
     const title = document.createElement('h3');
     title.style.cssText = `
@@ -710,6 +977,7 @@ try {
   
   // Create Ethereum provider with better compatibility
   const provider = {
+    isPayCio: true,
     isPayCioWallet: true,
     isMetaMask: false,
     isCoinbaseWallet: false,
@@ -736,17 +1004,22 @@ try {
     async getRealWalletAddress(): Promise<string | null> {
       try {
         return new Promise((resolve) => {
+          const messageId = Date.now().toString();
+          console.log('🔍 PayCio: getRealWalletAddress called with ID:', messageId);
+          
           // Send message to content script to get wallet address
           window.postMessage({
             type: 'PAYCIO_GET_WALLET_ADDRESS',
-            id: Date.now()
+            id: messageId
           }, '*');
           
           // Listen for response
           const handleMessage = (event: MessageEvent) => {
+            console.log('🔍 PayCio: Received message in getRealWalletAddress:', event.data);
             if (event.source !== window) return;
-            if (event.data.type === 'PAYCIO_WALLET_ADDRESS_RESPONSE') {
+            if (event.data.type === 'PAYCIO_WALLET_ADDRESS_RESPONSE' && event.data.id === messageId) {
               window.removeEventListener('message', handleMessage);
+              console.log('📨 PayCio: Received wallet address response:', event.data);
               if (event.data.address) {
                 console.log('✅ PayCio: Found real wallet address:', event.data.address);
                 resolve(event.data.address);
@@ -759,12 +1032,12 @@ try {
           
           window.addEventListener('message', handleMessage);
           
-          // Timeout after 3 seconds
+          // Timeout after 5 seconds
           setTimeout(() => {
             window.removeEventListener('message', handleMessage);
             console.log('⚠️ PayCio: Timeout getting wallet address');
             resolve(null);
-          }, 3000);
+          }, 5000);
         });
       } catch (error) {
         console.error('Error getting wallet address:', error);
@@ -786,13 +1059,42 @@ try {
       console.log('PayCio: Ethereum provider request:', request);
       
       switch (request.method) {
-        case 'eth_accounts':
+        case 'eth_accounts': {
+          // If we have a selected address, return it, otherwise try to get the real wallet address
+          if (provider.selectedAddress) {
+            return [provider.selectedAddress];
+          }
+          
+          // Try to get the real wallet address from the background script
+          try {
+            const realAddress = await provider.getRealWalletAddress();
+            if (realAddress) {
+              provider.selectedAddress = realAddress;
+              provider._state.accounts = [realAddress];
+              return [realAddress];
+            }
+          } catch (error) {
+            console.log('🔍 PayCio: Could not get real wallet address for eth_accounts:', error);
+          }
+          
           return provider._state.accounts;
+        }
           
         case 'eth_requestAccounts':
           console.log('PayCio: Connection request received');
           
           return new Promise(async (resolve, reject) => {
+            // Check if wallet is unlocked first
+            const isUnlocked = await checkWalletUnlockStatus();
+            if (!isUnlocked) {
+              console.log('PayCio: Wallet is locked, showing unlock popup...');
+              const unlockSuccess = await createUnlockModal();
+              if (!unlockSuccess) {
+                reject(new Error('User cancelled wallet unlock'));
+                return;
+              }
+            }
+            
             createConfirmationPopup(
               'This site would like to connect to your PayCio Wallet',
               async () => {
@@ -819,50 +1121,24 @@ try {
           });
           
         case 'eth_chainId': {
-          return new Promise((resolve, reject) => {
-            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'eth_chainId', params: [] }).then((response) => {
-              if (response?.success) return resolve(response.result);
-              reject(new Error(response?.error || 'eth_chainId failed'));
-            }).catch(reject);
-          });
+          return handleWalletRequest('eth_chainId', []);
         }
           
         case 'eth_getBalance': {
           const address = (request.params && request.params[0]) || provider.selectedAddress;
-          return new Promise((resolve, reject) => {
-            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'eth_getBalance', params: [address, 'latest'] }).then((response) => {
-              if (response?.success) return resolve(response.result);
-              reject(new Error(response?.error || 'eth_getBalance failed'));
-            }).catch(reject);
-          });
+          return handleWalletRequest('eth_getBalance', [address, 'latest']);
         }
           
         case 'net_version': {
-          return new Promise((resolve, reject) => {
-            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'net_version', params: [] }).then((response) => {
-              if (response?.success) return resolve(response.result);
-              reject(new Error(response?.error || 'net_version failed'));
-            }).catch(reject);
-          });
+          return handleWalletRequest('net_version', []);
         }
           
         case 'wallet_switchEthereumChain': {
-          // Forward to background; background will update storage/network state
-          return new Promise((resolve, reject) => {
-            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'wallet_switchEthereumChain', params: request.params || [] }).then((response) => {
-              if (response?.success) return resolve(response.result ?? null);
-              reject(new Error(response?.error || 'wallet_switchEthereumChain failed'));
-            }).catch(reject);
-          });
+          return handleWalletRequest('wallet_switchEthereumChain', request.params || []);
         }
           
         case 'wallet_addEthereumChain': {
-          return new Promise((resolve, reject) => {
-            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: 'wallet_addEthereumChain', params: request.params || [] }).then((response) => {
-              if (response?.success) return resolve(response.result ?? null);
-              reject(new Error(response?.error || 'wallet_addEthereumChain failed'));
-            }).catch(reject);
-          });
+          return handleWalletRequest('wallet_addEthereumChain', request.params || []);
         }
 
         case 'eth_sendTransaction': {
@@ -1016,13 +1292,8 @@ try {
         }
           
         default:
-          // Forward unknown/tx methods to background
-          return new Promise((resolve, reject) => {
-            crossBrowserSendMessage({ type: 'WALLET_REQUEST', method: request.method, params: request.params || [] }).then((response) => {
-              if (response?.success) return resolve(response.result);
-              reject(new Error(response?.error || ('Method ' + request.method + ' failed')));
-            }).catch(reject);
-          });
+          // Forward unknown/tx methods to background with automatic unlock handling
+          return handleWalletRequest(request.method, request.params || []);
       }
     },
     

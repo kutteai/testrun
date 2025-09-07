@@ -258,8 +258,8 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       
       // Get real token price from CoinGecko
       const coinId = getCoinGeckoId(customTokenData.network, customTokenData.contractAddress);
-      let tokenPrice = '$0.00';
-      let tokenChange = '0.00%';
+      let tokenPrice = '';
+      let tokenChange = '';
       
       if (coinId) {
         try {

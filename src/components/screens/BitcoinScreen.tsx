@@ -9,7 +9,7 @@ import { storage } from '../../utils/storage-utils';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 
 const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
+  const { wallet, currentNetwork } = useWallet();
   const [bitcoinWallets, setBitcoinWallets] = useState<BitcoinWallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<BitcoinWallet | null>(null);
   const [transactions, setTransactions] = useState<BitcoinTransaction[]>([]);
@@ -26,6 +26,22 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   useEffect(() => {
     loadBitcoinWallets();
   }, []);
+
+  // Listen for network changes
+  useEffect(() => {
+    const handleNetworkChange = async (event: CustomEvent) => {
+      console.log('🔄 Network changed event received in BitcoinScreen:', event.detail);
+      if (currentNetwork?.id === 'bitcoin') {
+        // Refresh Bitcoin data when switching to Bitcoin network
+        await loadBitcoinWallets();
+      }
+    };
+
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
+  }, [currentNetwork]);
 
   // Load transactions when wallet is selected
   useEffect(() => {
@@ -201,7 +217,12 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <h1 className="text-xl font-bold">Bitcoin</h1>
-              <p className="text-slate-400 text-sm">BTC Wallet Management</p>
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                <p className="text-slate-400 text-sm">
+                  {currentNetwork?.id === 'bitcoin' ? 'Active Network' : 'BTC Wallet Management'}
+                </p>
+              </div>
             </div>
           </div>
           <div className="flex items-center space-x-2">

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Plus, Search, Edit, Trash2, Copy, Check, User, Mail } from 'lucide-react';
 import { storage } from '../../utils/storage-utils';
+import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
@@ -15,6 +16,7 @@ interface Contact {
 }
 
 const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+  const { currentNetwork } = useWallet();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddContact, setShowAddContact] = useState(false);
@@ -26,9 +28,19 @@ const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [formData, setFormData] = useState({
     name: '',
     address: '',
-    network: 'ethereum',
+    network: currentNetwork?.id || 'ethereum',
     notes: ''
   });
+
+  // Update form network when current network changes
+  useEffect(() => {
+    if (currentNetwork && !editingContact) {
+      setFormData(prev => ({
+        ...prev,
+        network: currentNetwork.id
+      }));
+    }
+  }, [currentNetwork, editingContact]);
 
   const networks = [
     { id: 'ethereum', name: 'Ethereum', symbol: 'ETH' },
@@ -175,10 +187,27 @@ const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           >
             <ArrowLeft className="w-5 h-5 text-white" />
           </button>
-          <h1 className="text-lg font-semibold text-white">Address Book</h1>
+          <div className="text-center">
+            <h1 className="text-lg font-semibold text-white">Address Book</h1>
+            <div className="flex items-center justify-center space-x-2 mt-1">
+              <div className={`w-3 h-3 rounded-full ${
+                currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
+                currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
+                currentNetwork?.id === 'solana' ? 'bg-purple-500' :
+                currentNetwork?.id === 'tron' ? 'bg-red-500' :
+                currentNetwork?.id === 'ton' ? 'bg-blue-400' :
+                currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
+                currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
+                'bg-gray-500'
+              }`}></div>
+              <span className="text-xs text-white/80">
+                {currentNetwork?.name || 'Select Network'}
+              </span>
+            </div>
+          </div>
           <button
             onClick={() => {
-              setFormData({ name: '', address: '', network: 'ethereum', notes: '' });
+              setFormData({ name: '', address: '', network: currentNetwork?.id || 'ethereum', notes: '' });
               setEditingContact(null);
               setShowAddContact(true);
             }}
