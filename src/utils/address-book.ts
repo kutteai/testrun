@@ -303,13 +303,18 @@ export class AddressBook {
         return /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address) || 
                /^bc1[a-z0-9]{39,59}$/.test(address);
       case 'solana':
+        // Industry standard Solana address validation (Base58, 32-44 chars)
         return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address);
       case 'tron':
         return /^T[A-Za-z1-9]{33}$/.test(address);
       case 'xrp':
+        // Industry standard XRP address validation (Base58, starts with 'r')
         return /^r[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
+      case 'ton':
+        // Industry standard TON address validation (Base64, starts with 'UQ')
+        return /^UQ[A-Za-z0-9+/]{40,50}$/.test(address);
       default:
-        return true; // Allow unknown networks
+        return false; // Reject unknown networks
     }
   }
 

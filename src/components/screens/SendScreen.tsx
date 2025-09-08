@@ -15,7 +15,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 
-const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork, switchNetwork } = useWallet();
   const { portfolioValue } = usePortfolio();
   const { networks, currentNetwork: networkContextCurrent } = useNetwork();
@@ -120,9 +120,25 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
     };
 
+    const handleAccountSwitched = async (event: CustomEvent) => {
+      console.log('🔄 Account switched event received in SendScreen:', event.detail);
+      try {
+        // Update the from account immediately
+        const current = await getCurrentAccount();
+        if (current) {
+          setFromAccount(current);
+          console.log('✅ SendScreen: Updated from account after switch:', current);
+        }
+      } catch (error) {
+        console.error('❌ SendScreen: Error updating after account switch:', error);
+      }
+    };
+
     window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    window.addEventListener('accountSwitched', handleAccountSwitched as EventListener);
     return () => {
       window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+      window.removeEventListener('accountSwitched', handleAccountSwitched as EventListener);
     };
   }, [getWalletAccounts, getCurrentAccount]);
 
@@ -155,6 +171,13 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       refreshData();
     }
   }, [currentNetwork, getWalletAccounts, getCurrentAccount]);
+
+  // Re-validate address when network changes
+  useEffect(() => {
+    if (toAddress) {
+      handleAddressChange(toAddress);
+    }
+  }, [currentNetwork, addressType]);
 
   const addressTypes = [
     { id: 'address', label: 'Address', icon: Check },
@@ -207,30 +230,125 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   const handleAddressChange = (value: string) => {
     setToAddress(value);
-    // Enhanced validation for different address types
+    
+    // Network-specific validation based on current network
     if (addressType === 'address') {
-      // Ethereum address validation (42 characters, starts with 0x)
-      const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
-      // Bitcoin address validation (starts with 1, 3, or bc1)
-      const btcAddressRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/;
-      // Solana address validation (base58, 32-44 characters)
-      const solAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+      const networkId = currentNetwork?.id || 'ethereum';
+      let isValid = false;
       
-      setIsAddressValid(
-        ethAddressRegex.test(value) || 
-        btcAddressRegex.test(value) || 
-        solAddressRegex.test(value) ||
-        (value.length > 20 && /^[a-zA-Z0-9]+$/.test(value)) // Generic validation
-      );
+      console.log('🔍 Address validation debug:');
+      console.log('  - Address:', value);
+      console.log('  - Address type:', addressType);
+      console.log('  - Current network:', networkId);
+      console.log('  - Address length:', value.length);
+      
+      switch (networkId) {
+        case 'ethereum':
+        case 'polygon':
+        case 'bsc':
+        case 'avalanche':
+        case 'arbitrum':
+        case 'optimism':
+          // EVM networks - Ethereum address format
+          const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+          isValid = ethAddressRegex.test(value);
+          console.log('  - EVM network detected');
+          console.log('  - Regex test result:', isValid);
+          console.log('  - Regex pattern:', ethAddressRegex);
+          break;
+          
+        case 'bitcoin':
+          // Bitcoin address validation (P2PKH, P2SH, Bech32)
+          const btcAddressRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/;
+          isValid = btcAddressRegex.test(value);
+          break;
+          
+        case 'solana':
+          // Solana address validation (Base58, 32-44 characters)
+          const solAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+          isValid = solAddressRegex.test(value);
+          break;
+          
+        case 'tron':
+          // TRON address validation (Base58, starts with 'T')
+          const tronAddressRegex = /^T[A-Za-z1-9]{33}$/;
+          isValid = tronAddressRegex.test(value);
+          break;
+          
+        case 'xrp':
+          // XRP address validation (Base58, starts with 'r')
+          const xrpAddressRegex = /^r[a-km-zA-HJ-NP-Z1-9]{25,34}$/;
+          isValid = xrpAddressRegex.test(value);
+          break;
+          
+        case 'ton':
+          // TON address validation (Base64, starts with 'UQ')
+          const tonAddressRegex = /^UQ[A-Za-z0-9+/]{40,50}$/;
+          isValid = tonAddressRegex.test(value);
+          break;
+          
+        case 'litecoin':
+          // Litecoin address validation (similar to Bitcoin)
+          const ltcAddressRegex = /^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$|^ltc1[a-z0-9]{39,59}$/;
+          isValid = ltcAddressRegex.test(value);
+          break;
+          
+        default:
+          // Fallback to Ethereum validation for unknown networks
+          const fallbackRegex = /^0x[a-fA-F0-9]{40}$/;
+          isValid = fallbackRegex.test(value);
+          break;
+      }
+      
+      console.log('  - Final validation result:', isValid);
+      setIsAddressValid(isValid);
+      
     } else if (addressType === 'ens') {
-      // ENS validation (should contain .eth and be valid domain)
-      const ensRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.eth$/;
-      setIsAddressValid(ensRegex.test(value.toLowerCase()));
+      // ENS validation (only valid for Ethereum networks)
+      const networkId = currentNetwork?.id || 'ethereum';
+      if (['ethereum', 'polygon', 'arbitrum', 'optimism'].includes(networkId)) {
+        const ensRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.eth$/;
+        setIsAddressValid(ensRegex.test(value.toLowerCase()));
+      } else {
+        // ENS not supported on this network
+        setIsAddressValid(false);
+      }
+      
     } else if (addressType === 'ucpi') {
       // UCPI ID validation (alphanumeric, 6-20 characters)
       const ucpiRegex = /^[a-zA-Z0-9]{6,20}$/;
       setIsAddressValid(ucpiRegex.test(value));
     }
+  };
+
+  // Test function for debugging address validation
+  const testAddressValidation = (testAddress: string) => {
+    console.log('🧪 Testing address validation for:', testAddress);
+    console.log('  - Current network:', currentNetwork?.id);
+    console.log('  - Address type:', addressType);
+    
+    const networkId = currentNetwork?.id || 'ethereum';
+    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+    const isValid = ethAddressRegex.test(testAddress);
+    
+    console.log('  - Regex test result:', isValid);
+    console.log('  - Address length:', testAddress.length);
+    console.log('  - Starts with 0x:', testAddress.startsWith('0x'));
+    console.log('  - Hex part length:', testAddress.substring(2).length);
+    
+    // Check for hidden characters
+    console.log('  - Character codes:', testAddress.split('').map(c => c.charCodeAt(0)));
+    console.log('  - Has whitespace:', testAddress !== testAddress.trim());
+    console.log('  - Trimmed address:', `"${testAddress.trim()}"`);
+    
+    return isValid;
+  };
+
+  // Test the specific failing address
+  const testFailingAddress = () => {
+    const failingAddress = '0x100A87f0755545bB9B7ab096B2E2a3A3e083e4A4';
+    console.log('🔍 Testing the specific failing address...');
+    return testAddressValidation(failingAddress);
   };
 
   const handleContinue = () => {
@@ -261,7 +379,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         <div className="bg-[#180CB2] text-white px-6 py-4">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => onNavigate('dashboard')}
+              onClick={onGoBack}
               className="p-2 hover:bg-white/10 rounded-full transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -431,15 +549,27 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 {isAddressValid ? (
                   <>
                     <Check className="w-4 h-4 text-green-600" />
-                    <span className="text-green-700 text-[13px]">Valid address</span>
+                    <span className="text-green-700 text-[13px]">
+                      Valid {currentNetwork?.name || 'address'} address
+                    </span>
                   </>
                 ) : (
                   <>
                     <X className="w-4 h-4 text-red-600" />
-                    <span className="text-red-700 text-[13px]">Invalid address</span>
+                    <span className="text-red-700 text-[13px]">
+                      Invalid {currentNetwork?.name || 'address'} address
+                    </span>
                   </>
                 )}
               </div>
+              {!isAddressValid && toAddress && (
+                <div className="mt-1 text-red-600 text-[12px]">
+                  {addressType === 'ens' && !['ethereum', 'polygon', 'arbitrum', 'optimism'].includes(currentNetwork?.id || 'ethereum') 
+                    ? 'ENS is only supported on Ethereum networks'
+                    : `Please enter a valid ${currentNetwork?.name || 'address'} address`
+                  }
+                </div>
+              )}
             </div>
           )}
         </motion.div>
@@ -503,6 +633,15 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <div>Contacts Count: {contacts.length}</div>
             <div>Current Network: {currentNetwork?.id || 'None'}</div>
             <div>From Account Address: {fromAccount?.address || fromAccount?.addresses?.[currentNetwork?.id || 'ethereum'] || 'None'}</div>
+            <div>Address Type: {addressType}</div>
+            <div>Is Address Valid: {isAddressValid ? '✅' : '❌'}</div>
+            <div>To Address: {toAddress || 'None'}</div>
+            <button 
+              onClick={testFailingAddress}
+              className="mt-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
+            >
+              Test Failing Address
+            </button>
           </div>
         )}
 
@@ -598,7 +737,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <div className="text-center py-8">
                 <div className="text-gray-500 text-[13px] mb-4">No contacts found</div>
                 <button
-                  onClick={() => onNavigate('dashboard')}
+                  onClick={onGoBack}
                   className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors text-[13px]"
                 >
                   Go to Dashboard

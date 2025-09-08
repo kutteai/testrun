@@ -10,7 +10,9 @@ import {
   Globe,
   Loader,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
@@ -20,6 +22,8 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { addAccount, wallet, getPassword } = useWallet();
   const [showNameModal, setShowNameModal] = useState(false);
   const [accountName, setAccountName] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [selectedAccountType, setSelectedAccountType] = useState<string>('');
   const [isCreating, setIsCreating] = useState(false);
   const [creationStatus, setCreationStatus] = useState<'idle' | 'creating' | 'success' | 'error'>('idle');
@@ -115,6 +119,11 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return;
     }
 
+    if (!password.trim()) {
+      toast.error('Please enter your wallet password');
+      return;
+    }
+
     if (!selectedAccountType) {
       toast.error('No account type selected');
       return;
@@ -129,14 +138,8 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     setCreationStatus('creating');
 
     try {
-      // Get password from user
-      const password = await getPassword();
-      if (!password) {
-        throw new Error('Password required to create account');
-      }
-
-      // Create the new account
-      await addAccount(password);
+      // Create the new account using the password from the input field
+      await addAccount(password.trim(), accountName.trim());
       
       setCreationStatus('success');
       toast.success(`New ${selectedAccountType} account created successfully!`);
@@ -274,6 +277,7 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   setCreationStatus('idle');
                   setErrorMessage('');
                   setAccountName('');
+                  setPassword('');
                   setSelectedAccountType('');
                 }}
                 disabled={isCreating}
@@ -283,7 +287,7 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </button>
             </div>
             
-            <div className="mb-6">
+            <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Account name
               </label>
@@ -295,6 +299,30 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 disabled={isCreating}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] transition-colors disabled:opacity-50 disabled:bg-gray-100"
               />
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Wallet Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your wallet password"
+                  disabled={isCreating}
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-[#180CB2] transition-colors disabled:opacity-50 disabled:bg-gray-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isCreating}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             {/* Creation Status Display */}
@@ -325,7 +353,14 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             
             <div className="flex space-x-3">
               <button
-                onClick={() => setShowNameModal(false)}
+                onClick={() => {
+                  setShowNameModal(false);
+                  setCreationStatus('idle');
+                  setErrorMessage('');
+                  setAccountName('');
+                  setPassword('');
+                  setSelectedAccountType('');
+                }}
                 disabled={isCreating}
                 className="flex-1 py-3 px-4 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors disabled:opacity-50"
               >
@@ -333,9 +368,9 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </button>
               <button
                 onClick={handleAddAccount}
-                disabled={!accountName.trim() || isCreating}
+                disabled={!accountName.trim() || !password.trim() || isCreating}
                 className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2 ${
-                  accountName.trim() && !isCreating
+                  accountName.trim() && password.trim() && !isCreating
                     ? 'bg-[#180CB2] text-white hover:bg-[#140a8f]'
                     : 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 }`}

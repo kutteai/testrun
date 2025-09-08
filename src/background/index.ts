@@ -1,9 +1,28 @@
 // Cross-browser compatible background script
 console.log('PayCio Wallet background script starting...');
 
-import { storage } from '../utils/storage-utils';
-import { runtime } from '../utils/runtime-utils';
-import { ethers } from 'ethers';
+// Dynamic imports to avoid module loading issues
+let storage: any;
+let runtime: any;
+let ethers: any;
+
+// Initialize modules dynamically
+async function initializeModules() {
+  try {
+    const storageModule = await import('../utils/storage-utils');
+    storage = storageModule.storage;
+    
+    const runtimeModule = await import('../utils/runtime-utils');
+    runtime = runtimeModule.runtime;
+    
+    const ethersModule = await import('ethers');
+    ethers = ethersModule.ethers;
+    
+    console.log('✅ Background script modules loaded successfully');
+  } catch (error) {
+    console.error('❌ Error loading background script modules:', error);
+  }
+}
 
 // Basic error handling wrapper
 const safeExecute = async (fn: () => Promise<any>) => {
@@ -15,15 +34,78 @@ const safeExecute = async (fn: () => Promise<any>) => {
   }
 };
 
-// Handle messages from content scripts
-runtime().onMessage.addListener((message, sender, sendResponse) => {
-  console.log('Background received message:', message);
+// Helper functions (same as WalletContext)
+const getStoredWallet = async (): Promise<any> => {
+  try {
+    const result = await storage.get(['wallet']);
+    return result.wallet || null;
+  } catch (error) {
+    console.error('Failed to get stored wallet:', error);
+    return null;
+  }
+};
+
+const getStoredPasswordHash = async (): Promise<string | null> => {
+  try {
+    const result = await storage.get(['passwordHash']);
+    return result.passwordHash || null;
+  } catch (error) {
+    console.error('Failed to get password hash:', error);
+    return null;
+  }
+};
+
+const storePasswordHash = async (hash: string): Promise<void> => {
+  try {
+    await storage.set({ passwordHash: hash });
+  } catch (error) {
+    console.error('Failed to store password hash:', error);
+    throw error;
+  }
+};
+
+const storePassword = async (password: string): Promise<boolean> => {
+  try {
+    // Store in session storage (plain text for immediate access)
+    await storage.setSession({ sessionPassword: password });
+    
+    // Store in local storage as backup (encoded for security)
+    const encodedPassword = btoa(password);
+    await storage.set({ sessionPassword: encodedPassword });
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to store password:', error);
+    return false;
+  }
+};
+
+// Initialize modules and set up message listener
+async function initializeBackgroundScript() {
+  await initializeModules();
+  
+  if (!runtime) {
+    console.error('❌ Runtime module not loaded');
+    return;
+  }
+  
+  // Handle messages from content scripts
+  runtime().onMessage.addListener((message, sender, sendResponse) => {
+    // Show toast for debugging
+    if (typeof window !== 'undefined' && (window as any).showToast) {
+      (window as any).showToast(`🔧 Background received: ${message.type}`, 'info');
+    }
+    console.log('Background received message:', message);
   
   // Handle different message types
   switch (message.type) {
     case 'PING':
+      if (typeof window !== 'undefined' && (window as any).showToast) {
+        (window as any).showToast('🔧 Background: Responding to PING', 'info');
+      }
+      console.log('Background: Responding to PING');
       sendResponse({ success: true, message: 'Background script is running' });
-      break;
+      return true; // Keep message channel open
       
     case 'GET_ACCOUNTS':
       // Get accounts from wallet storage
@@ -101,6 +183,9 @@ runtime().onMessage.addListener((message, sender, sendResponse) => {
       
       (async () => {
         try {
+        if (typeof window !== 'undefined' && (window as any).showToast) {
+          (window as any).showToast(`🔧 Processing WALLET_REQUEST: ${method}`, 'info');
+        }
         console.log('PayCio: Processing WALLET_REQUEST:', method, params);
         
         // Get wallet data using correct storage keys
@@ -109,14 +194,26 @@ runtime().onMessage.addListener((message, sender, sendResponse) => {
         const walletState = result.walletState;
         const currentNetwork = result.network;
         
+        if (typeof window !== 'undefined' && (window as any).showToast) {
+          (window as any).showToast(`🔧 Wallet data: ${!!wallet}, unlocked: ${walletState?.isWalletUnlocked}`, 'info');
+        }
         console.log('PayCio: Wallet data:', { wallet: !!wallet, walletState, currentNetwork });
         
         // Check if wallet is unlocked (except for chain ID and network info)
+        if (typeof window !== 'undefined' && (window as any).showToast) {
+          (window as any).showToast(`🔧 Wallet unlock check: ${method}, unlocked: ${walletState?.isWalletUnlocked}`, 'info');
+        }
         console.log('PayCio: Wallet unlock check - method:', method, 'isUnlocked:', walletState?.isWalletUnlocked);
         if (!walletState?.isWalletUnlocked && method !== 'eth_chainId' && method !== 'net_version' && method !== 'eth_accounts') {
+          if (typeof window !== 'undefined' && (window as any).showToast) {
+            (window as any).showToast('🔧 Blocking request - wallet is locked', 'error');
+          }
           console.log('PayCio: Blocking request - wallet is locked');
           sendResponse({ success: false, error: 'Wallet is locked' });
           return;
+        }
+        if (typeof window !== 'undefined' && (window as any).showToast) {
+          (window as any).showToast('🔧 Allowing request - wallet unlocked or method bypassed', 'info');
         }
         console.log('PayCio: Allowing request - wallet unlocked or method bypassed');
         
@@ -793,6 +890,31 @@ runtime().onMessage.addListener((message, sender, sendResponse) => {
             }
             break;
             
+          case 'check_wallet_status':
+            try {
+              console.log('PayCio: check_wallet_status requested');
+              
+              // Get wallet state to check unlock status
+              const result = await storage.get(['walletState']);
+              const walletState = result.walletState;
+              const isUnlocked = walletState?.isWalletUnlocked || false;
+              
+              console.log('PayCio: Wallet unlock status:', isUnlocked);
+              sendResponse({ 
+                success: true, 
+                result: { isUnlocked } 
+              });
+              return;
+              
+            } catch (error) {
+              console.error('PayCio: Error checking wallet status:', error);
+              sendResponse({ 
+                success: false, 
+                error: 'Failed to check wallet status' 
+              });
+              return;
+            }
+            
           case 'unlock_wallet':
             try {
               const [password] = params;
@@ -803,70 +925,69 @@ runtime().onMessage.addListener((message, sender, sendResponse) => {
                 return;
               }
               
-              // Get stored wallet data and password hash
-              const storedData = await storage.get(['wallet', 'walletState', 'passwordHash']);
-              const storedWallet = storedData.wallet;
-              const storedWalletState = storedData.walletState;
-              const storedHash = storedData.passwordHash;
-              
-              if (!storedWallet || !storedWalletState) {
+              // Use the same logic as WalletContext.unlockWallet
+              const storedWallet = await getStoredWallet();
+              if (!storedWallet) {
                 sendResponse({ success: false, error: 'No wallet found' });
                 return;
               }
-              
-              // Import password utilities
+
+              // Get stored password hash (same as WalletContext)
+              const storedHash = await getStoredPasswordHash();
               const { verifyPassword, hashPassword } = await import('../utils/crypto-utils');
               
               let isValid = false;
               
+              console.log('PayCio: === DAPP UNLOCK DEBUG START ===');
+              console.log('PayCio: Using WalletContext unlock logic');
+              console.log('PayCio: Input password length:', password.length);
+              console.log('PayCio: Input password preview:', password.substring(0, 3) + '***');
+              console.log('PayCio: StoredHash exists:', !!storedHash);
+              console.log('PayCio: StoredHash type:', typeof storedHash);
+              console.log('PayCio: StoredHash length:', storedHash?.length);
+              console.log('PayCio: StoredHash preview:', storedHash?.substring(0, 20));
+              
               if (!storedHash) {
-                // First time unlock, create password hash
+                // First time unlock, create password hash (same as WalletContext)
+                console.log('PayCio: First time unlock - creating password hash');
                 const hash = await hashPassword(password);
-                await storage.set({ passwordHash: hash });
+                console.log('PayCio: New hash created, length:', hash.length);
+                await storePasswordHash(hash);
                 isValid = true;
-                console.log('PayCio: First time unlock - password hash created');
+                console.log('PayCio: First time unlock successful');
               } else {
-                // Check if stored hash is in old PBKDF2 format (object) or new bcrypt format (string)
-                if (typeof storedHash === 'object' && storedHash.hash) {
-                  // Old PBKDF2 format - clear it and create new bcrypt hash
-                  console.log('PayCio: Detected old PBKDF2 password hash format, converting to bcrypt');
-                  const newHash = await hashPassword(password);
-                  await storage.set({ passwordHash: newHash });
-                  isValid = true;
-                  console.log('PayCio: Password hash converted to bcrypt format');
-                } else if (typeof storedHash === 'string') {
-                  // New bcrypt format - verify normally
-                  isValid = await verifyPassword(password, storedHash);
-                  console.log('PayCio: Password verification result:', isValid);
-                  console.log('PayCio: Stored hash type:', typeof storedHash);
-                  console.log('PayCio: Stored hash length:', storedHash?.length);
-                } else {
-                  // Unknown format - clear and recreate
-                  console.log('PayCio: Unknown password hash format, recreating');
-                  const newHash = await hashPassword(password);
-                  await storage.set({ passwordHash: newHash });
-                  isValid = true;
-                  console.log('PayCio: Password hash recreated');
+                // Verify password (same as WalletContext)
+                console.log('PayCio: Verifying password with stored hash');
+                console.log('PayCio: About to call verifyPassword...');
+                isValid = await verifyPassword(password, storedHash);
+                console.log('PayCio: Password verification result:', isValid);
+                
+                if (!isValid) {
+                  console.log('PayCio: Password verification failed - checking hash format');
+                  console.log('PayCio: StoredHash starts with $2b$:', storedHash.startsWith('$2b$'));
+                  console.log('PayCio: StoredHash starts with $2a$:', storedHash.startsWith('$2a$'));
                 }
               }
               
+              console.log('PayCio: Final validation result:', isValid);
+              console.log('PayCio: === DAPP UNLOCK DEBUG END ===');
+              
               if (isValid) {
-                // Update wallet state to unlocked
+                // Update wallet state (same as WalletContext)
                 const updatedWalletState = {
-                  ...storedWalletState,
                   isWalletUnlocked: true,
                   lastUnlockTime: Date.now()
                 };
                 
                 await storage.set({ walletState: updatedWalletState });
                 
-                // Store password in session storage for signing operations
-                await storage.setSession({ sessionPassword: password });
+                // Store password in session storage (same as WalletContext)
+                await storePassword(password);
                 
-                console.log('PayCio: Wallet unlocked successfully');
+                console.log('PayCio: Wallet unlocked successfully using WalletContext logic');
                 sendResponse({ success: true, result: 'Wallet unlocked' });
               } else {
-                console.log('PayCio: Wallet unlock failed - invalid password');
+                console.log('PayCio: Invalid password');
                 sendResponse({ success: false, error: 'Invalid password' });
               }
             } catch (error) {
@@ -918,6 +1039,11 @@ runtime().onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, error: 'Unknown message type' });
       break;
   }
+});
+
+// Start the background script
+initializeBackgroundScript().catch(error => {
+  console.error('❌ Failed to initialize background script:', error);
 });
 
 // Handle extension installation

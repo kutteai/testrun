@@ -498,14 +498,30 @@ export class WalletManager {
       // Activate the selected account
       account.isActive = true;
 
-      // Update wallet address to match the active account
-      wallet.address = account.addresses[wallet.currentNetwork] || Object.values(account.addresses)[0];
-      wallet.currentNetwork = wallet.currentNetwork;
+      // Update wallet address to match the active account for current network
+      const currentNetworkId = wallet.currentNetwork || 'ethereum';
+      wallet.address = account.addresses[currentNetworkId] || Object.values(account.addresses)[0];
+      wallet.privateKey = account.privateKey;
+      wallet.publicKey = account.publicKey;
 
       await this.saveWallets();
-      // console.log(`✅ Switched to account: ${account.name} (${account.addresses[wallet.currentNetwork] || Object.values(account.addresses)[0]})`);
+      
+      // Dispatch wallet changed event to notify all components
+      if (typeof window !== 'undefined') {
+        const event = new CustomEvent('walletChanged', {
+          detail: {
+            wallet: wallet,
+            account: account,
+            address: wallet.address,
+            network: currentNetworkId
+          }
+        });
+        window.dispatchEvent(event);
+      }
+      
+      console.log(`✅ Switched to account: ${account.name} (${wallet.address}) on ${currentNetworkId}`);
     } catch (error) {
-      // console.error('Failed to switch account:', error);
+      console.error('Failed to switch account:', error);
       throw error;
     }
   }
@@ -527,7 +543,7 @@ export class WalletManager {
   }
 
   // Add new account to wallet
-  async addAccount(walletId: string, password: string): Promise<WalletAccount> {
+  async addAccount(walletId: string, password: string, accountName?: string, accountType?: string): Promise<WalletAccount> {
     const wallet = await this.getInternalWallet(walletId);
     if (!wallet) {
       throw new Error('Wallet not found');
@@ -544,16 +560,47 @@ export class WalletManager {
     const derivationPath = `m/44'/60'/0'/0/${newAccountIndex}`;
     const walletData = await deriveAccountFromSeed(seedPhrase, derivationPath);
     
+    // Generate addresses for all supported networks
+    const addresses: { [key: string]: string } = {};
+    const balances: { [key: string]: string } = {};
+    const nonces: { [key: string]: number } = {};
+    const networks: string[] = [];
+
+    // Supported networks for address derivation
+    const supportedNetworks = ['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'bitcoin', 'solana', 'ton', 'xrp'];
+    
+    for (const networkId of supportedNetworks) {
+      try {
+        // Use the same private key for EVM networks, derive different addresses for others
+        if (['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism'].includes(networkId)) {
+          addresses[networkId] = walletData.address; // Same address for EVM networks
+          console.log(`✅ Generated ${networkId} address: ${walletData.address}`);
+        } else {
+          // For non-EVM networks, derive specific addresses
+          const networkDerivationPath = this.getNetworkDerivationPath(networkId, newAccountIndex);
+          const networkWalletData = await deriveAccountFromSeed(seedPhrase, networkDerivationPath, networkId);
+          addresses[networkId] = networkWalletData.address;
+          console.log(`✅ Generated ${networkId} address: ${networkWalletData.address} (path: ${networkDerivationPath})`);
+        }
+        balances[networkId] = '0';
+        nonces[networkId] = 0;
+        networks.push(networkId);
+      } catch (error) {
+        console.warn(`❌ Failed to derive address for ${networkId}:`, error);
+        // Skip this network if derivation fails
+      }
+    }
+    
     const newAccount: WalletAccount = {
       id: `${Date.now()}-${newAccountIndex}`,
-      name: `Account ${newAccountIndex + 1}`,
-      addresses: { [wallet.network]: walletData.address },
+      name: accountName || `Account ${newAccountIndex + 1}`,
+      addresses: addresses,
       privateKey: walletData.privateKey,
       publicKey: walletData.publicKey,
       derivationPath: derivationPath,
-      networks: [wallet.network],
-      balances: { [wallet.network]: '0' },
-      nonces: { [wallet.network]: 0 },
+      networks: networks,
+      balances: balances,
+      nonces: nonces,
       createdAt: Date.now(),
       encryptedSeedPhrase: '', // This will be set by the calling function
       isActive: false
@@ -562,8 +609,27 @@ export class WalletManager {
     wallet.accounts.push(newAccount);
     wallet.lastAccessed = Date.now();
     
+    // Automatically activate the new account
+    await this.switchToAccount(walletId, newAccount.id);
+    
     await this.saveWallets();
     return newAccount;
+  }
+
+  // Helper method to get network-specific derivation paths
+  private getNetworkDerivationPath(networkId: string, accountIndex: number): string {
+    switch (networkId) {
+      case 'bitcoin':
+        return `m/84'/0'/0'/${accountIndex}`; // Native SegWit
+      case 'solana':
+        return `m/44'/501'/${accountIndex}'/0'`; // Solana BIP44
+      case 'ton':
+        return `m/44'/607'/${accountIndex}'/0'`; // TON BIP44
+      case 'xrp':
+        return `m/44'/144'/${accountIndex}'/0'`; // XRP BIP44
+      default:
+        return `m/44'/60'/0'/0/${accountIndex}`; // Default Ethereum path
+    }
   }
 
   // Update account balance for specific network
@@ -862,26 +928,26 @@ export class WalletManager {
   async getCurrentAccountForWallet(walletId: string): Promise<WalletAccount | null> {
     await this.ensureInitialized();
     
-    // console.log('🔍 WalletManager.getCurrentAccountForWallet: Looking for wallet:', walletId);
-    // console.log('🔍 Available wallets:', this.wallets.map(w => ({ id: w.id, address: w.address, accountsCount: w.accounts.length })));
+    console.log('🔍 WalletManager.getCurrentAccountForWallet: Looking for wallet:', walletId);
+    console.log('🔍 Available wallets:', this.wallets.map(w => ({ id: w.id, address: w.address, accountsCount: w.accounts.length })));
     
     const wallet = this.wallets.find(w => w.id === walletId);
     if (!wallet) {
-      // console.log('❌ WalletManager.getCurrentAccountForWallet: Wallet not found');
+      console.log('❌ WalletManager.getCurrentAccountForWallet: Wallet not found');
       return null;
     }
     
-    // console.log('✅ WalletManager.getCurrentAccountForWallet: Wallet found:', {
-    //   id: wallet.id,
-    //   address: wallet.address,
-    //   accountsCount: wallet.accounts.length,
-    //   accountAddresses: wallet.accounts.map(acc => acc.addresses)
-    // });
+    console.log('✅ WalletManager.getCurrentAccountForWallet: Wallet found:', {
+      id: wallet.id,
+      address: wallet.address,
+      accountsCount: wallet.accounts.length,
+      accountAddresses: wallet.accounts.map(acc => acc.addresses)
+    });
     
     // Safety check: ensure accounts are properly formatted objects, not strings
     const validAccounts = wallet.accounts.filter(acc => {
       if (typeof acc === 'string') {
-        // console.warn('🔧 WalletManager: Found string account in getCurrentAccount, skipping:', acc);
+        console.warn('🔧 WalletManager: Found string account in getCurrentAccount, skipping:', acc);
         return false; // Filter out string accounts
       }
       return acc && typeof acc === 'object' && acc.addresses && Object.keys(acc.addresses).length > 0;
@@ -915,16 +981,17 @@ export class WalletManager {
       // console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account and making it active:', currentAccount.addresses[wallet.currentNetwork] || Object.values(currentAccount.addresses)[0]);
     }
     
-    // console.log('🔍 WalletManager.getCurrentAccountForWallet: Current account:', currentAccount ? {
-    //   id: currentAccount.id,
-    //   address: currentAccount.addresses[wallet.currentNetwork] || Object.values(currentAccount.addresses)[0]
-    // } : 'null');
+    console.log('🔍 WalletManager.getCurrentAccountForWallet: Current account:', currentAccount ? {
+      id: currentAccount.id,
+      name: currentAccount.name,
+      address: currentAccount.addresses[wallet.currentNetwork] || Object.values(currentAccount.addresses)[0]
+    } : 'null');
     
     return currentAccount || null;
   }
 
   // Add a new account to a wallet
-  async addAccountToWallet(walletId: string, password: string): Promise<WalletAccount> {
+  async addAccountToWallet(walletId: string, password: string, accountName?: string): Promise<WalletAccount> {
     try {
       // console.log('🔍 WalletManager: Looking for wallet with ID:', walletId);
       // console.log('🔍 WalletManager: Available wallets:', this.wallets.map(w => ({ id: w.id, name: w.name })));
@@ -986,7 +1053,7 @@ export class WalletManager {
       
       const newAccount: WalletAccount = {
         id: `${Date.now()}-${newAccountIndex}`,
-        name: `Account ${newAccountIndex + 1}`,
+        name: accountName || `Account ${newAccountIndex + 1}`,
         addresses: { [currentNetwork]: walletData.address },
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
@@ -1076,5 +1143,49 @@ export class WalletManager {
   // Get accounts for a specific network
   getAccountsByNetwork(network: string): WalletAccount[] {
     return this.getAllAccounts().filter(account => account.networks.includes(network));
+  }
+
+  // Update account name
+  async updateAccountName(walletId: string, accountId: string, newName: string): Promise<void> {
+    console.log('🔄 WalletManager.updateAccountName called:', { walletId, accountId, newName });
+    
+    const wallet = this.wallets.find(w => w.id === walletId);
+    if (!wallet) {
+      console.error('❌ Wallet not found:', walletId);
+      throw new Error('Wallet not found');
+    }
+
+    const account = wallet.accounts.find(acc => acc.id === accountId);
+    if (!account) {
+      console.error('❌ Account not found:', accountId);
+      throw new Error('Account not found');
+    }
+
+    console.log('📝 Before update:', { 
+      oldName: account.name, 
+      newName, 
+      accountId,
+      walletId 
+    });
+
+    // Update the account name
+    account.name = newName;
+    wallet.lastAccessed = Date.now();
+    
+    console.log('💾 Saving wallets...');
+    // Save the updated wallet
+    await this.saveWallets();
+    console.log('✅ Wallets saved successfully');
+    
+    // Verify the change was saved
+    const savedWallet = this.wallets.find(w => w.id === walletId);
+    const savedAccount = savedWallet?.accounts.find(acc => acc.id === accountId);
+    console.log('🔍 Verification after save:', { 
+      savedName: savedAccount?.name,
+      expectedName: newName,
+      match: savedAccount?.name === newName
+    });
+    
+    console.log(`✅ Account name updated: ${accountId} -> ${newName}`);
   }
 } 

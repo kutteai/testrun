@@ -7,7 +7,7 @@ import { getNetworkRPCUrl } from '../../utils/token-balance-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
-const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   console.log('🎨 NFTsScreen: Component rendered');
   
   const { wallet, currentNetwork } = useWallet();
@@ -37,9 +37,19 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
     };
 
+    const handleAccountSwitched = async (event: CustomEvent) => {
+      console.log('🔄 Account switched event received in NFTsScreen:', event.detail);
+      if (wallet?.address) {
+        await loadNFTs();
+        await loadProfilePicture();
+      }
+    };
+
     window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    window.addEventListener('accountSwitched', handleAccountSwitched as EventListener);
     return () => {
       window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+      window.removeEventListener('accountSwitched', handleAccountSwitched as EventListener);
     };
   }, [wallet?.address]);
 
@@ -145,7 +155,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       >
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6 text-gray-700" />

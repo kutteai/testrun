@@ -3,6 +3,11 @@ import * as bip39 from 'bip39';
 import * as CryptoJS from 'crypto-js';
 import * as bcrypt from 'bcryptjs';
 
+// Ensure BIP39 wordlist is properly loaded
+if (typeof bip39.wordlists === 'undefined' || !bip39.wordlists.english) {
+  console.warn('BIP39 wordlist not properly loaded');
+}
+
 // BIP39 supported entropy lengths and corresponding word counts
 export const BIP39_ENTROPY_LENGTHS = {
   128: 12, // 12 words (128 bits entropy)
@@ -145,18 +150,30 @@ export function validateBIP39SeedPhraseWithFeedback(seedPhrase: string): {
     }
     
     // Validate with BIP39
+    console.log('🔍 validateBIP39SeedPhraseWithFeedback: Validating seed phrase:', trimmed);
+    console.log('🔍 validateBIP39SeedPhraseWithFeedback: BIP39 wordlists available:', Object.keys(bip39.wordlists || {}));
+    console.log('🔍 validateBIP39SeedPhraseWithFeedback: English wordlist length:', bip39.wordlists?.english?.length || 'undefined');
     const isValid = bip39.validateMnemonic(trimmed);
+    console.log('🔍 validateBIP39SeedPhraseWithFeedback: BIP39 validation result:', isValid);
     
     if (!isValid) {
       // Try to provide more specific feedback
-      const invalidWords = words.filter(word => !bip39.wordlists.english.includes(word));
-      if (invalidWords.length > 0) {
-        return {
-          isValid: false,
-          error: `Invalid words found: ${invalidWords.join(', ')}. Please check spelling.`,
-          wordCount,
-          supportedLengths: supportedWordCounts
-        };
+      try {
+        // Check if wordlist is available
+        const wordlist = bip39.wordlists?.english || bip39.wordlists?.EN || [];
+        if (wordlist && wordlist.length > 0) {
+          const invalidWords = words.filter(word => !wordlist.includes(word));
+          if (invalidWords.length > 0) {
+            return {
+              isValid: false,
+              error: `Invalid words found: ${invalidWords.join(', ')}. Please check spelling.`,
+              wordCount,
+              supportedLengths: supportedWordCounts
+            };
+          }
+        }
+      } catch (wordlistError) {
+        console.warn('Could not access BIP39 wordlist for detailed validation:', wordlistError);
       }
       
       return {

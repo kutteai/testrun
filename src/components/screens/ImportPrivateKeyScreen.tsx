@@ -12,7 +12,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { useWallet } from '../../store/WalletContext';
 
-const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { importWalletFromPrivateKey } = useWallet();
   const [privateKey, setPrivateKey] = useState('');
   const [showPrivateKey, setShowPrivateKey] = useState(false);
@@ -128,7 +128,7 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         await importWalletFromPrivateKey(cleanPrivateKey, primaryNetwork, password);
         
         toast.success('Wallet imported successfully!');
-        onNavigate('dashboard');
+        onNavigate('create-ucpi');
         
       } catch (error) {
         console.error('Import failed:', error);
@@ -149,7 +149,7 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center">
           <button
-            onClick={() => onNavigate('import')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

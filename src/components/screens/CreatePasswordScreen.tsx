@@ -17,6 +17,7 @@ const CreatePasswordScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
   useEffect(() => {
     const checkImportFlow = async () => {
       const importFlow = await storageUtils.getImportFlow();
+      console.log('🔍 CreatePasswordScreen: Import flow flag:', importFlow);
       setIsImportFlow(importFlow);
     };
     checkImportFlow();

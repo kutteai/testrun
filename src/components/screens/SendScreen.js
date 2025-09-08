@@ -70,7 +70,25 @@ const SendScreen = ({ onNavigate }) => {
             if (!wallet?.address || !isValidAddress || !amount)
                 return;
             const gasEstimate = await estimateGas(wallet.address, toAddress, amount, '0x', currentNetwork?.id || 'ethereum');
-            const gasPriceWei = gasPrice ? ethers.parseUnits(gasPrice, 'gwei') : ethers.parseUnits('20', 'gwei');
+            
+            // Get real gas price if not provided
+            let realGasPrice = gasPrice;
+            if (!realGasPrice) {
+                try {
+                    const provider = new ethers.JsonRpcProvider(currentNetwork?.rpcUrl);
+                    const feeData = await provider.getFeeData();
+                    if (feeData.gasPrice) {
+                        realGasPrice = ethers.formatUnits(feeData.gasPrice, 'gwei');
+                    } else {
+                        realGasPrice = '20'; // Fallback
+                    }
+                } catch (error) {
+                    console.warn('Failed to fetch real gas price:', error);
+                    realGasPrice = '20'; // Fallback
+                }
+            }
+            
+            const gasPriceWei = ethers.parseUnits(realGasPrice, 'gwei');
             const fee = BigInt(gasEstimate) * gasPriceWei;
             setEstimatedFee(ethers.formatEther(fee));
             setGasLimit(gasEstimate.toString());
@@ -105,7 +123,7 @@ const SendScreen = ({ onNavigate }) => {
                 value: amount,
                 network: currentNetwork?.id || 'ethereum',
                 status: 'pending',
-                gasPrice: gasPrice || '20',
+                gasPrice: gasPrice || realGasPrice || '20',
                 nonce: 0 // Will be set by the wallet
             });
             toast.success('Transaction sent successfully!');

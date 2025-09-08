@@ -4,6 +4,131 @@ import { crossBrowserSendMessage } from '../utils/runtime-utils';
 // PayCio Wallet injection script - runs in page context
 console.log('🔍 PayCio: Injecting into page context...');
 
+// Toast notification function
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    z-index: 2147483647;
+    max-width: 400px;
+    word-wrap: break-word;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    opacity: 0;
+    transform: translateX(100%);
+    transition: all 0.3s ease;
+  `;
+  toast.textContent = message;
+  
+  // Add to page
+  document.body.appendChild(toast);
+  
+  // Animate in
+  setTimeout(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(0)';
+  }, 100);
+  
+  // Auto remove after 4 seconds
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 300);
+  }, 4000);
+}
+
+// Extension context validation
+function validateExtensionContext(): boolean {
+  try {
+    // Check if we can access the extension runtime
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    showToast('🔧 Extension context invalidated', 'error');
+    return false;
+  }
+}
+
+// Show recovery options when extension context is invalidated
+function showRecoveryOptions() {
+  showToast('🔧 Extension context invalidated - Please refresh the page', 'error');
+  
+  // Create a recovery button
+  const recoveryDiv = document.createElement('div');
+  recoveryDiv.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    border: 2px solid #ff4444;
+    border-radius: 12px;
+    padding: 20px;
+    z-index: 2147483647;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    max-width: 400px;
+  `;
+  
+  recoveryDiv.innerHTML = `
+    <h3 style="margin: 0 0 16px 0; color: #ff4444;">Extension Context Invalidated</h3>
+    <p style="margin: 0 0 20px 0; color: #666;">The wallet extension context has been invalidated. This usually happens when the extension is reloaded or updated.</p>
+    <button id="refresh-page-btn" style="
+      background: #007bff;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 12px;
+    ">Refresh Page</button>
+    <button id="close-recovery-btn" style="
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 16px;
+      cursor: pointer;
+    ">Close</button>
+  `;
+  
+  document.body.appendChild(recoveryDiv);
+  
+  // Add event listeners
+  document.getElementById('refresh-page-btn')?.addEventListener('click', () => {
+    window.location.reload();
+  });
+  
+  document.getElementById('close-recovery-btn')?.addEventListener('click', () => {
+    document.body.removeChild(recoveryDiv);
+  });
+  
+  // Auto-remove after 10 seconds
+  setTimeout(() => {
+    if (document.body.contains(recoveryDiv)) {
+      document.body.removeChild(recoveryDiv);
+    }
+  }, 10000);
+}
+
 // Global state for dApp connection handling
 let isWalletUnlocked = false;
 let pendingConnectionRequests: Array<{
@@ -14,36 +139,29 @@ let pendingConnectionRequests: Array<{
   reject: (error: any) => void;
 }> = [];
 
-// Check wallet unlock status using postMessage
+// Check wallet unlock status using the same method as other wallet requests
 async function checkWalletUnlockStatus(): Promise<boolean> {
-  return new Promise((resolve) => {
-    const messageId = Date.now().toString();
+  try {
+    console.log('PayCio: Checking wallet unlock status via background script...');
     
-    const messageHandler = (event: MessageEvent) => {
-      if (event.source !== window) return;
-      
-      if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
-        window.removeEventListener('message', messageHandler);
-        const isUnlocked = event.data.isUnlocked || false;
+    // Use the same crossBrowserSendMessage method that works for other requests
+    const response = await crossBrowserSendMessage({
+      type: 'WALLET_REQUEST',
+      method: 'check_wallet_status',
+      params: []
+    });
+    
+    console.log('PayCio: Wallet status response:', response);
+    const isUnlocked = response?.success && response?.result?.isUnlocked;
         isWalletUnlocked = isUnlocked;
-        resolve(isUnlocked);
-      }
-    };
+    console.log('PayCio: Wallet unlock status:', isUnlocked);
     
-    window.addEventListener('message', messageHandler);
-    
-    // Send request to content script
-    window.postMessage({
-      type: 'PAYCIO_CHECK_WALLET_STATUS',
-      id: messageId
-    }, '*');
-    
-    // Timeout after 5 seconds
-    setTimeout(() => {
-      window.removeEventListener('message', messageHandler);
-      resolve(false);
-    }, 5000);
-  });
+    return isUnlocked;
+  } catch (error) {
+    console.error('PayCio: Error checking wallet status:', error);
+    isWalletUnlocked = false;
+    return false;
+  }
 }
 
 // Show wallet unlock popup using postMessage
@@ -85,6 +203,15 @@ function createUnlockModal(): Promise<boolean> {
       existingModal.remove();
     }
 
+    // Set a timeout to prevent modal from staying open indefinitely
+    const timeoutId = setTimeout(() => {
+      const modal = document.getElementById('paycio-unlock-modal');
+      if (modal) {
+        modal.remove();
+        resolve(false);
+      }
+    }, 300000); // 5 minutes timeout
+
     // Create modal overlay
     const modal = document.createElement('div');
     modal.id = 'paycio-unlock-modal';
@@ -94,131 +221,267 @@ function createUnlockModal(): Promise<boolean> {
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(0, 0, 0, 0.7);
+      background: rgba(0, 0, 0, 0.8);
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 999999;
+      z-index: 2147483647;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      backdrop-filter: blur(4px);
     `;
 
-    // Create modal content
+    // Create modal content (using WelcomeScreen design)
     const modalContent = document.createElement('div');
     modalContent.style.cssText = `
       background: white;
       border-radius: 16px;
-      padding: 32px;
       max-width: 400px;
       width: 90%;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-      text-align: center;
+      overflow: hidden;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     `;
 
-    // Create header
-    const header = document.createElement('div');
-    header.style.cssText = `
-      margin-bottom: 24px;
+    // Create blue header section (same as WelcomeScreen)
+    const headerSection = document.createElement('div');
+    headerSection.style.cssText = `
+      height: 120px;
+      background: #180CB2;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
     `;
     
-    const icon = document.createElement('img');
-    icon.style.cssText = `
-      width: 64px;
-      height: 64px;
-      border-radius: 16px;
-      display: block;
-      margin: 0 auto 16px;
-      object-fit: contain;
+    // Yellow circle logo (same as WelcomeScreen)
+    const logoCircle = document.createElement('div');
+    logoCircle.style.cssText = `
+      position: absolute;
+      bottom: -24px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 48px;
+      height: 48px;
+      background: #D7FF1D;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
     `;
-    // Try to get the logo URL, with fallback for local testing
-    try {
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
-        icon.src = chrome.runtime.getURL('assets/logo.png');
-      } else {
-        // Fallback for local testing - use a data URL or placeholder
-        icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiM2MzY2RjEiLz4KPHBhdGggZD0iTTMyIDE2TDQ4IDMyTDMyIDQ4TDE2IDMyTDMyIDE2WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
-      }
-    } catch (error) {
-      // Fallback if chrome.runtime is not available
-      icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTYiIGZpbGw9IiM2MzY2RjEiLz4KPHBhdGggZD0iTTMyIDE2TDQ4IDMyTDMyIDQ4TDE2IDMyTDMyIDE2WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
-    }
-    icon.alt = 'PayCio Wallet';
     
-    const title = document.createElement('h2');
+    // Logo pattern (same as WelcomeScreen)
+    const logoPattern = document.createElement('div');
+    logoPattern.style.cssText = `
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    `;
+    
+    const line1 = document.createElement('div');
+    line1.style.cssText = `
+      width: 24px;
+      height: 4px;
+      background: #180CB2;
+      border-radius: 2px;
+    `;
+    
+    const line2 = document.createElement('div');
+    line2.style.cssText = `
+      width: 16px;
+      height: 4px;
+      background: #180CB2;
+      border-radius: 2px;
+    `;
+    
+    const line3 = document.createElement('div');
+    line3.style.cssText = `
+      width: 12px;
+      height: 4px;
+      background: #180CB2;
+      border-radius: 2px;
+    `;
+    
+    logoPattern.appendChild(line1);
+    logoPattern.appendChild(line2);
+    logoPattern.appendChild(line3);
+    logoCircle.appendChild(logoPattern);
+    headerSection.appendChild(logoCircle);
+
+    // Create content section
+    const contentSection = document.createElement('div');
+    contentSection.style.cssText = `
+      padding: 48px 32px 32px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    `;
+    
+    // Welcome back title (same as WelcomeScreen)
+    const title = document.createElement('h1');
     title.style.cssText = `
-      margin: 0 0 8px 0;
-      font-size: 24px;
-      font-weight: 700;
+      font-size: 30px;
+      font-weight: 800;
       color: #111827;
+      margin: 0 0 8px 0;
+      text-align: center;
+      line-height: 35px;
+      font-family: 'Inter', sans-serif;
     `;
-    title.textContent = 'Unlock PayCio Wallet';
+    title.textContent = 'Welcome back';
     
+    // Subtitle explaining the process
     const subtitle = document.createElement('p');
     subtitle.style.cssText = `
-      margin: 0;
       font-size: 16px;
       color: #6b7280;
+      margin: 0 0 32px 0;
+      text-align: center;
+      line-height: 24px;
     `;
-    subtitle.textContent = 'Enter your password to continue';
-    
-    header.appendChild(icon);
-    header.appendChild(title);
-    header.appendChild(subtitle);
+    subtitle.textContent = 'Enter your password to unlock your wallet';
 
-    // Create form
+    // Create form (same styling as WelcomeScreen)
     const form = document.createElement('form');
     form.style.cssText = `
-      margin-bottom: 24px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    `;
+    
+    // Password label
+    const passwordLabel = document.createElement('label');
+    passwordLabel.style.cssText = `
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      color: #374151;
+      text-align: left;
+    `;
+    passwordLabel.textContent = 'Password';
+    
+    // Password input container
+    const passwordContainer = document.createElement('div');
+    passwordContainer.style.cssText = `
+      position: relative;
+      width: 100%;
     `;
     
     const passwordInput = document.createElement('input');
     passwordInput.type = 'password';
-    passwordInput.placeholder = 'Enter your password';
+    passwordInput.placeholder = 'Enter your password here';
     passwordInput.style.cssText = `
       width: 100%;
-      padding: 12px 16px;
-      border: 2px solid #e5e7eb;
+      padding: 16px 48px 16px 16px;
+      border: 1px solid #d1d5db;
       border-radius: 8px;
       font-size: 16px;
-      margin-bottom: 16px;
+      color: #111827;
+      background: white;
       box-sizing: border-box;
+      transition: all 0.2s;
     `;
     
+    // Show/hide password toggle
+    const toggleBtn = document.createElement('button');
+    toggleBtn.type = 'button';
+    toggleBtn.style.cssText = `
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: #6b7280;
+    `;
+    
+    // Eye icon (simplified SVG)
+    const eyeIcon = document.createElement('div');
+    eyeIcon.innerHTML = `
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    `;
+    toggleBtn.appendChild(eyeIcon);
+    
+    let showPassword = false;
+    toggleBtn.addEventListener('click', () => {
+      showPassword = !showPassword;
+      passwordInput.type = showPassword ? 'text' : 'password';
+      eyeIcon.innerHTML = showPassword ? `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+          <line x1="1" y1="1" x2="23" y2="23"></line>
+        </svg>
+      ` : `
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+          <circle cx="12" cy="12" r="3"></circle>
+        </svg>
+      `;
+    });
+    
+    // Focus styles
+    passwordInput.addEventListener('focus', () => {
+      passwordInput.style.outline = 'none';
+      passwordInput.style.borderColor = '#3b82f6';
+      passwordInput.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
+    });
+    
+    passwordInput.addEventListener('blur', () => {
+      passwordInput.style.borderColor = '#d1d5db';
+      passwordInput.style.boxShadow = 'none';
+    });
+    
+    passwordContainer.appendChild(passwordInput);
+    passwordContainer.appendChild(toggleBtn);
+    
+    // Unlock button (same styling as WelcomeScreen)
     const unlockBtn = document.createElement('button');
     unlockBtn.type = 'submit';
     unlockBtn.textContent = 'Unlock Wallet';
     unlockBtn.style.cssText = `
       width: 100%;
-      padding: 12px 16px;
-      background: #6366f1;
+      padding: 16px;
+      background: #180CB2;
       color: white;
       border: none;
       border-radius: 8px;
       font-size: 16px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     `;
     
     unlockBtn.onmouseover = () => {
-      unlockBtn.style.background = '#5855eb';
+      unlockBtn.style.background = '#1409a0';
     };
     unlockBtn.onmouseout = () => {
-      unlockBtn.style.background = '#6366f1';
+      unlockBtn.style.background = '#180CB2';
     };
     
-    form.appendChild(passwordInput);
+    form.appendChild(passwordLabel);
+    form.appendChild(passwordContainer);
     form.appendChild(unlockBtn);
 
-    // Create cancel button
+    // Create cancel button (same styling as WelcomeScreen)
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.textContent = 'Cancel';
     cancelBtn.style.cssText = `
       width: 100%;
-      padding: 12px 16px;
+      padding: 16px;
       background: transparent;
       color: #6b7280;
-      border: 2px solid #e5e7eb;
+      border: 1px solid #d1d5db;
       border-radius: 8px;
       font-size: 16px;
       font-weight: 600;
@@ -228,17 +491,19 @@ function createUnlockModal(): Promise<boolean> {
     
     cancelBtn.onmouseover = () => {
       cancelBtn.style.background = '#f9fafb';
+      cancelBtn.style.borderColor = '#9ca3af';
     };
     cancelBtn.onmouseout = () => {
       cancelBtn.style.background = 'transparent';
+      cancelBtn.style.borderColor = '#d1d5db';
     };
 
-    // Handle form submission
+    // Handle form submission - use background script unlock (now uses same logic as WelcomeScreen)
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const password = passwordInput.value;
       
-      if (!password) {
+      if (!password.trim()) {
         alert('Please enter your password');
         return;
       }
@@ -247,24 +512,87 @@ function createUnlockModal(): Promise<boolean> {
       unlockBtn.disabled = true;
       
       try {
-        // Send unlock request to background script
-        const response = await crossBrowserSendMessage({
-          type: 'WALLET_REQUEST',
-          method: 'unlock_wallet',
-          params: [password]
+        // Show debugging info
+        const debugInfo = `Password: ${password.length} chars, starts with space: ${password.startsWith(' ')}, ends with space: ${password.endsWith(' ')}`;
+        alert(`🔍 Debug Info:\n${debugInfo}`);
+        
+        // Test connection to content script first (which bridges to background)
+        alert('🔍 Testing connection to content script...');
+        const testResponse = await new Promise((resolve) => {
+          const messageId = Date.now().toString();
+          const testMessage = {
+            type: 'PAYCIO_CHECK_WALLET_STATUS',
+            id: messageId
+          };
+          
+          const messageHandler = (event: MessageEvent) => {
+            if (event.source !== window) return;
+            if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
+              window.removeEventListener('message', messageHandler);
+              resolve({ success: true, isUnlocked: event.data.isUnlocked });
+            }
+          };
+          
+          window.addEventListener('message', messageHandler);
+          window.postMessage(testMessage, '*');
+          
+          // Timeout after 5 seconds
+          setTimeout(() => {
+            window.removeEventListener('message', messageHandler);
+            resolve({ success: false, error: 'Timeout' });
+          }, 5000);
         });
         
-        if (response?.success) {
+        if ((testResponse as any)?.success) {
+          alert('✅ Content script connection OK');
+        } else {
+          alert('❌ Content script connection failed');
+        }
+        
+        // Send unlock request through content script
+        alert('🔍 Sending unlock request through content script...');
+        const response = await new Promise((resolve) => {
+          const messageId = Date.now().toString();
+          const unlockMessage = {
+            type: 'PAYCIO_WALLET_REQUEST',
+            id: messageId,
+          method: 'unlock_wallet',
+          params: [password]
+          };
+          
+          const messageHandler = (event: MessageEvent) => {
+            if (event.source !== window) return;
+            if (event.data.type === 'PAYCIO_WALLET_REQUEST_RESPONSE' && event.data.id === messageId) {
+              window.removeEventListener('message', messageHandler);
+              resolve(event.data);
+            }
+          };
+          
+          window.addEventListener('message', messageHandler);
+          window.postMessage(unlockMessage, '*');
+          
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            window.removeEventListener('message', messageHandler);
+            resolve({ success: false, error: 'Timeout' });
+          }, 10000);
+        });
+        
+        if ((response as any)?.success) {
+          alert('✅ Wallet unlocked successfully!');
+          clearTimeout(timeoutId);
           modal.remove();
           resolve(true);
         } else {
-          alert('Invalid password. Please try again.');
+          // Show detailed error in alert
+          const errorDetails = (response as any)?.error ? `\n\nError details: ${(response as any).error}` : '';
+          alert(`❌ Unlock failed: ${(response as any)?.error || 'Unknown error'}${errorDetails}`);
+          
           unlockBtn.textContent = 'Unlock Wallet';
           unlockBtn.disabled = false;
         }
       } catch (error) {
-        console.error('Unlock error:', error);
-        alert('Failed to unlock wallet. Please try again.');
+        alert(`❌ Unlock error: ${error.message || 'Unknown error'}`);
         unlockBtn.textContent = 'Unlock Wallet';
         unlockBtn.disabled = false;
       }
@@ -272,28 +600,44 @@ function createUnlockModal(): Promise<boolean> {
     
     // Handle cancel
     cancelBtn.addEventListener('click', () => {
+      clearTimeout(timeoutId);
       modal.remove();
       resolve(false);
     });
     
-    // Handle overlay click
+    // Handle overlay click - but be more careful about accidental dismissals
     modal.addEventListener('click', (e) => {
       if (e.target === modal) {
+        // Only dismiss if user explicitly clicks the overlay, not if they're interacting with the modal
+        const rect = modalContent.getBoundingClientRect();
+        const isOutsideModal = e.clientX < rect.left || e.clientX > rect.right || 
+                              e.clientY < rect.top || e.clientY > rect.bottom;
+        if (isOutsideModal) {
+          clearTimeout(timeoutId);
         modal.remove();
         resolve(false);
+        }
       }
     });
 
-    // Assemble modal
-    modalContent.appendChild(header);
-    modalContent.appendChild(form);
-    modalContent.appendChild(cancelBtn);
+    // Assemble modal (new structure)
+    modalContent.appendChild(headerSection);
+    modalContent.appendChild(contentSection);
+    
+    contentSection.appendChild(title);
+    contentSection.appendChild(subtitle);
+    contentSection.appendChild(form);
+    contentSection.appendChild(cancelBtn);
+    
     modal.appendChild(modalContent);
     document.body.appendChild(modal);
+    
+    console.log('PayCio: Unlock modal created and added to DOM');
     
     // Focus password input
     setTimeout(() => {
       passwordInput.focus();
+      console.log('PayCio: Password input focused');
     }, 100);
   });
 }
@@ -340,11 +684,25 @@ async function handleWalletRequest(method: string, params: any[]): Promise<any> 
   // Methods that should work even when wallet is locked
   const bypassLockMethods = ['eth_chainId', 'net_version', 'eth_accounts'];
   
+  // Validate extension context first
+  if (!validateExtensionContext()) {
+    showRecoveryOptions();
+    throw new Error('Extension context invalidated - please refresh the page and try again');
+  }
+  
+  showToast(`🔧 Handling wallet request: ${method}`, 'info');
+  
   // First, try the request directly
   try {
     const result = await processWalletRequest(method, params);
     return result;
   } catch (error: any) {
+    // Handle extension context invalidation
+    if (error.message.includes('Extension context invalidated')) {
+      showRecoveryOptions();
+      throw new Error('Extension context invalidated - please refresh the page and try again');
+    }
+    
     // If the error is "Wallet is locked" and it's not a bypass method, try to unlock
     if (error.message === 'Wallet is locked' && !bypassLockMethods.includes(method)) {
       console.log('🔍 PayCio: Wallet is locked, attempting to unlock...');
@@ -652,16 +1010,14 @@ try {
   // Suppress WebSocket connection errors (common with WalletConnect attempts)
   const originalWebSocket = (window as any).WebSocket;
   (window as any).WebSocket = function(url: string, protocols?: string | string[]) {
-    // Completely block WalletConnect relay connections
+    // Allow WalletConnect connections to work properly
     if (url.includes('relay.walletconnect.org') ||
         url.includes('relay.walletconnect.com') ||
-        url.includes('wallet-connector') ||
-        url.includes('nbstream.binance.com')) {
+        url.includes('wallet-connector')) {
       
-      console.log('PayCio: Blocking WalletConnect WebSocket connection to:', url);
+      console.log('PayCio: Allowing WalletConnect WebSocket connection to:', url);
       
-      // Return a proper WebSocket that handles WalletConnect gracefully
-      try {
+      // Create WebSocket normally for WalletConnect
         const ws = new originalWebSocket(url, protocols);
         
         // Add proper error handling for WalletConnect connections
@@ -674,11 +1030,12 @@ try {
         });
         
         return ws;
-      } catch (error) {
-        console.log('Failed to create WalletConnect WebSocket:', error);
-        // Throw error instead of creating fallback
+    }
+    
+    // Block only Binance connections that cause issues
+    if (url.includes('nbstream.binance.com')) {
+      console.log('PayCio: Blocking problematic Binance WebSocket connection to:', url);
         throw new Error(`WebSocket connection blocked for: ${url}`);
-      }
     }
     
     const ws = new originalWebSocket(url, protocols);
@@ -1086,11 +1443,22 @@ try {
           return new Promise(async (resolve, reject) => {
             // Check if wallet is unlocked first
             const isUnlocked = await checkWalletUnlockStatus();
+            console.log('PayCio: Wallet unlock status:', isUnlocked);
+            
             if (!isUnlocked) {
               console.log('PayCio: Wallet is locked, showing unlock popup...');
+              try {
               const unlockSuccess = await createUnlockModal();
+                console.log('PayCio: Unlock modal result:', unlockSuccess);
               if (!unlockSuccess) {
+                  console.log('PayCio: User cancelled wallet unlock');
                 reject(new Error('User cancelled wallet unlock'));
+                  return;
+                }
+                console.log('PayCio: Wallet unlocked successfully, proceeding with connection');
+              } catch (error) {
+                console.error('PayCio: Error during unlock process:', error);
+                reject(new Error('Failed to unlock wallet'));
                 return;
               }
             }

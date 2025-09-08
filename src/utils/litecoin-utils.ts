@@ -200,9 +200,22 @@ export class LitecoinTransactionUtils {
 
   // Create transaction signature
   private createSignature(data: Buffer, privateKey: Buffer): string {
-    // In a real implementation, you'd use secp256k1 signing
-    // For now, we'll return a placeholder
-    return createHash('sha256').update(data).update(privateKey).digest('hex');
+    try {
+      const { ECPairFactory } = require('ecpair');
+      const ecc = require('tiny-secp256k1');
+      const ECPair = ECPairFactory(ecc);
+      
+      // Create key pair from private key
+      const keyPair = ECPair.fromPrivateKey(privateKey);
+      
+      // Sign the data
+      const signature = keyPair.sign(data);
+      
+      return signature.toString('hex');
+    } catch (error) {
+      console.error('Error creating signature:', error);
+      throw new Error('Failed to create signature');
+    }
   }
 
   // Sign transaction
@@ -212,12 +225,50 @@ export class LitecoinTransactionUtils {
     inputs: any[]
   ): Promise<string> {
     try {
-      // In a real implementation, you'd use bitcoinjs-lib with Litecoin parameters
-      // For now, we'll return a placeholder signed transaction
-      const txData = JSON.stringify(transaction);
-      const signature = this.createSignature(Buffer.from(txData), Buffer.from(privateKey, 'hex'));
+      const bitcoin = require('bitcoinjs-lib');
+      const { ECPairFactory } = require('ecpair');
+      const ecc = require('tiny-secp256k1');
       
-      return signature;
+      // Litecoin network parameters
+      const litecoinNetwork = {
+        messagePrefix: '\x19Litecoin Signed Message:\n',
+        bech32: 'ltc',
+        bip32: {
+          public: 0x019da462,
+          private: 0x019d9cfe
+        },
+        pubKeyHash: 0x30,
+        scriptHash: 0x32,
+        wif: 0xb0
+      };
+      
+      // Create key pair from private key
+      const ECPair = ECPairFactory(ecc);
+      const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'));
+      
+      // Create transaction builder
+      const txb = new bitcoin.TransactionBuilder(litecoinNetwork);
+      
+      // Add inputs
+      inputs.forEach(input => {
+        txb.addInput(input.txid, input.vout);
+      });
+      
+      // Add outputs
+      if (transaction.outputs) {
+        transaction.outputs.forEach(output => {
+          txb.addOutput(output.address, output.value);
+        });
+      }
+      
+      // Sign inputs
+      inputs.forEach((input, index) => {
+        txb.sign(index, keyPair);
+      });
+      
+      // Build and return the signed transaction
+      const tx = txb.build();
+      return tx.toHex();
     } catch (error) {
       console.error('Error signing Litecoin transaction:', error);
       throw error;

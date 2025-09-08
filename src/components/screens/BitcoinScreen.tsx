@@ -8,7 +8,7 @@ import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 
-const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, currentNetwork } = useWallet();
   const [bitcoinWallets, setBitcoinWallets] = useState<BitcoinWallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<BitcoinWallet | null>(null);
@@ -206,7 +206,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       >
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />

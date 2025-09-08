@@ -94,7 +94,12 @@ const CreateWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => onNavigate('create-password')}
+          onClick={async () => {
+            // Clear import flow flag when creating new wallet
+            console.log('🔍 CreateWalletScreen: Clearing import flow flag for new wallet creation');
+            await storageUtils.setImportFlow(false);
+            onNavigate('create-password');
+          }}
           className="w-full bg-[#180CB2] text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2"
         >
           <img src={walletIcon} alt="Wallet" className="w-5 h-5" />
@@ -107,6 +112,7 @@ const CreateWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           whileTap={{ scale: 0.98 }}
           onClick={async () => {
             // Set import flow flag before navigating using cross-browser storage
+            console.log('🔍 CreateWalletScreen: Setting import flow flag for wallet import');
             await storageUtils.setImportFlow(true);
             onNavigate('create-password');
           }}

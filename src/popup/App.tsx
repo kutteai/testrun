@@ -119,6 +119,16 @@ const App: React.FC = () => {
     setCurrentScreen(screen);
   };
 
+  const handleGoBack = () => {
+    // If we have a previous screen and it's not the current screen, go back to it
+    if (previousScreen && previousScreen !== currentScreen) {
+      setCurrentScreen(previousScreen);
+    } else {
+      // Default fallback to dashboard
+      setCurrentScreen('dashboard');
+    }
+  };
+
   const renderScreen = () => {
     switch (currentScreen) {
       case 'welcome':
@@ -138,13 +148,13 @@ const App: React.FC = () => {
       case 'verify-phrase':
         return <VerifyPhraseScreen onNavigate={handleNavigate} />;
       case 'import':
-        return <ImportWalletScreen onNavigate={handleNavigate} />;
+        return <ImportWalletScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'import-seed-phrase':
-        return <ImportSeedPhraseScreen onNavigate={handleNavigate} />;
+        return <ImportSeedPhraseScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'import-private-key':
-        return <ImportPrivateKeyScreen onNavigate={handleNavigate} />;
+        return <ImportPrivateKeyScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'hardware-wallet':
-        return <HardwareWalletScreen onNavigate={handleNavigate} />;
+        return <HardwareWalletScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'add-account':
         return <AddAccountScreen onNavigate={handleNavigate} />;
       case 'wallet-details':
@@ -154,15 +164,15 @@ const App: React.FC = () => {
       case 'manage-wallet':
         return <ManageWalletScreen onNavigate={handleNavigate} />;
       case 'send':
-        return <SendScreen onNavigate={handleNavigate} />;
+        return <SendScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'review-send':
-        return <ReviewSendScreen onNavigate={handleNavigate} />;
+        return <ReviewSendScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'swap':
-        return <SwapScreen onNavigate={handleNavigate} />;
+        return <SwapScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'buy-sell':
-        return <BuySellScreen onNavigate={handleNavigate} />;
+        return <BuySellScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'options':
-        return <OptionsMenuScreen onNavigate={handleNavigate} />;
+        return <OptionsMenuScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'notifications':
         return <NotificationsScreen onNavigate={handleNavigate} />;
       case 'notification-settings':
@@ -184,13 +194,13 @@ const App: React.FC = () => {
       case 'dashboard':
         return <DashboardScreen onNavigate={handleNavigate} />;
       case 'receive':
-        return <ReceiveScreen onNavigate={handleNavigate} />;
+        return <ReceiveScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'settings':
-        return <SettingsScreen onNavigate={handleNavigate} />;
+        return <SettingsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'security':
         return <SecurityScreen onNavigate={handleNavigate} />;
       case 'networks':
-        return <NetworksScreen onNavigate={handleNavigate} />;
+        return <NetworksScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'accounts':
         console.log('Rendering AccountsScreen');
         try {
@@ -212,19 +222,19 @@ const App: React.FC = () => {
       case 'hardware':
         return <HardwareWalletScreen onNavigate={handleNavigate} />;
       case 'gas':
-        return <GasSettingsScreen onNavigate={handleNavigate} />;
+        return <GasSettingsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'bitcoin':
-        return <BitcoinScreen onNavigate={handleNavigate} />;
+        return <BitcoinScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'solana':
-        return <SolanaScreen onNavigate={handleNavigate} />;
+        return <SolanaScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'tron':
-        return <TronScreen onNavigate={handleNavigate} />;
+        return <TronScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'litecoin':
-        return <LitecoinScreen onNavigate={handleNavigate} />;
+        return <LitecoinScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'ton':
-        return <TonScreen onNavigate={handleNavigate} />;
+        return <TonScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'xrp':
-        return <XrpScreen onNavigate={handleNavigate} />;
+        return <XrpScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'manage-networks':
         return <ManageNetworksScreen onNavigate={handleNavigate} />;
       case 'add-custom-network':
@@ -232,7 +242,7 @@ const App: React.FC = () => {
       case 'import-google':
         return <div className="p-6 text-center">Import Google - Coming Soon</div>;
       case 'address-book':
-        return <AddressBookScreen onNavigate={handleNavigate} />;
+        return <AddressBookScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'backups':
         return <BackupsScreen onNavigate={handleNavigate} />;
       case 'expand-view':
@@ -243,7 +253,7 @@ const App: React.FC = () => {
         return <div className="p-6 text-center">Locking wallet...</div>;
 
       case 'nfts':
-        return <NFTsScreen onNavigate={handleNavigate} />;
+        return <NFTsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'portfolio':
         return <PortfolioScreen onNavigate={handleNavigate} />;
       case 'transactions':

@@ -7,7 +7,7 @@ import { storage } from '../../utils/storage-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
-const SwapScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, currentNetwork, switchNetwork } = useWallet();
   const { portfolioValue } = usePortfolio();
   
@@ -263,7 +263,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const handleDone = () => {
-    onNavigate('dashboard');
+    onGoBack();
   };
 
   return (
@@ -276,7 +276,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

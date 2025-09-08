@@ -18,7 +18,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 
-const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [accountName, setAccountName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -86,12 +86,6 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       name: 'Hardware wallet',
       icon: Usb,
       action: 'hardware-wallet'
-    },
-    {
-      id: 'google',
-      name: 'Google',
-      icon: Globe,
-      action: 'google'
     }
   ];
 
@@ -129,14 +123,17 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           isEnabled: true
         };
       } else if (selectedAccountType === 'solana') {
-        // Generate Solana account (placeholder - would need @solana/web3.js)
-        const randomBytes = new Uint8Array(32);
-        crypto.getRandomValues(randomBytes);
+        // Generate real Solana account using proper utilities
+        const { SolanaWalletGenerator } = await import('../../utils/solana-utils');
+        const solanaGenerator = new SolanaWalletGenerator('mainnet');
+        const solanaWallet = solanaGenerator.generateWallet(accountName.trim(), 'mainnet');
+        
         newAccount = {
           id: `sol_${Date.now()}`,
           name: accountName.trim(),
-          address: `Solana_${randomBytes.slice(0, 8).reduce((a, b) => a + b.toString(16).padStart(2, '0'), '')}`,
-          privateKey: Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join(''),
+          address: solanaWallet.address,
+          privateKey: solanaWallet.privateKey,
+          publicKey: solanaWallet.publicKey,
           type: 'solana',
           network: 'solana',
           createdAt: Date.now(),
@@ -191,7 +188,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center">
           <button
-            onClick={() => onNavigate('create')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

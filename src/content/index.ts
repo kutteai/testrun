@@ -4,6 +4,37 @@ console.log('🔍 PayCio content script starting...');
 import { storage } from '../utils/storage-utils';
 import { runtime, safeSendMessage } from '../utils/runtime-utils';
 
+// Toast function for debugging
+function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
+  if (typeof window !== 'undefined') {
+    // Create a simple toast notification
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: ${type === 'error' ? '#ff4444' : type === 'success' ? '#44ff44' : '#4444ff'};
+      color: white;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      z-index: 999999;
+      max-width: 300px;
+      word-wrap: break-word;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      if (toast.parentNode) {
+        toast.parentNode.removeChild(toast);
+      }
+    }, 3000);
+  }
+}
+
 // Set up the window object
 (window as any).paycioWalletContentScript = {
   isRunning: true,
@@ -106,10 +137,28 @@ function handlePageMessages(event: MessageEvent) {
             }, '*');
           }
         }).catch((error) => {
-          console.error('Error processing wallet request:', error);
+          console.error('PayCio: Error processing wallet request:', error);
+          console.error('PayCio: Error message:', error.message);
+          
+          // Provide more specific error messages
+          let errorMessage = error.message || 'Unknown error';
+          if (error.message.includes('Extension context invalidated')) {
+            errorMessage = 'Extension context invalidated. Please refresh the page and try again.';
+            showToast('🔧 Extension Context Invalidated: Please refresh page', 'error');
+          } else if (error.message.includes('Receiving end does not exist')) {
+            errorMessage = 'Wallet extension is not responding. Please refresh the page and try again.';
+            showToast('🔧 Connection Error: Extension not responding', 'error');
+          } else if (error.message.includes('timeout')) {
+            errorMessage = 'Request timed out. Please check if the wallet extension is running.';
+            showToast('🔧 Timeout Error: Extension not responding', 'error');
+          } else if (error.message.includes('disabled')) {
+            errorMessage = 'Wallet extension is disabled. Please enable it and try again.';
+            showToast('🔧 Extension Disabled: Please enable wallet', 'error');
+          }
+          
           window.postMessage({
             _id: event.data._id,
-            error: error.message || 'Unknown error'
+            error: errorMessage
           }, '*');
         });
         return;
@@ -208,10 +257,18 @@ function handlePageMessages(event: MessageEvent) {
       console.log('PayCio: Received wallet request from page:', event.data.method);
       
       // Send message to background script to process wallet request
+      console.log('PayCio: Sending wallet request to background script:', event.data.method);
+      
+      // First, try to wake up the background script with a simple ping
       safeSendMessage({
-        type: 'WALLET_REQUEST',
-        method: event.data.method,
-        params: event.data.params
+        type: 'PING'
+      }).then(() => {
+        console.log('PayCio: Background script is awake, sending wallet request');
+        return safeSendMessage({
+          type: 'WALLET_REQUEST',
+          method: event.data.method,
+          params: event.data.params
+        });
       }).then((response) => {
         console.log('PayCio: Received response from background script:', response);
         if (response?.success) {
@@ -230,7 +287,9 @@ function handlePageMessages(event: MessageEvent) {
           }, '*');
         }
       }).catch((error) => {
-        console.error('Error processing wallet request:', error);
+        console.error('PayCio: Error processing wallet request:', error);
+        console.error('PayCio: Error message:', error.message);
+        console.error('PayCio: Error stack:', error.stack);
         window.postMessage({
           type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
           id: event.data.id,

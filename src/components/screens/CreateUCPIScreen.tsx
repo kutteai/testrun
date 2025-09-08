@@ -211,12 +211,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       } else {
         setSuggestions([]);
         
-        // Show success message with registry type
-        if (query.endsWith('.eth')) {
-          toast.success(`✅ ${query} is available on ENS!`, { duration: 3000 });
-        } else {
-          toast.success(`✅ ${query} is available locally!`, { duration: 3000 });
-        }
+        // UCPI ID is available (no toast needed)
       }
       
       // Add to search history
@@ -260,45 +255,38 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         status: 'active' as const
       };
 
-      toast.loading('🌍 Registering UCPI ID globally...', { id: 'ucpi-registration' });
+      // Show single loading toast
+      toast.loading('Creating UCPI ID...', { id: 'ucpi-registration' });
       
       const registrationResult = await ucpiService.registerUCPI(ucpiData);
       
       if (registrationResult.success) {
-        // Show success message based on registration type
-        if (ucpiId.endsWith('.eth')) {
-          toast.success(`🌍 UCPI ID "${ucpiId}" registered on ENS!`, { 
-            id: 'ucpi-registration',
-            duration: 4000
-          });
-        } else {
-          toast.success(`🏠 UCPI ID "${ucpiId}" registered locally!`, { 
-            id: 'ucpi-registration',
-            duration: 4000
-          });
-        }
+        // Show single success message
+        toast.success(`✅ UCPI ID "${ucpiId}" created successfully!`, { 
+          id: 'ucpi-registration',
+          duration: 3000
+        });
         
         // Navigate to dashboard immediately
         onNavigate('dashboard');
       } else {
-        // Show specific error message for ENS registration
-        if (ucpiId.endsWith('.eth') && registrationResult.error?.includes('ENS registration requires ETH')) {
-          toast.error(`🌍 ENS registration requires ETH and gas fees. Please register at ens.domains or use a local UCPI ID.`, { 
-            id: 'ucpi-registration',
-            duration: 6000
-          });
-        } else {
-          toast.error(`Failed to create UCPI ID: ${registrationResult.error}`, { 
-            id: 'ucpi-registration'
-          });
-        }
+        // Show single error message
+        const errorMsg = ucpiId.endsWith('.eth') && registrationResult.error?.includes('ENS registration requires ETH')
+          ? 'ENS registration requires ETH and gas fees. Please use a local UCPI ID instead.'
+          : registrationResult.error || 'Failed to create UCPI ID';
+        
+        toast.error(errorMsg, { 
+          id: 'ucpi-registration',
+          duration: 5000
+        });
       }
       
     } catch (error) {
       console.error('Failed to create UCPI ID:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast.error(`Failed to create UCPI ID: ${errorMessage}`, { 
-        id: 'ucpi-registration'
+        id: 'ucpi-registration',
+        duration: 5000
       });
     } finally {
       setIsCreating(false);
@@ -322,8 +310,6 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         ucpiSkipped: true,
         ucpiTimestamp: Date.now()
       });
-      
-      toast.success('UCPI ID creation skipped. You can create one later.');
       
       // Navigate to dashboard
       onNavigate('dashboard');

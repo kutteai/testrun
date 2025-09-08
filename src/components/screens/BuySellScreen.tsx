@@ -14,7 +14,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 
-const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [activeTab, setActiveTab] = useState('buy');
   const [spendAmount, setSpendAmount] = useState('0');
   const [buyAmount, setBuyAmount] = useState('0');
@@ -337,7 +337,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

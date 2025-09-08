@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, X, Check, AlertCircle } from 'lucide-react';
+import { useWallet } from '../../store/WalletContext';
+import { storageUtils } from '../../utils/storage-utils';
+import { validateBIP39SeedPhraseWithFeedback } from '../../utils/crypto-utils';
 import type { ScreenProps } from '../../types/index';
 
-const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
+  const { importWallet } = useWallet();
   const [wordCount, setWordCount] = useState(12);
   const [seedPhrase, setSeedPhrase] = useState<string[]>(Array(24).fill(''));
   const [activeField, setActiveField] = useState(0);
@@ -38,18 +42,14 @@ const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return false;
     }
 
-    // Check for invalid words (too short or too long)
-    const invalidWords = words.filter(word => word.length < 2 || word.length > 12);
-    if (invalidWords.length > 0) {
-      setErrorMessage('Incorrect seed phrase');
-      setShowError(true);
-      return false;
-    }
-
-    // Check if any word is suspiciously short (like "dssdf" in your example)
-    const suspiciousWords = words.filter(word => word.length < 3);
-    if (suspiciousWords.length > 0) {
-      setErrorMessage('Incorrect seed phrase');
+    // Join words into seed phrase string
+    const seedPhraseString = words.join(' ');
+    
+    // Use proper BIP39 validation
+    const validation = validateBIP39SeedPhraseWithFeedback(seedPhraseString);
+    
+    if (!validation.isValid) {
+      setErrorMessage(validation.error || 'Invalid seed phrase');
       setShowError(true);
       return false;
     }
@@ -57,10 +57,35 @@ const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     return true;
   };
 
-  const handleCreatePassword = () => {
+  const handleImportWallet = async () => {
     if (validateSeedPhrase()) {
-      // Navigate to password creation for the imported wallet
-      onNavigate('create-password');
+      try {
+        const seedPhraseString = seedPhrase.slice(0, wordCount).join(' ');
+        console.log('🔍 ImportSeedPhraseScreen: Starting wallet import...');
+        console.log('🔍 ImportSeedPhraseScreen: Seed phrase length:', seedPhraseString.split(' ').length);
+        
+        // Get the stored password from the import flow
+        const password = await storageUtils.getPassword();
+        console.log('🔍 ImportSeedPhraseScreen: Password found:', !!password);
+        
+        if (!password) {
+          setErrorMessage('Password not found. Please restart the import process.');
+          setShowError(true);
+          return;
+        }
+        
+        console.log('🔍 ImportSeedPhraseScreen: Calling importWallet...');
+        // Import the wallet
+        await importWallet(seedPhraseString, 'ethereum', password);
+        console.log('🔍 ImportSeedPhraseScreen: Wallet imported successfully!');
+        
+        // Navigate directly to UCPI creation
+        onNavigate('create-ucpi');
+      } catch (error) {
+        console.error('❌ ImportSeedPhraseScreen: Error importing wallet:', error);
+        setErrorMessage(`Failed to import wallet: ${error.message || 'Please check your seed phrase.'}`);
+        setShowError(true);
+      }
     }
   };
 
@@ -76,7 +101,7 @@ const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center">
           <button
-            onClick={() => onNavigate('import')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -213,7 +238,7 @@ const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         className="px-6 pb-8"
       >
         <button
-          onClick={handleCreatePassword}
+          onClick={handleImportWallet}
           disabled={!isFormValid}
           className={`w-full py-4 px-6 rounded-lg font-semibold text-white transition-all duration-200 ${
             isFormValid

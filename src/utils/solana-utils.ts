@@ -342,10 +342,25 @@ export class SolanaWalletGenerator {
   // Get token price from CoinGecko API
   async getTokenPrice(tokenMint: string): Promise<number | null> {
     try {
-      // This would call CoinGecko API to get real token prices
-      // For now, return null to indicate no price data available
-      console.warn('Token price fetching not yet implemented. Please implement CoinGecko API integration.');
-      return null;
+      // Get token metadata first to find the CoinGecko ID
+      const metadata = await this.getTokenMetadata(tokenMint);
+      if (!metadata) {
+        console.error('Token metadata not found for price lookup');
+        return null;
+      }
+
+      // Try to get price from CoinGecko API
+      const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${metadata.symbol.toLowerCase()}&vs_currencies=usd`);
+      
+      if (!response.ok) {
+        console.error('Failed to fetch token price from CoinGecko');
+        return null;
+      }
+
+      const data = await response.json();
+      const price = data[metadata.symbol.toLowerCase()]?.usd;
+      
+      return price || null;
     } catch (error) {
       console.error('Error fetching token price:', error);
       return null;

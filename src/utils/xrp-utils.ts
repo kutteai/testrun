@@ -209,14 +209,42 @@ export class XrpWalletGenerator {
     destinationTag?: number
   ): Promise<{ success: boolean; hash?: string; error?: string }> {
     try {
-      // In a real implementation, you'd use XRPL library to sign and broadcast
-      // For now, we'll return a placeholder
-      console.log(`Sending ${amount} XRP from ${wallet.address} to ${toAddress}`);
+      const { Client, Wallet, xrpToDrops } = require('xrpl');
       
-      return { 
-        success: true, 
-        hash: createHash('sha256').update(`${Date.now()}-${Math.random()}`).digest('hex') 
+      // Connect to XRPL network
+      const client = new Client('wss://xrplcluster.com/');
+      await client.connect();
+      
+      // Create wallet from private key
+      const xrpWallet = Wallet.fromSeed(wallet.privateKey);
+      
+      // Prepare transaction
+      const transaction = {
+        TransactionType: 'Payment',
+        Account: wallet.address,
+        Destination: toAddress,
+        Amount: xrpToDrops(amount.toString()),
+        Fee: '12', // Standard fee
+        Sequence: await client.getAccountInfo(wallet.address).then(info => info.Sequence)
       };
+      
+      // Sign and submit transaction
+      const signed = xrpWallet.sign(transaction);
+      const result = await client.submitAndWait(signed.tx_blob);
+      
+      await client.disconnect();
+      
+      if (result.result.validated) {
+        return { 
+          success: true, 
+          hash: result.result.hash 
+        };
+      } else {
+        return { 
+          success: false, 
+          error: result.result.engine_result_message 
+        };
+      }
     } catch (error) {
       console.error('Error sending XRP:', error);
       return { success: false, error: error.message };

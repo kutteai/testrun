@@ -155,12 +155,14 @@ export const storageUtils = {
 
   // Store import flow flag
   async setImportFlow(isImport: boolean): Promise<void> {
+    console.log('🔍 storageUtils: Setting import flow flag to:', isImport);
     await storage.set({ importFlow: isImport });
   },
 
   // Get import flow flag
   async getImportFlow(): Promise<boolean> {
     const result = await storage.get(['importFlow']);
+    console.log('🔍 storageUtils: Getting import flow flag, result:', result);
     return result.importFlow || false;
   },
 

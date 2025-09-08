@@ -11,7 +11,7 @@ interface ScreenProps {
 }
 
 const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet, getWalletAccounts, getCurrentAccount, addAccount, getPassword } = useWallet();
+  const { wallet, getWalletAccounts, getCurrentAccount, addAccount, getPassword, switchAccount } = useWallet();
   const { currentNetwork } = useNetwork();
   const { portfolioValue } = usePortfolio();
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -25,6 +25,8 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [showSecretPhrase, setShowSecretPhrase] = useState(false);
   const [decryptedSeedPhrase, setDecryptedSeedPhrase] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [showContextMenu, setShowContextMenu] = useState(false);
+  const [contextMenuAccount, setContextMenuAccount] = useState<any>(null);
 
   // Load accounts on component mount
   useEffect(() => {
@@ -53,6 +55,34 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
     loadAccounts();
   }, [wallet, getWalletAccounts, getCurrentAccount]);
+
+  // Listen for wallet changes to update selected account
+  useEffect(() => {
+    const handleWalletChanged = async () => {
+      if (wallet) {
+        try {
+          const currentAccount = await getCurrentAccount();
+          setSelectedAccount(currentAccount);
+          console.log('🔄 Updated selected account from wallet change:', currentAccount?.id);
+        } catch (error) {
+          console.error('Failed to update selected account:', error);
+        }
+      }
+    };
+
+    // Listen for custom wallet change events
+    if (typeof window !== 'undefined') {
+      window.addEventListener('walletChanged', handleWalletChanged);
+      window.addEventListener('accountSwitched', handleWalletChanged);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('walletChanged', handleWalletChanged);
+        window.removeEventListener('accountSwitched', handleWalletChanged);
+      }
+    };
+  }, [wallet, getCurrentAccount]);
 
   // Listen for wallet changes to refresh accounts
   useEffect(() => {
@@ -87,10 +117,6 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     );
   });
 
-  const handleAccountSelect = (account: any) => {
-    setSelectedAccount(account);
-    setShowAccountDetails(true);
-  };
 
   const handlePinToTop = async (account: any) => {
     try {
@@ -141,8 +167,8 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         return;
       }
       
-      console.log('🔄 Creating new account...');
-      await addAccount(password);
+      console.log('🔄 Creating new account with name:', newAccountName);
+      await addAccount(password, newAccountName.trim());
       
       // Wait a moment for the account to be properly created and saved
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -183,9 +209,9 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         return;
       }
       
-      const CryptoJS = await import('crypto-js');
-      const decryptedBytes = CryptoJS.AES.decrypt(wallet.encryptedSeedPhrase, secretPhrasePassword);
-      const decryptedSeedPhrase = decryptedBytes.toString(CryptoJS.enc.Utf8);
+      // Use the correct decryption method from crypto-utils
+      const { decryptData } = await import('../../utils/crypto-utils');
+      const decryptedSeedPhrase = await decryptData(wallet.encryptedSeedPhrase, secretPhrasePassword);
       
       if (!decryptedSeedPhrase) {
         throw new Error('Invalid password');
@@ -196,6 +222,9 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setSecretPhrasePassword('');
     } catch (error) {
       console.error('Invalid password:', error);
+      // Show error to user with better UX
+      setSecretPhrasePassword('');
+      alert('Invalid password. Please try again.');
     }
   };
 
@@ -251,6 +280,43 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     
     // Fallback to account.network or current network
     return account.network || (currentNetwork ? currentNetwork.name : 'Unknown');
+  };
+
+  // Handle account selection and switching
+  const handleAccountSelect = async (account: any) => {
+    try {
+      console.log('🔄 Switching to account:', account.id);
+      
+      // Switch to the selected account using the wallet context
+      await switchAccount(account.id);
+      
+      // Update local state
+      setSelectedAccount(account);
+      
+      console.log('✅ Account switched successfully:', account.id);
+    } catch (error) {
+      console.error('❌ Failed to switch account:', error);
+      // You could add a toast notification here for error feedback
+    }
+  };
+
+  // Handle context menu for account options
+  const handleContextMenu = (account: any, event: React.MouseEvent) => {
+    event.stopPropagation();
+    setContextMenuAccount(account);
+    setShowContextMenu(true);
+  };
+
+  // Handle view secret phrase from context menu
+  const handleViewSecretPhraseFromMenu = () => {
+    setShowContextMenu(false);
+    setShowSecretPhraseModal(true);
+  };
+
+  // Handle account details from context menu
+  const handleAccountDetailsFromMenu = () => {
+    setShowContextMenu(false);
+    setShowAccountDetails(true);
   };
 
   if (isLoading) {
@@ -324,7 +390,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             {wallet?.name || `Wallet ${wallet?.id || '1'}`}
           </h2>
                 <button
-                  onClick={() => onNavigate('wallet-details')}
+                  onClick={() => onNavigate('account-details')}
                   className="text-[#180CB2] text-sm font-medium hover:underline"
                 >
                   Details
@@ -337,11 +403,12 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             filteredAccounts.map((account, index) => (
               <div
                     key={account.id}
-                className={`bg-white rounded-xl p-4 border-2 transition-all ${
+                className={`bg-white rounded-xl p-4 border-2 transition-all cursor-pointer ${
                   selectedAccount?.id === account.id 
                     ? 'border-blue-500 bg-blue-50' 
                     : 'border-gray-200 hover:border-gray-300'
                     }`}
+                onClick={() => handleAccountSelect(account)}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-3">
@@ -349,9 +416,16 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       <span className="text-white text-lg">👤</span>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 text-[13px]">
-                        {account?.name || `Account ${account?.id || 'Unknown'}`}
-                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="font-semibold text-gray-900 text-[13px]">
+                          {account?.name || `Account ${account?.id || 'Unknown'}`}
+                        </h3>
+                        {selectedAccount?.id === account.id && (
+                          <span className="px-2 py-1 bg-blue-100 text-blue-800 text-[10px] font-medium rounded-full">
+                            Active
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[13px] text-gray-500 font-mono">
                         {(() => {
                           const address = getAccountAddress(account);
@@ -384,7 +458,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     
                     <div className="relative">
                       <button
-                        onClick={() => handleAccountSelect(account)}
+                        onClick={(e) => handleContextMenu(account, e)}
                         className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                       >
                         <MoreVertical className="w-5 h-5 text-gray-500" />
@@ -474,6 +548,17 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </div>
               
               <div className="pt-4 border-t border-gray-200 space-y-2">
+                          <button
+                  onClick={() => {
+                    setShowAccountDetails(false);
+                    onNavigate('account-details');
+                  }}
+                  className="w-full px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors flex items-center justify-center space-x-2 mb-2"
+                >
+                  <User className="w-4 h-4" />
+                  <span>View Account Details</span>
+                          </button>
+                          
                           <button
                   onClick={() => {
                     setShowAccountDetails(false);
@@ -661,6 +746,62 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Context Menu */}
+      {showContextMenu && contextMenuAccount && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-sm mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Account Options</h3>
+              <button
+                onClick={() => setShowContextMenu(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <button
+                onClick={handleAccountDetailsFromMenu}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <User className="w-5 h-5 text-gray-600" />
+                <span className="text-gray-900">Account Details</span>
+              </button>
+              
+              <button
+                onClick={handleViewSecretPhraseFromMenu}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Key className="w-5 h-5 text-gray-600" />
+                <span className="text-gray-900">View Secret Phrase</span>
+              </button>
+              
+              <button
+                onClick={() => handlePinToTop(contextMenuAccount)}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Pin className="w-5 h-5 text-gray-600" />
+                <span className="text-gray-900">Pin to Top</span>
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowContextMenu(false);
+                  handleHideAccount(contextMenuAccount);
+                }}
+                className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-red-50 transition-colors text-red-600"
+              >
+                <EyeOff className="w-5 h-5" />
+                <span>Hide Account</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

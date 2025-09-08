@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { copyToClipboardWithFeedback } from '../../utils/clipboard-utils';
 import type { ScreenProps } from '../../types/index';
 
-const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, currentNetwork, isWalletUnlocked, isLoading, isInitializing, getCurrentAccount } = useWallet();
   const [copied, setCopied] = useState(false);
   const [qrSize, setQrSize] = useState(200);
@@ -33,9 +33,17 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       // since it uses wallet from context directly
     };
 
+    const handleAccountSwitched = async (event: CustomEvent) => {
+      console.log('🔄 Account switched event received in ReceiveScreen:', event.detail);
+      // ReceiveScreen will automatically update when account changes
+      // since it uses wallet from context directly
+    };
+
     window.addEventListener('walletChanged', handleWalletChange as EventListener);
+    window.addEventListener('accountSwitched', handleAccountSwitched as EventListener);
     return () => {
       window.removeEventListener('walletChanged', handleWalletChange as EventListener);
+      window.removeEventListener('accountSwitched', handleAccountSwitched as EventListener);
     };
   }, []);
 
@@ -212,7 +220,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             Debug: isWalletUnlocked={isWalletUnlocked?.toString()}, hasAddress={!!wallet?.address}
           </div>
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
           >
             Go to Dashboard
@@ -250,7 +258,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       >
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />

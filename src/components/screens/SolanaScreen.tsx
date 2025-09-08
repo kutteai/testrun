@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 
-const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, currentNetwork } = useWallet();
   const [solanaWallets, setSolanaWallets] = useState<SolanaWallet[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<SolanaWallet | null>(null);
@@ -21,11 +21,13 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [newWalletName, setNewWalletName] = useState('');
   const [selectedNetwork, setSelectedNetwork] = useState<'mainnet' | 'testnet' | 'devnet'>('devnet');
   const [networkStatus, setNetworkStatus] = useState<{ slot: number; tps: number; avgBlockTime: number } | null>(null);
+  const [solPrice, setSolPrice] = useState<number>(0);
 
   // Load existing Solana wallets from storage
   useEffect(() => {
     loadSolanaWallets();
     loadNetworkStatus();
+    loadSolPrice();
   }, []);
 
   // Listen for network changes
@@ -88,6 +90,17 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       });
     } catch (error) {
       console.error('Error loading network status:', error);
+    }
+  };
+
+  const loadSolPrice = async () => {
+    try {
+      const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+      const data = await response.json();
+      setSolPrice(data.solana?.usd || 0);
+    } catch (error) {
+      console.error('Error loading SOL price:', error);
+      setSolPrice(0);
     }
   };
 
@@ -197,8 +210,6 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const formatUSD = (sol: number) => {
-    // In a real app, you'd fetch current SOL price
-    const solPrice = 100; // Example price
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -235,7 +246,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       >
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />

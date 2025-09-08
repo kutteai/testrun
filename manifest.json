@@ -9,7 +9,8 @@
     "scripting",
     "alarms",
     "notifications",
-    "clipboardWrite"
+    "clipboardWrite",
+    "background"
   ],
   "host_permissions": [
     "https://*/*",
@@ -26,8 +27,7 @@
     }
   },
   "background": {
-    "service_worker": "background.js",
-    "type": "module"
+    "service_worker": "background.js"
   },
   "content_scripts": [
     {

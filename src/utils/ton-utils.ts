@@ -170,13 +170,42 @@ export class TonWalletGenerator {
     comment?: string
   ): Promise<{ success: boolean; hash?: string; error?: string }> {
     try {
-      // In a real implementation, you'd use TON SDK to sign and broadcast
-      // For now, we'll return a placeholder
-      console.log(`Sending ${amount} TON from ${wallet.address} to ${toAddress}`);
+      const { Cell, beginCell, Address, toNano } = require('@ton/core');
+      const { TonClient, WalletContractV4, internal } = require('@ton/ton');
+      
+      // Create TON client
+      const client = new TonClient({
+        endpoint: 'https://toncenter.com/api/v2/jsonRPC'
+      });
+      
+      // Create wallet from private key
+      const keyPair = {
+        publicKey: Buffer.from(wallet.publicKey, 'hex'),
+        secretKey: Buffer.from(wallet.privateKey, 'hex')
+      };
+      
+      const walletContract = WalletContractV4.create({
+        workchain: 0,
+        publicKey: keyPair.publicKey
+      });
+      
+      // Create transfer message
+      const transfer = internal({
+        to: Address.parse(toAddress),
+        value: toNano(amount.toString()),
+        body: comment ? beginCell().storeStringTail(comment).endCell() : undefined
+      });
+      
+      // Send transaction
+      const result = await walletContract.sendTransfer({
+        seqno: await walletContract.getSeqno(),
+        secretKey: keyPair.secretKey,
+        messages: [transfer]
+      });
       
       return { 
         success: true, 
-        hash: createHash('sha256').update(`${Date.now()}-${Math.random()}`).digest('hex') 
+        hash: result.toString() 
       };
     } catch (error) {
       console.error('Error sending TON:', error);

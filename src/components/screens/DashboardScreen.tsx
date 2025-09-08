@@ -42,16 +42,22 @@ import { useWallet } from '../../store/WalletContext';
 import { ucpiService, type UCPIData } from '../../services/ucpi-service';
 import { useNetwork } from '../../store/NetworkContext';
 import { usePortfolio } from '../../store/PortfolioContext';
+import { useNFT } from '../../store/NFTContext';
 import { handleError } from '../../utils/error-handler';
 import { navigateWithHistory, goBackWithHistory } from '../../utils/navigation-utils';
 import { ScreenProps, Transaction } from '../../types';
 import NetworkSwitcherModal from '../common/NetworkSwitcherModal';
+import { storage } from '../../utils/storage-utils';
 
 const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Context hooks with error handling
   const wallet = useWallet();
   const network = useNetwork();
   const portfolio = usePortfolio();
+  const nft = useNFT();
+
+  // Get current network from both wallet and network context
+  const currentNetwork = network?.currentNetwork || wallet?.wallet?.currentNetwork || 'ethereum';
 
   // State management
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -69,8 +75,9 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [showGlobeNetworkDropdown, setShowGlobeNetworkDropdown] = useState(false);
   const [selectedGlobeNetwork, setSelectedGlobeNetwork] = useState(network?.currentNetwork);
   const [showBalance, setShowBalance] = useState(true);
-  const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
+  const [addressBookContacts, setAddressBookContacts] = useState<any[]>([]);
+  const [nftAssets, setNftAssets] = useState<any[]>([]);
   const [newAccountName, setNewAccountName] = useState('');
   const [showSecretPhrase, setShowSecretPhrase] = useState(false);
   const [showNetworkSwitcher, setShowNetworkSwitcher] = useState(false);
@@ -93,8 +100,42 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   useEffect(() => {
     if (wallet && !wallet.isInitializing) {
       // Wallet ready
+      loadAddressBookContacts();
+      loadCryptoAssets();
+      loadNftAssets();
     }
-  }, [wallet?.isInitializing]);
+  }, [wallet?.isInitializing, wallet?.wallet?.id]);
+
+  // Load crypto assets when portfolio changes
+  useEffect(() => {
+    loadCryptoAssets();
+  }, [portfolio?.portfolioValue]);
+
+  // Load NFT assets when NFT context changes
+  useEffect(() => {
+    loadNftAssets();
+  }, [nft?.nfts]);
+
+  // Listen for wallet changes to reload data
+  useEffect(() => {
+    const handleWalletChanged = () => {
+      loadAddressBookContacts();
+      loadCryptoAssets();
+      loadNftAssets();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('walletChanged', handleWalletChanged);
+      window.addEventListener('accountSwitched', handleWalletChanged);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('walletChanged', handleWalletChanged);
+        window.removeEventListener('accountSwitched', handleWalletChanged);
+      }
+    };
+  }, []);
 
   // Load UCPI ID with error handling
   const loadUcpiId = async (): Promise<string> => {
@@ -152,7 +193,6 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         // Update state
         setAccounts(accountsData);
-        setSelectedAccount(currentAccount);
         setUcpiId(ucpiIdData);
         
         // Check if account has address for current network
@@ -178,10 +218,10 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Listen for wallet changes (network switches, address updates, etc.)
   useEffect(() => {
     const handleWalletChanged = async (event: CustomEvent) => {
+      console.log('🔄 Dashboard: Wallet changed event received:', event.detail);
       
       // Reload dashboard data to reflect the changes
       try {
-        
         // Small delay to ensure WalletManager has saved changes
         await new Promise(resolve => setTimeout(resolve, 100));
         
@@ -189,25 +229,33 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         const accountsData = await (wallet?.getWalletAccounts?.() || Promise.resolve([]));
         const currentAccount = await (wallet?.getCurrentAccount?.() || Promise.resolve(null));
         
-        
         // Force update accounts state to ensure UI reflects changes
         setAccounts(accountsData);
         
-        // Update selected account if we have one
-        if (currentAccount) {
-          setSelectedAccount(currentAccount);
-        } else {
-        }
+        // Account data loaded successfully
       } catch (error) {
+        console.error('Failed to reload dashboard data:', error);
       }
     };
 
-    // Add event listener
+    const handleAccountSwitched = async (event: CustomEvent) => {
+      console.log('🔄 Dashboard: Account switched event received:', event.detail);
+      
+      try {
+        // Account switch handled
+      } catch (error) {
+        console.error('Failed to update dashboard after account switch:', error);
+      }
+    };
+
+    // Add event listeners
     window.addEventListener('walletChanged', handleWalletChanged as EventListener);
+    window.addEventListener('accountSwitched', handleAccountSwitched as EventListener);
 
     // Cleanup
     return () => {
       window.removeEventListener('walletChanged', handleWalletChanged as EventListener);
+      window.removeEventListener('accountSwitched', handleAccountSwitched as EventListener);
     };
   }, [wallet]);
 
@@ -285,7 +333,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     let timeoutId: NodeJS.Timeout;
 
     const loadTransactionHistory = async () => {
-      if (!selectedAccount || !isMountedRef.current) return;
+      if (!isMountedRef.current) return;
 
         setIsLoadingHistory(true);
       
@@ -301,8 +349,15 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         // Load real transaction history
         try {
           const { getTransactionHistory } = await import('../../utils/web3-utils');
+          // Get current account address
+          const currentAccount = await (wallet?.getCurrentAccount?.() || Promise.resolve(null));
+          if (!currentAccount?.address) {
+            console.warn('No current account address available');
+            return;
+          }
+          
           const transactions = await getTransactionHistory(
-            selectedAccount.address,
+            currentAccount.address,
             network?.currentNetwork?.id || 'ethereum',
             1, // page
             5  // limit to 5 recent transactions
@@ -320,7 +375,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               network: network?.currentNetwork?.id || 'ethereum',
               timestamp: parseInt(tx.timeStamp, 10) * 1000,
               status: tx.isError === '0' ? 'confirmed' : 'failed',
-              type: tx.from.toLowerCase() === selectedAccount.address.toLowerCase() ? 'send' : 'receive'
+              type: tx.from.toLowerCase() === currentAccount.address.toLowerCase() ? 'send' : 'receive'
             }));
             
             setRecentTxHistory(formattedTransactions);
@@ -349,7 +404,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         clearTimeout(timeoutId);
       }
     };
-  }, [selectedAccount, network?.currentNetwork]);
+  }, [wallet?.address, network?.currentNetwork]);
 
   // Refresh data with better error handling
   const handleRefresh = async () => {
@@ -384,7 +439,6 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const newAccount = await wallet.addAccount?.(password);
       if (newAccount) {
       setAccounts(prev => [...prev, newAccount]);
-      setSelectedAccount(newAccount);
       setShowCreateAccountModal(false);
       setNewAccountName('');
       }
@@ -404,6 +458,51 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     } catch (error) {
       console.error('Failed to switch network:', error);
       setError('Failed to switch network');
+    }
+  };
+
+  // Handle settings navigation based on active tab
+  const handleAssetsSettingsClick = () => {
+    switch (activeTab) {
+      case 'crypto':
+        onNavigate('tokens');
+        break;
+      case 'nfts':
+        onNavigate('nfts');
+        break;
+      case 'address-book':
+        onNavigate('address-book');
+        break;
+      case 'history':
+        onNavigate('transactions');
+        break;
+      default:
+        onNavigate('tokens');
+    }
+  };
+
+
+  // Load address book contacts
+  const loadAddressBookContacts = async () => {
+    try {
+      const result = await storage.get(['addressBook']);
+      setAddressBookContacts(result.addressBook || []);
+    } catch (error) {
+      console.error('Failed to load address book contacts:', error);
+    }
+  };
+
+  // Load crypto assets from portfolio
+  const loadCryptoAssets = () => {
+    if (portfolio?.portfolioValue?.assets) {
+      setCryptoAssets(portfolio.portfolioValue.assets);
+    }
+  };
+
+  // Load NFT assets from NFT context
+  const loadNftAssets = () => {
+    if (nft?.nfts) {
+      setNftAssets(nft.nfts);
     }
   };
 
@@ -527,7 +626,14 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </div>
             <div>
               <div className="text-white font-medium" style={{ fontSize: '13px', lineHeight: '18px' }}>
-                {selectedAccount ? `${selectedAccount.name || 'Account 1'}` : 'Account 1'}
+                {(() => {
+                  // Get current account name from wallet state
+                  if (wallet?.wallet?.accounts && wallet.wallet.accounts.length > 0) {
+                    const currentAccount = wallet.wallet.accounts.find(acc => acc.isActive) || wallet.wallet.accounts[0];
+                    return currentAccount?.name || 'Account 1';
+                  }
+                  return 'Account 1';
+                })()}
               </div>
               <div className="flex items-center space-x-1">
                 <span className="text-white" style={{ fontSize: '13px', lineHeight: '18px' }}>
@@ -537,24 +643,15 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       return `${wallet.wallet.address.slice(0, 8)}...${wallet.wallet.address.slice(-8)}`;
                     }
                     
-                    // Fallback to account addresses
-                    if (!selectedAccount?.addresses) return 'No address';
-                    
-                    const currentNetworkId = wallet?.wallet?.currentNetwork || 'ethereum';
-                    const address = selectedAccount.addresses[currentNetworkId];
-                    
-                    if (!address) return 'No address';
-                    
-                    return `${address.slice(0, 8)}...${address.slice(-8)}`;
+                    // Fallback to default
+                    return 'No address';
                   })()}
                 </span>
                 <button 
                   className="p-1 hover:bg-white/10 rounded"
                   onClick={async () => {
                     try {
-                      const addressToCopy = wallet?.wallet?.address || 
-                        selectedAccount?.addresses?.[wallet?.wallet?.currentNetwork || 'ethereum'] ||
-                        'No address available';
+                      const addressToCopy = wallet?.wallet?.address || 'No address available';
                       
                       await navigator.clipboard.writeText(addressToCopy);
                     } catch (error) {
@@ -590,6 +687,99 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         </div>
       </div>
 
+        {/* Active Crypto Display */}
+        <div className="bg-white/10 rounded-2xl p-4 mb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                wallet?.wallet?.currentNetwork === 'bitcoin' ? 'bg-orange-500' : 
+                wallet?.wallet?.currentNetwork === 'ethereum' ? 'bg-blue-500' :
+                wallet?.wallet?.currentNetwork === 'solana' ? 'bg-purple-500' :
+                wallet?.wallet?.currentNetwork === 'tron' ? 'bg-red-500' :
+                wallet?.wallet?.currentNetwork === 'ton' ? 'bg-blue-400' :
+                wallet?.wallet?.currentNetwork === 'xrp' ? 'bg-blue-300' :
+                wallet?.wallet?.currentNetwork === 'litecoin' ? 'bg-gray-400' :
+                'bg-gray-500'
+              }`}>
+                <span className="text-white text-lg font-bold">
+                  {(() => {
+                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
+                    const networkSymbols: Record<string, string> = {
+                      'bitcoin': '₿',
+                      'ethereum': 'Ξ',
+                      'solana': '◎',
+                      'tron': 'T',
+                      'ton': 'T',
+                      'xrp': 'X',
+                      'litecoin': 'Ł',
+                      'bsc': 'B',
+                      'polygon': 'P',
+                      'avalanche': 'A',
+                      'arbitrum': 'A',
+                      'optimism': 'O',
+                      'base': 'B',
+                      'fantom': 'F'
+                    };
+                    return networkSymbols[currentNetwork] || 'Ξ';
+                  })()}
+                </span>
+              </div>
+              <div>
+                <div className="text-white font-semibold" style={{ fontSize: '16px', lineHeight: '20px' }}>
+                  {(() => {
+                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
+                    const networkNames: Record<string, string> = {
+                      'bitcoin': 'Bitcoin',
+                      'ethereum': 'Ethereum',
+                      'solana': 'Solana',
+                      'tron': 'Tron',
+                      'ton': 'Toncoin',
+                      'xrp': 'XRP',
+                      'litecoin': 'Litecoin',
+                      'bsc': 'BNB Smart Chain',
+                      'polygon': 'Polygon',
+                      'avalanche': 'Avalanche',
+                      'arbitrum': 'Arbitrum',
+                      'optimism': 'Optimism',
+                      'base': 'Base',
+                      'fantom': 'Fantom'
+                    };
+                    return networkNames[currentNetwork] || 'Ethereum';
+                  })()}
+                </div>
+                <div className="text-white/70" style={{ fontSize: '12px', lineHeight: '16px' }}>
+                  {(() => {
+                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
+                    const networkSymbols: Record<string, string> = {
+                      'bitcoin': 'BTC',
+                      'ethereum': 'ETH',
+                      'solana': 'SOL',
+                      'tron': 'TRX',
+                      'ton': 'TON',
+                      'xrp': 'XRP',
+                      'litecoin': 'LTC',
+                      'bsc': 'BNB',
+                      'polygon': 'MATIC',
+                      'avalanche': 'AVAX',
+                      'arbitrum': 'ETH',
+                      'optimism': 'ETH',
+                      'base': 'ETH',
+                      'fantom': 'FTM'
+                    };
+                    return networkSymbols[currentNetwork] || 'ETH';
+                  })()}
+                </div>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowNetworkSwitcher(true)}
+              className="p-2 hover:bg-white/10 rounded-full transition-colors"
+            >
+              <ChevronDown className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        </div>
+
         {/* Total Balance Card */}
         <div className="bg-white/10 rounded-2xl p-6 mb-6">
           {/* Top Section - Balance Info */}
@@ -610,66 +800,6 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <div className="text-white" style={{ fontSize: '13px', lineHeight: '18px' }}>
                 {fiatBalance} ({balanceChange})
               </div>
-            </div>
-            
-            {/* Network Selector - Right Aligned */}
-            <div className="flex items-center space-x-2">
-              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
-                wallet?.wallet?.currentNetwork === 'bitcoin' ? 'bg-orange-500' : 
-                wallet?.wallet?.currentNetwork === 'ethereum' ? 'bg-blue-500' :
-                wallet?.wallet?.currentNetwork === 'solana' ? 'bg-purple-500' :
-                wallet?.wallet?.currentNetwork === 'tron' ? 'bg-red-500' :
-                wallet?.wallet?.currentNetwork === 'ton' ? 'bg-blue-400' :
-                wallet?.wallet?.currentNetwork === 'xrp' ? 'bg-blue-300' :
-                wallet?.wallet?.currentNetwork === 'litecoin' ? 'bg-gray-400' :
-                'bg-gray-500'
-              }`}>
-                <span className="text-white font-bold" style={{ fontSize: '13px', lineHeight: '18px' }}>
-                  {(() => {
-                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
-                    const networkSymbols: Record<string, string> = {
-                      'bitcoin': 'B',
-                      'ethereum': 'E',
-                      'solana': 'S',
-                      'tron': 'T',
-                      'ton': 'T',
-                      'xrp': 'X',
-                      'litecoin': 'L',
-                      'bsc': 'B',
-                      'polygon': 'P',
-                      'avalanche': 'A',
-                      'arbitrum': 'A',
-                      'optimism': 'O',
-                      'base': 'B',
-                      'fantom': 'F'
-                    };
-                    return networkSymbols[currentNetwork] || 'E';
-                  })()}
-                </span>
-              </div>
-              <span className="text-white font-medium" style={{ fontSize: '13px', lineHeight: '18px' }}>
-                {(() => {
-                  const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
-                  const networkSymbols: Record<string, string> = {
-                    'bitcoin': 'BTC',
-                    'ethereum': 'ETH',
-                    'solana': 'SOL',
-                    'tron': 'TRX',
-                    'ton': 'TON',
-                    'xrp': 'XRP',
-                    'litecoin': 'LTC',
-                    'bsc': 'BNB',
-                    'polygon': 'MATIC',
-                    'avalanche': 'AVAX',
-                    'arbitrum': 'ETH',
-                    'optimism': 'ETH',
-                    'base': 'ETH',
-                    'fantom': 'FTM'
-                  };
-                  return networkSymbols[currentNetwork] || 'ETH';
-                })()}
-              </span>
-              <ChevronDown className="w-4 h-4 text-white" />
             </div>
           </div>
 
@@ -698,13 +828,16 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </div>
             </div>
           ) : (
-            <button className="w-full bg-white/10 border border-[#FFC02C] rounded-lg p-3 flex items-center justify-between hover:bg-white/20 transition-colors">
+            <button 
+              onClick={() => onNavigate('create-ucpi')}
+              className="w-full bg-white/10 border border-[#FFC02C] rounded-lg p-3 flex items-center justify-between hover:bg-white/20 transition-colors"
+            >
               <div className="flex items-center space-x-3">
                 <div className="w-6 h-6 bg-[#FFC02C] rounded-full flex items-center justify-center">
                   <span className="text-white text-sm">!</span>
                 </div>
                 <span className="text-white font-medium" style={{ fontSize: '13px', lineHeight: '18px' }}>Create UCPI ID</span>
-          </div>
+              </div>
               <ChevronDown className="w-4 h-4 text-white rotate-90" />
             </button>
           )}
@@ -773,7 +906,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900" style={{ fontSize: '13px', lineHeight: '18px' }}>Assets</h3>
             <button
-              onClick={() => onNavigate('options')}
+              onClick={handleAssetsSettingsClick}
               className="p-2 hover:bg-gray-100 rounded-full transition-colors"
             >
               <Settings className="w-3 h-3 text-gray-600" />
@@ -874,22 +1007,108 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           )}
 
           {activeTab === 'nfts' && (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                <span className="text-gray-500 text-2xl">🎨</span>
-              </div>
-              <p className="text-gray-500">No NFTs found</p>
-              <p className="text-sm text-gray-400">Your NFTs will appear here</p>
+            <div className="space-y-3">
+              {nftAssets.length > 0 ? (
+                nftAssets.slice(0, 5).map((nft, index) => (
+                  <motion.div
+                    key={nft.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">🎨</span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{nft.name || 'Unnamed NFT'}</p>
+                        <p className="text-sm text-gray-500">{nft.collection || 'Unknown Collection'}</p>
+                        <p className="text-xs text-gray-400">{nft.network || 'Unknown Network'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-gray-500">#{nft.tokenId || 'N/A'}</p>
+                      {nft.value && (
+                        <p className="text-sm font-medium text-gray-900">
+                          ${nft.value.toFixed(2)}
+                        </p>
+                      )}
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                    <span className="text-gray-500 text-2xl">🎨</span>
+                  </div>
+                  <p className="text-gray-500">No NFTs found</p>
+                  <p className="text-sm text-gray-400">Your NFTs will appear here</p>
+                  <button
+                    onClick={() => onNavigate('nfts')}
+                    className="mt-4 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors text-sm"
+                  >
+                    View All NFTs
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'address-book' && (
-            <div className="text-center py-8">
-              <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-4 flex items-center justify-center">
-                <span className="text-gray-500 text-2xl">📇</span>
+            <div className="space-y-3">
+              {addressBookContacts.length > 0 ? (
+                addressBookContacts.slice(0, 5).map((contact, index) => (
+                  <motion.div
+                    key={contact.id || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                        <span className="text-white text-sm font-bold">
+                          {contact.name?.charAt(0)?.toUpperCase() || '?'}
+                        </span>
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">{contact.name}</p>
+                        <p className="text-sm text-gray-500 font-mono">
+                          {contact.address ? `${contact.address.slice(0, 6)}...${contact.address.slice(-4)}` : 'No address'}
+                        </p>
+                        <p className="text-xs text-gray-400 capitalize">{contact.network}</p>
+                      </div>
                     </div>
-              <p className="text-gray-500">No saved addresses</p>
-              <p className="text-sm text-gray-400">Your saved addresses will appear here</p>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => {
+                          if (contact.address) {
+                            navigator.clipboard.writeText(contact.address);
+                          }
+                        }}
+                        className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                      >
+                        <Copy className="w-4 h-4 text-gray-600" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 bg-gray-300 rounded-lg mx-auto mb-4 flex items-center justify-center">
+                    <span className="text-gray-500 text-2xl">📇</span>
+                  </div>
+                  <p className="text-gray-500">No saved addresses</p>
+                  <p className="text-sm text-gray-400">Your saved addresses will appear here</p>
+                  <button
+                    onClick={() => onNavigate('address-book')}
+                    className="mt-4 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors text-sm"
+                  >
+                    Add Contact
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -956,6 +1175,29 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         isOpen={showNetworkSwitcher}
         onClose={() => setShowNetworkSwitcher(false)}
       />
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="fixed bottom-4 right-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs max-w-xs">
+          <div><strong>Network Debug:</strong></div>
+          <div>Current: {currentNetwork?.id || 'None'}</div>
+          <div>Modal: {showNetworkSwitcher ? 'Open' : 'Closed'}</div>
+          <div>Networks: {network?.networks?.length || 0}</div>
+          <button 
+            onClick={() => {
+              console.log('🔍 Network Switching Debug:');
+              console.log('  - showNetworkSwitcher:', showNetworkSwitcher);
+              console.log('  - currentNetwork:', currentNetwork);
+              console.log('  - availableNetworks:', network?.networks);
+              console.log('  - wallet:', wallet);
+              setShowNetworkSwitcher(true);
+            }}
+            className="mt-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"
+          >
+            Debug Network
+          </button>
+        </div>
+      )}
     </motion.div>
   );
 };

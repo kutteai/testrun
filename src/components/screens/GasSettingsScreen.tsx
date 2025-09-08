@@ -17,7 +17,7 @@ import { getNetworkRPCUrl } from '../../utils/token-balance-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
-const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet } = useWallet();
   const [gasSettings, setGasSettings] = useState<GasSettings>(DEFAULT_GAS_SETTINGS);
   const [transactionSettings, setTransactionSettings] = useState<TransactionSettings>({
@@ -122,7 +122,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       >
         <div className="flex items-center justify-between mb-6">
           <button
-            onClick={() => onNavigate('dashboard')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-lg transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />

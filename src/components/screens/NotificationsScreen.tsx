@@ -23,7 +23,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Generate real notifications from wallet data
-  const generateNotifications = (): Notification[] => {
+  const generateNotifications = async (): Promise<Notification[]> => {
     const generatedNotifications: Notification[] = [];
     
     // Add transaction notifications
@@ -62,27 +62,15 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       });
     }
 
-    // Add product notifications (these can be stored in storage for persistence)
-    const productNotifications: Notification[] = [
-      {
-        id: 'product-update-1',
-        title: 'New Dashboard, Smarter UX',
-        description: 'Paycio just got a sleek multichain upgrade. Discover what\'s new today.',
-        date: 'Aug 18',
-        type: 'product',
-        isRead: false
-      },
-      {
-        id: 'product-update-2',
-        title: 'Enhanced Security Features',
-        description: 'New security features have been added to protect your assets.',
-        date: 'Aug 15',
-        type: 'product',
-        isRead: true
+    // Add product notifications from storage (if any)
+    try {
+      const storedNotifications = await storage.get('productNotifications');
+      if (storedNotifications?.productNotifications) {
+        generatedNotifications.push(...storedNotifications.productNotifications);
       }
-    ];
-
-    generatedNotifications.push(...productNotifications);
+    } catch (error) {
+      console.log('No stored product notifications found');
+    }
 
     return generatedNotifications.sort((a, b) => {
       // Sort by date, newest first
@@ -102,7 +90,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         let allNotifications = storedNotifications.notifications || [];
         
         // Generate real-time notifications
-        const realTimeNotifications = generateNotifications();
+        const realTimeNotifications = await generateNotifications();
         
         // Merge stored and real-time notifications, avoiding duplicates
         const existingIds = new Set(allNotifications.map(n => n.id));
@@ -120,7 +108,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       } catch (error) {
         console.error('Failed to load notifications:', error);
         // Fallback to generated notifications only
-        setNotifications(generateNotifications());
+        setNotifications(await generateNotifications());
       } finally {
         setIsLoading(false);
       }

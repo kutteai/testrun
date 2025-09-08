@@ -29,7 +29,7 @@ interface TransactionDetails {
   nonce?: number;
 }
 
-const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, currentNetwork } = useWallet();
   const { currentNetwork: network } = useNetwork();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -99,13 +99,30 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         // Estimate gas and get current gas price
         let gasEst = 21000; // Default gas limit
-        let currentGasPrice = '20'; // Default gas price in gwei
+        let currentGasPrice = '20'; // Fallback gas price in gwei
         
         try {
           gasEst = await estimateGas(parsedData.toAddress, parsedData.amount, networkInfo);
-          currentGasPrice = await getCurrentGasPrice(networkInfo);
         } catch (gasError) {
-          console.warn('Gas estimation failed, using defaults:', gasError);
+          console.warn('Gas estimation failed, using default:', gasError);
+        }
+        
+        try {
+          currentGasPrice = await getCurrentGasPrice(networkInfo);
+          console.log('✅ Real gas price fetched:', currentGasPrice, 'gwei');
+        } catch (gasPriceError) {
+          console.warn('Failed to fetch real gas price, using fallback:', gasPriceError);
+          // Try to get gas price from gas-utils as backup
+          try {
+            const { getCurrentGasPrices } = await import('../../utils/gas-utils');
+            const prices = await getCurrentGasPrices(networkInfo.rpcUrl);
+            if (prices.gasPrice && prices.gasPrice !== '0') {
+              currentGasPrice = ethers.formatUnits(prices.gasPrice, 'gwei');
+              console.log('✅ Backup gas price fetched:', currentGasPrice, 'gwei');
+            }
+          } catch (backupError) {
+            console.warn('Backup gas price fetch also failed:', backupError);
+          }
         }
         
         // Get real fiat conversion and transaction speed
@@ -302,7 +319,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const handleDone = () => {
-    onNavigate('dashboard');
+    onGoBack();
   };
 
   const handleEditGas = () => {

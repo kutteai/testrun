@@ -26,7 +26,7 @@ interface DeviceInfo {
   connected: boolean;
 }
 
-const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { addHardwareWallet } = useWallet();
   const [selectedWallet, setSelectedWallet] = useState('ledger');
   const [hardwareWalletManager] = useState(() => new HardwareWalletManager());
@@ -220,9 +220,9 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         
         toast.success(`Successfully connected to ${selectedOption.name}`);
         
-        // Navigate to dashboard after successful connection
+        // Navigate to UCPI creation after successful connection
         setTimeout(() => {
-          onNavigate('dashboard');
+          onNavigate('create-ucpi');
         }, 1500);
       } else {
         throw new Error('No addresses derived from hardware wallet');
@@ -371,7 +371,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center">
           <button
-            onClick={() => onNavigate('import')}
+            onClick={onGoBack}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

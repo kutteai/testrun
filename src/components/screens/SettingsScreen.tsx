@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import type { ScreenProps } from '../../types/index';
 
-const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const menuItems = [
@@ -37,7 +37,7 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       icon: Info,
       label: 'About Paycio wallet',
       screen: 'about',
-      description: 'V1.0.0',
+      description: 'Version 2.0.0',
       showVersion: true
     }
   ];
@@ -48,43 +48,28 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   );
 
   return (
-    <div className="fixed inset-0 z-40">
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.2 }}
-        onClick={() => onNavigate('options')}
-        className="absolute inset-0 bg-black/20"
-      />
-      
-      {/* Settings Panel */}
-      <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'tween', duration: 0.2 }}
-        className="absolute top-0 right-0 w-1/2 h-full bg-white flex flex-col z-50 shadow-2xl"
-      >
-        {/* Header */}
-        <div className="bg-[#180CB2] text-white px-6 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => onNavigate('options')}
-              className="p-2 hover:bg-white/10 rounded-full transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-            </button>
-            <h1 className="flex-1 text-center text-lg font-semibold">
-              Settings
-            </h1>
-            <div className="w-6"></div>
-          </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="h-full flex flex-col bg-gray-50"
+    >
+      {/* Header */}
+      <div className="bg-[#180CB2] px-6 py-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onGoBack}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5 text-white" />
+          </button>
+          <h1 className="text-lg font-semibold text-white">Settings</h1>
+          <div className="w-9"></div>
         </div>
+      </div>
 
-        {/* Main Content */}
-        <div className="flex-1 bg-white overflow-y-auto px-6 py-6">
+      {/* Main Content */}
+      <div className="flex-1 bg-white rounded-t-3xl px-6 py-6 space-y-6">
         {/* Search Bar */}
         <motion.div
           initial={{ y: 20, opacity: 0 }}
@@ -133,9 +118,8 @@ const SettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             </motion.button>
           ))}
         </motion.div>
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </motion.div>
   );
 };
 

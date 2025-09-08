@@ -86,7 +86,7 @@ export async function deriveWalletFromSeed(seedPhrase: string, network: string =
 }
 
 // Derive account with specific derivation path (for adding new accounts)
-export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: string): Promise<{
+export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: string, network?: string): Promise<{
   privateKey: string;
   publicKey: string;
   address: string;
@@ -97,17 +97,67 @@ export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: 
   }
 
   try {
-    // Use ethers.js HDNodeWallet instead of hdkey for better compatibility
-    const seed = await bip39.mnemonicToSeed(seedPhrase);
-    const hdNode = ethers.HDNodeWallet.fromSeed(seed);
-    const derivedWallet = hdNode.derivePath(derivationPath);
+    // Import the network-specific address generation utility
+    const { generateNetworkAddress } = await import('./network-address-utils');
     
-    return {
-      privateKey: derivedWallet.privateKey,
-      publicKey: derivedWallet.publicKey,
-      address: derivedWallet.address,
-      derivationPath
-    };
+    // Determine network type from derivation path or network parameter
+    const isEVMNetwork = derivationPath.includes("44'/60'") || 
+                        derivationPath.includes("44'/195'") || // TRON
+                        derivationPath.includes("44'/60'/0'/0/");
+
+    if (isEVMNetwork) {
+      // Use ethers.js HDNodeWallet for EVM networks
+      const seed = await bip39.mnemonicToSeed(seedPhrase);
+      const hdNode = ethers.HDNodeWallet.fromSeed(seed);
+      const derivedWallet = hdNode.derivePath(derivationPath);
+      
+      return {
+        privateKey: derivedWallet.privateKey,
+        publicKey: derivedWallet.publicKey,
+        address: derivedWallet.address,
+        derivationPath
+      };
+    } else {
+      // For non-EVM networks, use proper address generation
+      const networkAddress = generateNetworkAddress(seedPhrase, derivationPath, network || 'unknown');
+      
+      console.log(`🔧 Generated ${network || 'unknown'} address: ${networkAddress} (from path: ${derivationPath})`);
+      
+      // For Solana and other non-EVM networks, we need to generate the proper private key
+      if (network === 'solana') {
+        // For Solana, we need to use the BIP32 derivation to get the proper private key
+        const seed = await bip39.mnemonicToSeed(seedPhrase);
+        const { BIP32Factory } = await import('bip32');
+        const ecc = await import('tiny-secp256k1');
+        const bip32 = BIP32Factory(ecc);
+        const root = bip32.fromSeed(seed);
+        const child = root.derivePath(derivationPath);
+        
+        // Use the first 32 bytes as the Solana private key seed
+        const solanaSeed = child.privateKey.slice(0, 32);
+        const { Keypair } = await import('@solana/web3.js');
+        const keypair = Keypair.fromSeed(solanaSeed);
+        
+        return {
+          privateKey: Buffer.from(keypair.secretKey).toString('base64'),
+          publicKey: keypair.publicKey.toString(),
+          address: networkAddress,
+          derivationPath
+        };
+      } else {
+        // For other non-EVM networks, use ethers for now
+        const seed = await bip39.mnemonicToSeed(seedPhrase);
+        const hdNode = ethers.HDNodeWallet.fromSeed(seed);
+        const derivedWallet = hdNode.derivePath(derivationPath);
+        
+        return {
+          privateKey: derivedWallet.privateKey,
+          publicKey: derivedWallet.publicKey,
+          address: networkAddress,
+          derivationPath
+        };
+      }
+    }
   } catch (error) {
     console.error('Failed to derive account:', error);
     throw new Error(`Failed to derive account: ${error}`);
@@ -247,7 +297,7 @@ export function getDerivationPath(network: string, accountIndex: number = 0): st
     optimism: `m/44'/60'/0'/0/${accountIndex}`,
     bitcoin: `m/44'/0'/0'/0/${accountIndex}`,
     litecoin: `m/44'/2'/0'/0/${accountIndex}`,
-    solana: `m/44'/501'/0'/0'/${accountIndex}'`,
+    solana: `m/44'/501'/0'/0'/${accountIndex}`,
     tron: `m/44'/195'/0'/0/${accountIndex}`,
     xrp: `m/44'/144'/0'/0/${accountIndex}`,
     ton: `m/44'/396'/0'/0/${accountIndex}`

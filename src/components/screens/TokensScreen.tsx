@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowLeft, Plus, Search, Copy, Check, Coins, TrendingUp, TrendingDown, ExternalLink, RefreshCw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Search, ChevronDown, X, Check, RefreshCw, Eye } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
 import { useSend } from '../../store/SendContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
-import { detectTokensWithBalances, getAllPopularTokens, getNetworkRPCUrl, getTokenPrice, type TokenBalance } from '../../utils/token-balance-utils';
+import { detectTokensWithBalances, getAllPopularTokens, getNetworkRPCUrl, type TokenBalance } from '../../utils/token-balance-utils';
 import { storage } from '../../utils/storage-utils';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 
@@ -24,1060 +24,1017 @@ interface Token {
   isRemovable?: boolean;
   isDiscovery?: boolean;
   totalSupply?: string;
+  isEnabled?: boolean;
+  network?: string;
 }
 
-const TokensScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
+const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, currentNetwork } = useWallet();
   const { setSelectedToken } = useSend();
   
   // Component state
   const [tokens, setTokens] = useState<Token[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [isAddingToken, setIsAddingToken] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [showAddTokensModal, setShowAddTokensModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'search' | 'custom'>('search');
+  const [selectedNetwork, setSelectedNetwork] = useState('Popular networks');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
+  const [showCustomNetworkDropdown, setShowCustomNetworkDropdown] = useState(false);
+  const [showDisabledTokens, setShowDisabledTokens] = useState(false);
+  const [selectedNetworkFilter, setSelectedNetworkFilter] = useState('all');
+  const [showNetworkFilterDropdown, setShowNetworkFilterDropdown] = useState(false);
   const [newToken, setNewToken] = useState({
     address: '',
     symbol: '',
     name: '',
-    decimals: 18
+    decimals: 18,
+    network: 'ethereum'
   });
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Real token discovery functions
-  const discoverPopularTokens = async (network: string): Promise<Token[]> => {
-    try {
-      const rpcUrl = getNetworkRPCUrl(network);
-      const provider = new (await import('ethers')).JsonRpcProvider(rpcUrl);
-      
-      // Get popular token addresses from DEX aggregators and token lists
-      const popularAddresses = await getPopularTokenAddresses(network, provider);
-      
-      // Fetch real token metadata from blockchain
-      const tokensWithMetadata = await Promise.all(
-        popularAddresses.map(async (address) => {
-          try {
-            const contract = new (await import('ethers')).Contract(address, [
-              'function name() view returns (string)',
-              'function symbol() view returns (string)',
-              'function decimals() view returns (uint8)',
-              'function totalSupply() view returns (uint256)'
-            ], provider);
-            
-            const [name, symbol, decimals, totalSupply] = await Promise.all([
-              contract.name(),
-              contract.symbol(),
-              contract.decimals(),
-              contract.totalSupply()
-            ]);
-            
-            // Only include tokens with significant liquidity (totalSupply > 0)
-            if (totalSupply > 0) {
-              return {
-                id: `${symbol.toLowerCase()}-${network}`,
-                symbol,
-                name,
-                address,
+  // Available networks
+  const availableNetworks = [
+    { id: 'ethereum', name: 'Ethereum', symbol: 'ETH' },
+    { id: 'polygon', name: 'Polygon', symbol: 'MATIC' },
+    { id: 'bsc', name: 'BSC', symbol: 'BNB' },
+    { id: 'arbitrum', name: 'Arbitrum', symbol: 'ETH' },
+    { id: 'optimism', name: 'Optimism', symbol: 'ETH' },
+    { id: 'avalanche', name: 'Avalanche', symbol: 'AVAX' },
+    { id: 'base', name: 'Base', symbol: 'ETH' },
+    { id: 'fantom', name: 'Fantom', symbol: 'FTM' }
+  ];
+
+  // Get default tokens (real tokens like USDT, USDC, etc.)
+  const getDefaultTokens = async (): Promise<Token[]> => {
+    return [
+      {
+        id: 'usdt-ethereum',
+        symbol: 'USDT',
+        name: 'Tether USD',
+        address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', // USDT on Ethereum
                 balance: '0',
-                decimals: Number(decimals),
-                price: 0,
+        decimals: 6,
+        price: 0, // Will be updated by real balance detection
                 change24h: 0,
                 isCustom: false,
-                isAutoDetected: false,
-                isRemovable: true,
-                totalSupply: totalSupply.toString()
-              };
-            }
-            return null;
-          } catch (error) {
-            console.warn(`Failed to fetch metadata for ${address}:`, error);
-            return null;
-          }
-        })
-      );
-      
-      // Filter out failed tokens and sort by total supply (most liquid first)
-      return tokensWithMetadata
-        .filter(token => token !== null)
-        .sort((a, b) => parseFloat(b.totalSupply) - parseFloat(a.totalSupply))
-        .slice(0, 20); // Top 20 most liquid tokens
-      
-    } catch (error) {
-      console.error(`Error discovering tokens for ${network}:`, error);
-      // Return empty array instead of fallback tokens
-      return [];
-    }
-  };
-
-  // Get popular token addresses from multiple sources
-  const getPopularTokenAddresses = async (network: string, provider: any): Promise<string[]> => {
-    const addresses = new Set<string>();
-    
-    try {
-      // 1. Get from DEX aggregators (1inch, 0x, etc.)
-      if (network === 'ethereum') {
-        const response = await fetch('https://api.1inch.dev/token/v1.2/1');
-        if (response.ok) {
-          const data = await response.json();
-          data.tokens?.slice(0, 50).forEach((token: any) => {
-            addresses.add(token.address);
-          });
-        }
+        isEnabled: true,
+        network: 'ethereum'
+      },
+      {
+        id: 'usdc-ethereum',
+        symbol: 'USDC',
+        name: 'USD Coin',
+        address: '0xA0b86a33E6441b8c4C8C0e4b8b8c4C8C0e4b8b8c4', // USDC on Ethereum
+        balance: '0',
+        decimals: 6,
+        price: 0, // Will be updated by real balance detection
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'ethereum'
+      },
+      {
+        id: 'dai-ethereum',
+        symbol: 'DAI',
+        name: 'Dai Stablecoin',
+        address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', // DAI on Ethereum
+        balance: '0',
+        decimals: 18,
+        price: 0, // Will be updated by real balance detection
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'ethereum'
+      },
+      {
+        id: 'weth-ethereum',
+        symbol: 'WETH',
+        name: 'Wrapped Ether',
+        address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH on Ethereum
+        balance: '0',
+        decimals: 18,
+        price: 0, // Will be updated by real balance detection
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'ethereum'
+      },
+      {
+        id: 'usdt-polygon',
+        symbol: 'USDT',
+        name: 'Tether USD (Polygon)',
+        address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', // USDT on Polygon
+        balance: '0',
+        decimals: 6,
+        price: 0, // Will be updated by real balance detection
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'polygon'
+      },
+      {
+        id: 'usdc-polygon',
+        symbol: 'USDC',
+        name: 'USD Coin (Polygon)',
+        address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', // USDC on Polygon
+                balance: '0',
+        decimals: 6,
+        price: 0, // Will be updated by real balance detection
+                change24h: 0,
+                isCustom: false,
+        isEnabled: true,
+        network: 'polygon'
       }
-      
-      // 2. Get from CoinGecko API
-      const coingeckoResponse = await fetch(
-        `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&sparkline=false&platform=${network}`
-      );
-      if (coingeckoResponse.ok) {
-        const data = await coingeckoResponse.json();
-        data.forEach((coin: any) => {
-          if (coin.platforms && coin.platforms[network]) {
-            addresses.add(coin.platforms[network]);
-          }
-        });
-      }
-      
-      // 3. Get from network-specific token lists
-      if (network === 'ethereum') {
-        const response = await fetch('https://tokens.1inch.eth.link/');
-        if (response.ok) {
-          const data = await response.json();
-          data.tokens?.slice(0, 50).forEach((token: any) => {
-            addresses.add(token.address);
-          });
-        }
-      }
-      
-    } catch (error) {
-      console.warn(`Error fetching popular addresses for ${network}:`, error);
-    }
-    
-    return Array.from(addresses);
+    ];
   };
 
-
-  // Initialize default tokens based on current network
-  const getDefaultTokens = async (): Promise<Token[]> => {
-    const network = wallet?.currentNetwork || 'ethereum';
-    
-    // Get list of removed tokens for this network
-    const result = await storage.get(['removedTokens']);
-    const removedTokens = result.removedTokens || [];
-    const networkRemovedTokens = removedTokens.filter(t => t.network === network);
-    
-    // Discover popular tokens dynamically
-    const discoveredTokens = await discoverPopularTokens(network);
-    
-    // Filter out removed tokens
-    const availableTokens = discoveredTokens.filter(token => {
-      return !networkRemovedTokens.find(removed => removed.id === token.id);
-    });
-    
-    return availableTokens;
-  };
-
-  // Load removed tokens from storage
-  const loadRemovedTokens = async (): Promise<string[]> => {
-    try {
-      const result = await storage.get(['removedTokens']);
-      return result.removedTokens || [];
-    } catch (error) {
-      console.error('Failed to load removed tokens:', error);
-      return [];
-    }
-  };
-
-  // Load custom tokens from storage
-  const loadCustomTokens = async (): Promise<Token[]> => {
-    try {
-      const result = await storage.get(['customTokens']);
-      return result.customTokens || [];
-    } catch (error) {
-      console.error('Failed to load custom tokens:', error);
-      return [];
-    }
-  };
-
-  // Save custom tokens to storage
-  const saveCustomTokens = async (tokens: Token[]): Promise<void> => {
-    try {
-      await storage.set({ customTokens: tokens });
-    } catch (error) {
-      console.error('Failed to save custom tokens:', error);
-    }
-  };
-
-  // Save removed tokens to storage
-  const saveRemovedTokens = async (tokens: string[]): Promise<void> => {
-    try {
-      await storage.set({ removedTokens: tokens });
-    } catch (error) {
-      console.error('Failed to save removed tokens:', error);
-    }
-  };
-
-  // Load and fetch tokens
+  // Load tokens on component mount
   useEffect(() => {
-    const loadAndFetchTokens = async () => {
+    const loadTokens = async () => {
       try {
-        // Load custom tokens from storage
-        const result = await storage.get(['customTokens']);
-        const savedCustomTokens = result.customTokens || [];
-        // Loaded custom tokens from storage
-        
-        // Combine default tokens with custom tokens
         const defaultTokens = await getDefaultTokens();
-        const allTokens = [...defaultTokens, ...savedCustomTokens];
         
-        if (wallet && wallet.accounts && wallet.accounts.length > 0) {
-          // Auto-detect tokens in the current account
-          const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
-          if (currentAccount && currentAccount.address) {
-            const accountAddress = currentAccount.address;
-            // Auto-detecting tokens for account
-            
-            try {
-              // Get RPC URL for current network
-              const network = wallet.currentNetwork || 'ethereum';
-              const rpcUrl = getNetworkRPCUrl(network);
-              
-              // Auto-detect tokens with balances > 0 only
-              const tokensWithBalances = await detectTokensWithBalances(accountAddress, rpcUrl);
-              
-              // Also discover popular tokens that might be relevant
-              const popularTokens = await discoverPopularTokens(network);
-              
-              // Convert to Token format - only tokens with real balances > 0
-              const autoDetectedTokens = tokensWithBalances.map((token: TokenBalance) => ({
-                id: token.address,
-                symbol: token.symbol,
-                name: token.name,
-                address: token.address,
-                balance: token.balance, // Only tokens with balance > 0
-                decimals: token.decimals,
-                price: token.price || 0,
-                change24h: 0, // Would need 24h price data
+        // Load custom tokens
+        const customResult = await storage.get(['customTokens']);
+        const savedCustomTokens = customResult.customTokens || [];
+        
+        // Load auto-discovered tokens
+        const autoResult = await storage.get(['autoDiscoveredTokens']);
+        const savedAutoTokens = autoResult.autoDiscoveredTokens || [];
+        
+        // Load removed default tokens
+        const removedResult = await storage.get(['removedDefaultTokens']);
+        const removedDefaultTokens = removedResult.removedDefaultTokens || [];
+        
+        // Load enabled/disabled state for each token
+        const enabledTokens = await storage.get(['enabledTokens']);
+        const enabledTokenIds = enabledTokens.enabledTokens || [];
+        
+        // Filter out removed default tokens
+        const filteredDefaultTokens = defaultTokens.filter(token => !removedDefaultTokens.includes(token.id));
+        
+        const allTokens = [...filteredDefaultTokens, ...savedCustomTokens, ...savedAutoTokens].map(token => ({
+          ...token,
+          isEnabled: enabledTokenIds.includes(token.id)
+        }));
+        
+        setTokens(allTokens);
+        
+        // Load real balances and auto-discover new tokens if wallet address is available
+        if (wallet?.address && currentNetwork?.id) {
+          await loadRealTokenBalances(allTokens);
+        }
+    } catch (error) {
+        console.error('Failed to load tokens:', error);
+      }
+    };
+
+    loadTokens();
+  }, [wallet?.address, currentNetwork?.id]);
+
+  // Load real token balances and auto-discover new tokens
+  const loadRealTokenBalances = async (existingTokens: Token[]) => {
+    if (!wallet?.address || !currentNetwork?.id) return;
+    
+    try {
+      console.log('🔄 Loading real token balances for address:', wallet.address, 'on network:', currentNetwork.id);
+      
+      // Get network RPC URL
+      const rpcUrl = getNetworkRPCUrl(currentNetwork.id);
+      if (!rpcUrl) {
+        console.warn('No RPC URL found for network:', currentNetwork.id);
+        return;
+      }
+      
+      // Auto-discover tokens with balances > 0
+      const discoveredTokens = await detectTokensWithBalances(wallet.address, rpcUrl);
+      console.log('🔍 Auto-discovered tokens:', discoveredTokens);
+      
+      // Update existing tokens with real balances
+      const updatedTokens = await Promise.all(existingTokens.map(async (token) => {
+        try {
+          // Find matching discovered token
+          const discoveredToken = discoveredTokens.find(t => 
+            t.address.toLowerCase() === token.address.toLowerCase() || 
+            t.symbol === token.symbol
+          );
+          
+          if (discoveredToken) {
+            return {
+              ...token,
+              balance: discoveredToken.balance,
+              price: discoveredToken.price || token.price,
+              name: discoveredToken.name || token.name,
+              decimals: discoveredToken.decimals || token.decimals
+            };
+          }
+          
+          return token;
+    } catch (error) {
+          console.warn(`Failed to load balance for token ${token.symbol}:`, error);
+          return token;
+        }
+      }));
+      
+      // Add newly discovered tokens that aren't already in the list
+      const existingAddresses = new Set(existingTokens.map(t => t.address.toLowerCase()));
+      const newTokens: Token[] = discoveredTokens
+        .filter(discovered => !existingAddresses.has(discovered.address.toLowerCase()))
+        .map(discovered => ({
+          id: `discovered-${discovered.address}`,
+          symbol: discovered.symbol,
+          name: discovered.name,
+          address: discovered.address,
+          balance: discovered.balance,
+          decimals: discovered.decimals,
+          price: discovered.price || 0,
+          change24h: 0,
                 isCustom: false,
                 isAutoDetected: true,
-                isRemovable: true // Mark as removable
-              }));
-              
-              // Add popular tokens that user doesn't own (for discovery)
-              const discoveryTokens = popularTokens
-                .filter(popular => !autoDetectedTokens.find(owned => owned.address.toLowerCase() === popular.address.toLowerCase()))
-                .map(token => ({
-                  ...token,
-                  balance: '0',
-                  isAutoDetected: false,
-                  isDiscovery: true // Mark as discovery token
-                }));
-              
-              console.log('✅ Auto-detected tokens with balances > 0:', autoDetectedTokens.length);
-              console.log('🔍 Discovery tokens for exploration:', discoveryTokens.length);
-              console.log('📊 Token balances:', autoDetectedTokens.map(t => `${t.symbol}: ${t.balance}`));
-              
-              // Combine auto-detected tokens with discovery tokens and saved custom tokens
-              const finalTokens = [...autoDetectedTokens, ...discoveryTokens, ...savedCustomTokens];
-              setTokens(finalTokens);
-              // Final token list loaded
-              
-
-            } catch (error) {
-              handleError(error, {
-                context: { operation: 'detectTokens', screen: 'TokensScreen' },
-                showToast: false
-              });
+          isEnabled: true,
+          network: currentNetwork.id
+        }));
+      
+      // Combine existing and new tokens
+      const allTokens = [...updatedTokens, ...newTokens];
+      
+      // Save auto-discovered tokens to storage
+      if (newTokens.length > 0) {
+        const result = await storage.get(['autoDiscoveredTokens']);
+        const savedAutoTokens = result.autoDiscoveredTokens || [];
+        const updatedAutoTokens = [...savedAutoTokens, ...newTokens];
+        await storage.set({ autoDiscoveredTokens: updatedAutoTokens });
+        console.log('💾 Saved auto-discovered tokens to storage');
+      }
+      
               setTokens(allTokens);
-            }
-          } else {
-            setTokens(allTokens);
-          }
-        } else {
-          setTokens(allTokens);
-        }
+      console.log('✅ Updated tokens with real balances and auto-discovery:', allTokens);
       } catch (error) {
-        handleError(error, {
-          context: { operation: 'loadTokens', screen: 'TokensScreen' },
-          showToast: false
-        });
-        const defaultTokens = await getDefaultTokens();
-        setTokens(defaultTokens);
+      console.error('Failed to load real token balances:', error);
+    }
+  };
+
+  // Handle removing any token (default, auto-discovered, or custom)
+  const handleRemoveToken = async (tokenId: string) => {
+    try {
+      const tokenToRemove = tokens.find(token => token.id === tokenId);
+      if (!tokenToRemove) return;
+      
+      // Remove from current tokens list
+      setTokens(prev => prev.filter(token => token.id !== tokenId));
+      
+      // Remove from appropriate storage based on token type
+      if (tokenToRemove.isAutoDetected) {
+        // Remove from auto-discovered tokens
+        const result = await storage.get(['autoDiscoveredTokens']);
+        const savedAutoTokens = result.autoDiscoveredTokens || [];
+        const updatedAutoTokens = savedAutoTokens.filter((token: Token) => token.id !== tokenId);
+        await storage.set({ autoDiscoveredTokens: updatedAutoTokens });
+      } else if (tokenToRemove.isCustom) {
+        // Remove from custom tokens
+        const result = await storage.get(['customTokens']);
+        const savedCustomTokens = result.customTokens || [];
+        const updatedCustomTokens = savedCustomTokens.filter((token: Token) => token.id !== tokenId);
+        await storage.set({ customTokens: updatedCustomTokens });
+      } else {
+        // Remove from default tokens (add to removed list)
+        const result = await storage.get(['removedDefaultTokens']);
+        const removedTokens = result.removedDefaultTokens || [];
+        if (!removedTokens.includes(tokenId)) {
+          removedTokens.push(tokenId);
+          await storage.set({ removedDefaultTokens: removedTokens });
+        }
+      }
+      
+      toast.success('Token removed successfully');
+    } catch (error) {
+      console.error('Failed to remove token:', error);
+      toast.error('Failed to remove token');
+    }
+  };
+
+  // Handle toggling token enabled/disabled state
+  const handleToggleToken = async (tokenId: string) => {
+    try {
+      // Update token state in current list
+      setTokens(prev => prev.map(token => 
+        token.id === tokenId 
+          ? { ...token, isEnabled: !token.isEnabled }
+          : token
+      ));
+      
+      // Get current enabled tokens
+      const result = await storage.get(['enabledTokens']);
+      const enabledTokenIds = result.enabledTokens || [];
+      
+      // Toggle the token in the enabled list
+      let updatedEnabledTokens;
+      if (enabledTokenIds.includes(tokenId)) {
+        // Remove from enabled list
+        updatedEnabledTokens = enabledTokenIds.filter(id => id !== tokenId);
+      } else {
+        // Add to enabled list
+        updatedEnabledTokens = [...enabledTokenIds, tokenId];
+      }
+      
+      // Save updated enabled tokens to storage
+      await storage.set({ enabledTokens: updatedEnabledTokens });
+      
+      const token = tokens.find(t => t.id === tokenId);
+      const action = updatedEnabledTokens.includes(tokenId) ? 'enabled' : 'disabled';
+      toast.success(`${token?.symbol || 'Token'} ${action} successfully`);
+      
+    } catch (error) {
+      console.error('Failed to toggle token:', error);
+      toast.error('Failed to toggle token');
+    }
+  };
+
+  // Refresh token balances and auto-discover new tokens
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await loadRealTokenBalances(tokens);
+      toast.success('Token balances refreshed and new tokens discovered');
+    } catch (error) {
+      console.error('Failed to refresh token balances:', error);
+      toast.error('Failed to refresh balances');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // Listen for wallet changes to reload balances
+  useEffect(() => {
+    const handleWalletChanged = () => {
+      if (wallet?.address && currentNetwork?.id) {
+        loadRealTokenBalances(tokens);
       }
     };
 
-    loadAndFetchTokens();
-  }, [wallet, currentNetwork]);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('walletChanged', handleWalletChanged);
+      window.addEventListener('accountSwitched', handleWalletChanged);
+    }
 
-  // Listen for wallet and network changes to refresh tokens
-  useEffect(() => {
-    const handleWalletChange = async (event: CustomEvent) => {
-      console.log('🔄 Wallet changed event received in TokensScreen:', event.detail);
-      // TokensScreen will automatically refresh when wallet state changes
-      // since the main useEffect depends on wallet
-    };
-
-    const handleNetworkChange = async (event: CustomEvent) => {
-      console.log('🔄 Network changed event received in TokensScreen:', event.detail);
-      // Refresh tokens when network changes
-      const loadAndFetchTokens = async () => {
-        try {
-          // Load custom tokens from storage
-          const result = await storage.get(['customTokens']);
-          const savedCustomTokens = result.customTokens || [];
-          
-          if (wallet && wallet.accounts && wallet.accounts.length > 0) {
-            const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
-            
-            if (currentAccount && currentAccount.address) {
-              // Real token balance detection
-              const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
-              const rpcUrl = getNetworkRPCUrl(network);
-              
-              const tokensWithBalances = await detectTokensWithBalances(currentAccount.address, rpcUrl);
-              
-              // Convert to Token format - only tokens with real balances > 0
-              const autoDetectedTokens = tokensWithBalances.map((token: TokenBalance) => ({
-                id: token.address,
-                symbol: token.symbol,
-                name: token.name,
-                address: token.address,
-                balance: token.balance,
-                decimals: token.decimals,
-                price: token.price || 0,
-                change24h: 0,
-                isCustom: false,
-                isAutoDetected: true
-              }));
-              
-              setTokens([...autoDetectedTokens, ...savedCustomTokens]);
-            } else {
-              setTokens(savedCustomTokens);
-            }
-          } else {
-            setTokens(savedCustomTokens);
-          }
-        } catch (error) {
-          console.error('Error refreshing tokens on network change:', error);
-          const defaultTokens = await getDefaultTokens();
-          setTokens(defaultTokens);
-        }
-      };
-      loadAndFetchTokens();
-    };
-
-    window.addEventListener('walletChanged', handleWalletChange as EventListener);
-    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
     return () => {
-      window.removeEventListener('walletChanged', handleWalletChange as EventListener);
-      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('walletChanged', handleWalletChanged);
+        window.removeEventListener('accountSwitched', handleWalletChanged);
+      }
+    };
+  }, [wallet?.address, currentNetwork?.id, tokens]);
+
+  // Click outside handler for dropdowns
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.network-filter-dropdown')) {
+        setShowNetworkFilterDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
-  // Save custom tokens to storage whenever tokens change
-  useEffect(() => {
-    const saveCustomTokens = async () => {
-      try {
-        // Only save custom tokens, not all tokens
-        const customTokens = tokens.filter(token => token.isCustom);
-        console.log('💾 Saving custom tokens to storage:', customTokens.length);
-        await storage.set({ customTokens: customTokens });
-      } catch (error) {
-        console.error('Error saving custom tokens:', error);
-      }
-    };
 
-    // Only save if we have custom tokens
-    const customTokens = tokens.filter(token => token.isCustom);
-    if (customTokens.length > 0) {
-      saveCustomTokens();
-    }
-  }, [tokens]);
-
-  const filteredTokens = tokens.filter(token =>
-    token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    token.symbol.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const handleRefreshTokens = async () => {
-    setIsRefreshing(true);
+  // Fetch token info from blockchain explorer
+  const fetchTokenInfoFromExplorer = async (address: string, network: string) => {
     try {
-      if (wallet && wallet.accounts && wallet.accounts.length > 0) {
-        const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
-        
-        if (currentAccount && currentAccount.address) {
-          // Real token balance detection
-          const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
-          const rpcUrl = getNetworkRPCUrl(network);
-          
-          const tokensWithBalances = await detectTokensWithBalances(currentAccount.address, rpcUrl);
-          
-          // Convert to Token format - only tokens with real balances > 0
-          const autoDetectedTokens = tokensWithBalances.map((token: TokenBalance) => ({
-            id: token.address,
-            symbol: token.symbol,
-            name: token.name,
-            address: token.address,
-            balance: token.balance, // Only tokens with balance > 0
-            decimals: token.decimals,
-            price: token.price || 0,
-            change24h: 0,
-            isCustom: false,
-            isAutoDetected: true
-          }));
-          
-          const result = await storage.get(['customTokens']);
-          const savedCustomTokens = result.customTokens || [];
-          
-          setTokens([...autoDetectedTokens, ...savedCustomTokens]);
-          toast.success(`🎯 Found ${autoDetectedTokens.length} tokens with balances > 0`);
-        }
+      let apiUrl = '';
+      let apiKey = '';
+      
+      // Determine the correct API endpoint based on network
+      switch (network.toLowerCase()) {
+        case 'bsc':
+        case 'binance':
+          apiUrl = 'https://api.bscscan.com/api';
+          apiKey = 'YourBSCScanAPIKey'; // You can get this from BSCScan
+          break;
+        case 'ethereum':
+          apiUrl = 'https://api.etherscan.io/api';
+          apiKey = 'YourEtherscanAPIKey'; // You can get this from Etherscan
+          break;
+        case 'polygon':
+          apiUrl = 'https://api.polygonscan.com/api';
+          apiKey = 'YourPolygonScanAPIKey'; // You can get this from PolygonScan
+          break;
+        default:
+          throw new Error(`Unsupported network: ${network}`);
+      }
+      
+      // Fetch token info from explorer API
+      const response = await fetch(
+        `${apiUrl}?module=token&action=tokeninfo&contractaddress=${address}&apikey=${apiKey}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.status === '1' && data.result && data.result.length > 0) {
+        const tokenInfo = data.result[0];
+        return {
+          name: tokenInfo.tokenName || '',
+          symbol: tokenInfo.symbol || '',
+          decimals: parseInt(tokenInfo.divisor) || 18,
+          address: tokenInfo.contractAddress || address
+        };
+      } else {
+        throw new Error(data.message || 'Token not found on explorer');
       }
     } catch (error) {
-      console.error('Error refreshing tokens:', error);
-      toast.error('Failed to refresh tokens');
-    } finally {
-      setIsRefreshing(false);
+      console.error('Failed to fetch token info from explorer:', error);
+      throw error;
     }
   };
 
-  // New function to discover all popular tokens (including 0 balances)
-  const handleDiscoverAllTokens = async () => {
-    setIsRefreshing(true);
-    try {
-      if (wallet && wallet.accounts && wallet.accounts.length > 0) {
-        const currentAccount = (wallet.accounts.find((acc: any) => acc.address === wallet.address) || wallet.accounts[0]) as any;
-        
-        if (currentAccount && currentAccount.address) {
-          const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
-          const rpcUrl = getNetworkRPCUrl(network);
-          
-          // Get all popular tokens (including 0 balances)
-          const allTokens = await getAllPopularTokens(currentAccount.address, rpcUrl);
-          
-          // Convert to Token format
-          const discoveredTokens = allTokens.map((token: TokenBalance) => ({
-            id: token.address,
-            symbol: token.symbol,
-            name: token.name,
-            address: token.address,
-            balance: token.balance,
-            decimals: token.decimals,
-            price: token.price || 0,
-            change24h: 0,
-            isCustom: false,
-            isAutoDetected: true
-          }));
-          
-          const result = await storage.get(['customTokens']);
-          const savedCustomTokens = result.customTokens || [];
-          
-          setTokens([...discoveredTokens, ...savedCustomTokens]);
-          toast.success(`🔍 Discovered ${discoveredTokens.length} popular tokens`);
-        }
-      }
-    } catch (error) {
-      console.error('Error discovering tokens:', error);
-      toast.error('Failed to discover tokens');
-    } finally {
-      setIsRefreshing(false);
-    }
-  };
-
-  const handleAddToken = async () => {
+  // Add custom token
+  const handleAddCustomToken = async () => {
     if (!newToken.address || !newToken.symbol || !newToken.name) {
       toast.error('Please fill in all fields');
       return;
     }
 
     try {
-      // Validate token address format
-      if (!validateTokenAddress(newToken.address)) {
-        toast.error('Invalid contract address format');
-        return;
-      }
-
-      // Check if token already exists
-      const existingToken = tokens.find(token => 
-        token.address.toLowerCase() === newToken.address.toLowerCase()
-      );
-      if (existingToken) {
-        toast.error('Token already exists in your list');
-        return;
-      }
-
-      const token: Token = {
-        id: Date.now().toString(),
-        symbol: newToken.symbol.toUpperCase(),
+      const customToken: Token = {
+        id: `custom-${Date.now()}`,
+        symbol: newToken.symbol,
         name: newToken.name,
         address: newToken.address,
         balance: '0',
         decimals: newToken.decimals,
         price: 0,
         change24h: 0,
-        isCustom: true
+        isCustom: true,
+        isEnabled: true,
+        network: newToken.network
       };
 
-      console.log('➕ Adding custom token:', token);
-      const updatedTokens = [...tokens, token];
-      setTokens(updatedTokens);
+      const result = await storage.get(['customTokens']);
+      const savedCustomTokens = result.customTokens || [];
+      const updatedCustomTokens = [...savedCustomTokens, customToken];
       
-      // Save custom tokens to storage immediately
-      const customTokens = updatedTokens.filter(t => t.isCustom);
-      await storage.set({ customTokens: customTokens });
-      console.log('💾 Saved custom tokens to storage:', customTokens.length);
+      await storage.set({ customTokens: updatedCustomTokens });
       
-      setIsAddingToken(false);
-      setNewToken({ address: '', symbol: '', name: '', decimals: 18 });
-      toast.success(`${token.symbol} added successfully`);
+      setTokens(prev => [...prev, customToken]);
+      setNewToken({ address: '', symbol: '', name: '', decimals: 18, network: 'ethereum' });
+      setShowAddTokensModal(false);
+      
+      toast.success(`${customToken.symbol} added successfully and saved to storage`);
     } catch (error) {
-      console.error('Error adding token:', error);
+      console.error('Failed to add custom token:', error);
       toast.error('Failed to add token');
     }
   };
 
-  const copyAddress = async (address: string) => {
-    try {
-      await navigator.clipboard.writeText(address);
-      setCopied(address);
-      toast.success('Address copied to clipboard');
-      setTimeout(() => setCopied(null), 2000);
-    } catch {
-      toast.error('Failed to copy address');
-    }
-  };
-
-  const handleRemoveToken = async (tokenId: string, tokenSymbol: string) => {
-    try {
-      // Show confirmation dialog
-      const confirmed = window.confirm(`Are you sure you want to remove ${tokenSymbol} from your token list?`);
-      if (!confirmed) return;
-
-      console.log('🗑️ Removing token:', tokenSymbol, 'ID:', tokenId);
-      
-      // Remove token from state
-      const updatedTokens = tokens.filter(token => token.id !== tokenId);
-      setTokens(updatedTokens);
-
-      // Save removed token IDs to prevent them from reappearing
-      const result = await storage.get(['removedTokens']);
-      const removedTokens = result.removedTokens || [];
-      const tokenToRemove = tokens.find(t => t.id === tokenId);
-      
-      if (tokenToRemove) {
-        const removedTokenInfo = {
-          id: tokenToRemove.id,
-          address: tokenToRemove.address,
-          network: wallet?.currentNetwork || 'ethereum',
-          removedAt: Date.now()
-        };
-        
-        // Add to removed tokens list if not already there
-        if (!removedTokens.find(t => t.id === tokenToRemove.id)) {
-          removedTokens.push(removedTokenInfo);
-          await storage.set({ removedTokens });
-          console.log('💾 Added to removed tokens list:', removedTokenInfo);
-        }
-      }
-
-      // Update storage - only save custom tokens
-      const customTokensOnly = updatedTokens.filter(token => token.isCustom);
-      await storage.set({ customTokens: customTokensOnly });
-      console.log('💾 Updated custom tokens in storage:', customTokensOnly.length);
-
-      toast.success(`${tokenSymbol} removed from token list`);
-    } catch (error) {
-      console.error('Error removing token:', error);
-      toast.error('Failed to remove token');
-    }
-  };
-
-  const validateTokenAddress = (address: string): boolean => {
-    // Basic Ethereum address validation
-    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
-    return ethAddressRegex.test(address);
-  };
-
-  const fetchTokenDetails = async (address: string) => {
-    if (!validateTokenAddress(address)) {
-      toast.error('Invalid contract address');
-      return null;
-    }
-
-    try {
-      // Check if token already exists
-      const existingToken = tokens.find(token => 
-        token.address.toLowerCase() === address.toLowerCase()
-      );
-      if (existingToken) {
-        toast.error('Token already added');
-        return null;
-      }
-
-      // Query the actual contract for token details
-      const { ethers } = await import('ethers');
-      const networkRPCUrl = getNetworkRPCUrl(wallet?.currentNetwork || 'ethereum');
-      const provider = new ethers.JsonRpcProvider(networkRPCUrl);
-      
-      // ERC-20 ABI for basic token info
-      const tokenABI = [
-        'function name() view returns (string)',
-        'function symbol() view returns (string)',
-        'function decimals() view returns (uint8)',
-        'function totalSupply() view returns (uint256)'
-      ];
-      
-      const contract = new ethers.Contract(address, tokenABI, provider);
-      
-      // Get token details from contract
-      const [name, symbol, decimals] = await Promise.all([
-        contract.name(),
-        contract.symbol(),
-        contract.decimals()
-      ]);
-      
-      // Auto-fill the form with contract details
-      setNewToken({
-        address,
-        symbol: symbol,
-        name: name,
-        decimals: Number(decimals)
-      });
-      
-      toast.success(`Token details loaded: ${name} (${symbol})`);
-      return { name, symbol, decimals: Number(decimals) };
-    } catch (error) {
-      console.error('Error fetching token details:', error);
-      toast.error('Failed to fetch token details from contract. Please enter manually.');
-      return null;
-    }
-  };
-
-  const handleValidateToken = async () => {
+  // Import token from blockchain explorer
+  const handleImportFromExplorer = async () => {
     if (!newToken.address) {
-      toast.error('Please enter a contract address');
+      toast.error('Please enter token contract address');
       return;
     }
 
-    const isValid = await fetchTokenDetails(newToken.address);
-    if (isValid) {
-      // Auto-focus on symbol field if validation passes
-      const symbolInput = document.querySelector('input[placeholder="Symbol (e.g., USDT)"]') as HTMLInputElement;
-      if (symbolInput) symbolInput.focus();
-    }
-  };
-
-  const handleClearAllCustomTokens = async () => {
-    const customTokens = tokens.filter(token => token.isCustom);
-    if (customTokens.length === 0) {
-      toast.error('No custom tokens to remove');
-      return;
-    }
-
-    const confirmed = window.confirm(
-      `Are you sure you want to remove all ${customTokens.length} custom tokens? This action cannot be undone.`
-    );
-    if (!confirmed) return;
-
     try {
-      // Keep only default tokens
-      const defaultTokensOnly = tokens.filter(token => !token.isCustom);
-      setTokens(defaultTokensOnly);
-
-      // Clear custom tokens from storage
-      await storage.set({ customTokens: [] });
-
-      toast.success(`Removed ${customTokens.length} custom tokens`);
+      toast.loading('Fetching token information from blockchain explorer...');
+      
+      const tokenInfo = await fetchTokenInfoFromExplorer(newToken.address, newToken.network);
+      
+      // Update the form with fetched information
+      setNewToken(prev => ({
+        ...prev,
+        name: tokenInfo.name,
+        symbol: tokenInfo.symbol,
+        decimals: tokenInfo.decimals
+      }));
+      
+      toast.dismiss();
+      toast.success('Token information fetched successfully!');
     } catch (error) {
-      console.error('Error clearing custom tokens:', error);
-      toast.error('Failed to clear custom tokens');
+      toast.dismiss();
+      console.error('Failed to import token from explorer:', error);
+      toast.error(`Failed to import token: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  // Restore all removed tokens
-  const handleRestoreAllTokens = async () => {
-    try {
-      // Clear removed tokens list
-      await storage.set({ removedTokens: [] });
-      
-      // Reload tokens to show all default tokens again
-      const defaultTokens = await getDefaultTokens();
-      const result = await storage.get(['customTokens']);
-      const savedCustomTokens = result.customTokens || [];
-      
-      setTokens([...defaultTokens, ...savedCustomTokens]);
-      
-      toast.success('All removed tokens have been restored');
-    } catch (error) {
-      console.error('Error restoring tokens:', error);
-      toast.error('Failed to restore tokens');
+  // Filter tokens based on search query, network, and enabled state
+  const filteredTokens = tokens.filter(token => {
+    const matchesSearch = token.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         token.address.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Filter by network
+    const matchesNetwork = selectedNetworkFilter === 'all' || 
+                          token.network === selectedNetworkFilter ||
+                          (selectedNetworkFilter === 'ethereum' && ['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism'].includes(token.network));
+    
+    // If showing disabled tokens, show all tokens that match search and network
+    // Otherwise, only show enabled tokens that match search and network
+    if (showDisabledTokens) {
+      return matchesSearch && matchesNetwork;
+    } else {
+      return matchesSearch && matchesNetwork && token.isEnabled;
+    }
+  });
+
+  // Get token icon color
+  const getTokenIconColor = (symbol: string) => {
+    const colors: Record<string, string> = {
+      'BTC': 'bg-orange-500',
+      'ETH': 'bg-blue-500',
+      'BNB': 'bg-yellow-500',
+      'USDT': 'bg-green-500',
+      'USDC': 'bg-blue-400',
+      'DAI': 'bg-yellow-400',
+      'MATIC': 'bg-purple-500',
+      'AVAX': 'bg-red-500',
+      'SOL': 'bg-purple-600',
+      'DOT': 'bg-pink-500',
+      'LINK': 'bg-blue-600',
+      'UNI': 'bg-pink-400',
+      'AAVE': 'bg-purple-400',
+      'SUSHI': 'bg-pink-300',
+      'COMP': 'bg-green-400',
+      'MKR': 'bg-gray-500',
+      'YFI': 'bg-blue-700',
+      'SNX': 'bg-cyan-500',
+      'CRV': 'bg-orange-400',
+      'BAL': 'bg-indigo-500'
+    };
+    return colors[symbol] || 'bg-gray-500';
+  };
+
+  // Format price
+  const formatPrice = (price: number) => {
+    if (price >= 1000) {
+      return `$${price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else if (price >= 1) {
+      return `$${price.toFixed(2)}`;
+    } else {
+      return `$${price.toFixed(4)}`;
     }
   };
 
-  const handleSendToken = (token: Token) => {
-    // Set the selected token in the send context
-    setSelectedToken(token);
-    
-    // Navigate to send screen
-    onNavigate('send');
-    
-    toast.success(`Selected ${token.symbol} for sending`);
-  };
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
-
-  const formatBalance = (balance: string, decimals: number) => {
-    const num = parseFloat(balance);
-    if (num === 0) return '0.00';
-    if (num < 0.01) return '< 0.01';
-    return num.toFixed(4);
-  };
-
-  const formatUSD = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }).format(amount);
+  // Format change percentage
+  const formatChange = (change: number) => {
+    const sign = change >= 0 ? '+' : '';
+    return `${sign}${change.toFixed(2)}%`;
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 flex flex-col">
+    <div className="h-full bg-white flex flex-col">
       {/* Header */}
-      <motion.div 
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="p-6 pb-4"
-      >
-        <div className="flex items-center justify-between mb-6">
+      <div className="bg-[#180CB2] text-white px-4 py-4">
+        <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('dashboard')}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            onClick={onGoBack}
+            className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
-            <ArrowLeft className="w-6 h-6 text-gray-700" />
+            <ArrowLeft className="w-6 h-6" />
           </button>
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-[#180CB2] rounded-xl flex items-center justify-center">
-              <Coins className="w-6 h-6 text-white" />
+          <h1 className="text-lg font-semibold">Manage crypto</h1>
+          <div className="w-10"></div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Tokens</h1>
-              <div className="flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${
-                  currentNetwork?.id === 'bitcoin' ? 'bg-orange-500' : 
-                  currentNetwork?.id === 'ethereum' ? 'bg-blue-500' :
-                  currentNetwork?.id === 'solana' ? 'bg-purple-500' :
-                  currentNetwork?.id === 'tron' ? 'bg-red-500' :
-                  currentNetwork?.id === 'ton' ? 'bg-blue-400' :
-                  currentNetwork?.id === 'xrp' ? 'bg-blue-300' :
-                  currentNetwork?.id === 'litecoin' ? 'bg-gray-400' :
-                  'bg-gray-500'
-                }`}></div>
-                <p className="text-gray-600 text-sm">
-                  {currentNetwork?.name || 'Select Network'}
-                </p>
-              </div>
             </div>
-          </div>
-          <div className="flex items-center space-x-2">
-            {/* Restore all removed tokens button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleRestoreAllTokens}
-              className="p-2 hover:bg-green-500/20 rounded-lg transition-colors text-green-400"
-              title="Restore all removed tokens"
-            >
-              <RefreshCw className="w-5 h-5" />
-            </motion.button>
-            
-            {/* Clear all custom tokens button */}
-            {tokens.filter(token => token.isCustom).length > 0 && (
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={handleClearAllCustomTokens}
-                className="p-2 hover:bg-red-500/20 rounded-lg transition-colors text-red-400"
-                title="Clear all custom tokens"
-              >
-                <Trash2 className="w-5 h-5" />
-              </motion.button>
-            )}
-            
-            {/* Add token button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsAddingToken(true)}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-              title="Add custom token"
-            >
-              <Plus className="w-6 h-6" />
-            </motion.button>
-          </div>
-        </div>
 
-        {/* Search */}
-        <div className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-500" />
+      {/* Search Bar */}
+      <div className="px-4 py-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Search tokens by name or symbol..."
+            placeholder="Token name or contract address"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-12 py-3 bg-gray-50 border border-gray-300 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#180CB2]"
+            className="w-full pl-10 pr-4 py-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
           />
-          <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            ✕
-          </button>
         </div>
+      </div>
 
-        {/* Auto-Discovery Buttons */}
-        <div className="flex space-x-3 mb-6">
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleRefreshTokens}
-            disabled={isRefreshing}
-            className="flex-1 bg-[#180CB2] text-white px-4 py-3 rounded-xl font-medium flex items-center justify-center space-x-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-            <span>🎯 Find Tokens with Balances</span>
-          </motion.button>
-          
-          <motion.button
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={handleDiscoverAllTokens}
-            disabled={isRefreshing}
-            className="flex-1 bg-green-600 text-white px-4 py-3 rounded-xl font-medium flex items-center justify-center space-x-2 disabled:opacity-50"
-          >
-            <Coins className="w-4 h-4" />
-            <span>🔍 Discover All Popular Tokens</span>
-          </motion.button>
-        </div>
-        
-        {/* Search Results Info */}
-        {searchQuery && (
-          <div className="mb-4 text-sm text-gray-600">
-            Found {filteredTokens.length} token{filteredTokens.length !== 1 ? 's' : ''} matching "{searchQuery}"
+      {/* Filters and Add Button */}
+      <div className="px-4 pb-4">
+        <div className="flex items-center justify-between">
+          <div className="relative network-filter-dropdown">
+            <button 
+              onClick={() => setShowNetworkFilterDropdown(!showNetworkFilterDropdown)}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            >
+              <span className="text-gray-700 font-medium">
+                {selectedNetworkFilter === 'all' ? 'All networks' : 
+                 selectedNetworkFilter === 'ethereum' ? 'EVM Networks' :
+                 selectedNetworkFilter.charAt(0).toUpperCase() + selectedNetworkFilter.slice(1)}
+              </span>
+              <ChevronDown className="w-4 h-4 text-gray-500" />
+            </button>
+            
+            {showNetworkFilterDropdown && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 min-w-48">
+                <div className="p-2">
+                  <button
+                    onClick={() => {
+                      setSelectedNetworkFilter('all');
+                      setShowNetworkFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedNetworkFilter === 'all' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    All networks
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedNetworkFilter('ethereum');
+                      setShowNetworkFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedNetworkFilter === 'ethereum' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    EVM Networks (ETH, Polygon, BSC, etc.)
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedNetworkFilter('bitcoin');
+                      setShowNetworkFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedNetworkFilter === 'bitcoin' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    Bitcoin
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedNetworkFilter('solana');
+                      setShowNetworkFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedNetworkFilter === 'solana' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    Solana
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedNetworkFilter('xrp');
+                      setShowNetworkFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedNetworkFilter === 'xrp' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    XRP
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedNetworkFilter('ton');
+                      setShowNetworkFilterDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors ${
+                      selectedNetworkFilter === 'ton' ? 'bg-blue-50 text-blue-700' : 'text-gray-700'
+                    }`}
+                  >
+                    TON
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </motion.div>
+          
+          <div className="flex items-center space-x-2">
+          <button
+              onClick={() => setShowDisabledTokens(!showDisabledTokens)}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                showDisabledTokens 
+                  ? 'bg-blue-100 text-blue-700 border border-blue-200' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Eye className="w-4 h-4" />
+              <span className="font-medium">
+                {showDisabledTokens ? 'Hide Disabled' : 'Show All'}
+              </span>
+          </button>
+            
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center space-x-2 px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 text-gray-600 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="font-medium text-gray-700">Refresh</span>
+            </button>
+            
+            <button
+              onClick={() => setShowAddTokensModal(true)}
+              className="flex items-center space-x-2 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
+            >
+              <Plus className="w-4 h-4" />
+              <span className="font-medium">Add tokens</span>
+            </button>
+          </div>
+        </div>
+          </div>
 
-      {/* Content */}
+      {/* Token List */}
+      <div className="flex-1 px-4 pb-4 overflow-y-auto">
+        <div className="space-y-2">
+          {filteredTokens.map((token) => (
       <motion.div 
+              key={token.id}
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="px-6 space-y-4 pb-6 flex-1 overflow-y-auto"
-      >
-        {filteredTokens.map((token, index) => (
-          <motion.div
-            key={token.id}
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white/10 backdrop-blur-xl rounded-xl p-4 border border-white/20"
-          >
-            <div className="flex items-center justify-between">
+              className={`flex items-center justify-between p-4 border rounded-xl transition-colors ${
+                token.isEnabled 
+                  ? 'bg-white border-gray-200 hover:bg-gray-50' 
+                  : 'bg-gray-50 border-gray-300 opacity-60'
+              }`}
+            >
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-[#180CB2] rounded-xl flex items-center justify-center">
-                  <Coins className="w-6 h-6 text-white" />
+                <div className={`w-12 h-12 ${getTokenIconColor(token.symbol)} rounded-full flex items-center justify-center`}>
+                  <span className="text-white font-bold text-lg">
+                    {token.symbol.charAt(0)}
+                  </span>
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
-                    <h3 className="font-semibold text-white">{token.symbol}</h3>
+                    <span className="font-semibold text-gray-900">{token.symbol}</span>
+                    <span className="text-gray-600">{token.name}</span>
+                    {token.isAutoDetected && (
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                        Auto-discovered
+                      </span>
+                    )}
                     {token.isCustom && (
-                      <span className="px-2 py-1 bg-blue-500/20 text-blue-400 text-xs rounded-full">
+                      <span className="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">
                         Custom
                       </span>
                     )}
-                    {token.isAutoDetected && (
-                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded-full">
-                        Owned
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium text-gray-900">{formatPrice(token.price)}</span>
+                    <span className={`text-sm font-medium ${
+                      token.change24h >= 0 ? 'text-green-500' : 'text-red-500'
+                    }`}>
+                      {formatChange(token.change24h)}
                       </span>
-                    )}
-                    {token.isDiscovery && (
-                      <span className="px-2 py-1 bg-[#180CB2]/20 text-[#180CB2] text-xs rounded-full">
-                        Discovery
-                      </span>
+                    {token.network && (
+                      <span className="text-xs text-gray-500 capitalize">{token.network}</span>
                     )}
                   </div>
-                  <p className="text-slate-400 text-sm">{token.name}</p>
-                  <p className="text-slate-500 text-xs">{formatAddress(token.address)}</p>
                 </div>
               </div>
-              <div className="text-right">
-                <p className="font-semibold text-white">
-                  {formatBalance(token.balance, token.decimals)} {token.symbol}
-                </p>
-                <p className="text-slate-400 text-sm">
-                  {formatUSD(parseFloat(token.balance) * token.price)}
-                </p>
-                <div className="flex items-center justify-end space-x-1 mt-1">
-                  {token.change24h >= 0 ? (
-                    <TrendingUp className="w-3 h-3 text-green-400" />
-                  ) : (
-                    <TrendingDown className="w-3 h-3 text-red-400" />
-                  )}
-                  <span className={`text-xs ${token.change24h >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {token.change24h >= 0 ? '+' : ''}{token.change24h.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/10">
-              <button
-                onClick={() => copyAddress(token.address)}
-                className="flex items-center space-x-1 text-slate-400 hover:text-white transition-colors"
-              >
-                {copied === token.address ? (
-                  <Check className="w-4 h-4 text-green-400" />
-                ) : (
-                  <Copy className="w-4 h-4" />
-                )}
-                <span className="text-xs">Copy Address</span>
-              </button>
-              <div className="flex items-center space-x-2">
-                {/* Remove button - show for all removable tokens */}
-                {token.isRemovable && (
-                  <button
-                    onClick={() => handleRemoveToken(token.id, token.symbol)}
-                    className="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded-lg hover:bg-red-500/30 transition-colors flex items-center space-x-1"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    <span>Remove</span>
-                  </button>
-                )}
+              
+              <div className="flex items-center space-x-3">
                 <button
-                  onClick={() => handleSendToken(token)}
-                  className="px-3 py-1 bg-[#180CB2] text-white text-xs rounded-lg hover:bg-[#140a8f] transition-colors"
+                  onClick={() => handleToggleToken(token.id)}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    token.isEnabled ? 'bg-[#180CB2]' : 'bg-gray-300'
+                  }`}
                 >
-                  Send
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      token.isEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
                 </button>
-              </div>
-            </div>
+                
+                <button
+                  onClick={() => handleRemoveToken(token.id)}
+                  className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+                  title={`Remove ${token.isAutoDetected ? 'auto-discovered' : token.isCustom ? 'custom' : 'default'} token`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+                </div>
           </motion.div>
         ))}
+              </div>
+            </div>
 
-        {filteredTokens.length === 0 && (
-          <div className="text-center py-8">
-            <Coins className="w-12 h-12 mx-auto mb-4 text-slate-400" />
-            <p className="text-slate-400">
-              {searchQuery ? `No tokens found matching "${searchQuery}"` : 'No tokens found'}
-            </p>
-            <p className="text-slate-500 text-sm">
-              {searchQuery ? 'Try a different search term or add a custom token' : 'Add tokens to get started'}
-            </p>
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="mt-2 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors"
-              >
-                Clear Search
-              </button>
-            )}
-          </div>
-        )}
-      </motion.div>
-
-      {/* Add Token Modal */}
-      {isAddingToken && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+      {/* Add Tokens Modal */}
+      {showAddTokensModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-800 rounded-2xl p-6 w-full max-w-md mx-4 border border-white/20"
+            className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto"
           >
-            <h3 className="text-lg font-semibold text-white mb-4">Add Custom Token</h3>
-            
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900">Add tokens</h2>
+              <button
+                onClick={() => setShowAddTokensModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+          </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-gray-200">
+                  <button
+                onClick={() => setActiveTab('search')}
+                className={`flex-1 py-3 px-4 text-center font-medium transition-colors ${
+                  activeTab === 'search'
+                    ? 'text-[#180CB2] border-b-2 border-[#180CB2]'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Search
+                  </button>
+                <button
+                onClick={() => setActiveTab('custom')}
+                className={`flex-1 py-3 px-4 text-center font-medium transition-colors ${
+                  activeTab === 'custom'
+                    ? 'text-[#180CB2] border-b-2 border-[#180CB2]'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                Custom tokens
+                </button>
+              </div>
+
+            {/* Tab Content */}
+            <div className="p-6">
+              {activeTab === 'search' ? (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Contract Address
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Networks
+                    </label>
+                    <div className="relative">
+              <button
+                        onClick={() => setShowNetworkDropdown(!showNetworkDropdown)}
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+              >
+                        <span className="text-gray-700">{selectedNetwork}</span>
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+              </button>
+                      
+                      {showNetworkDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                          {availableNetworks.map((network) => (
+                            <button
+                              key={network.id}
+                              onClick={() => {
+                                setSelectedNetwork(network.name);
+                                setShowNetworkDropdown(false);
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center space-x-3"
+                            >
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                network.id === 'ethereum' ? 'bg-blue-500' :
+                                network.id === 'polygon' ? 'bg-purple-500' :
+                                network.id === 'bsc' ? 'bg-yellow-500' :
+                                network.id === 'arbitrum' ? 'bg-blue-600' :
+                                network.id === 'optimism' ? 'bg-red-500' :
+                                network.id === 'avalanche' ? 'bg-red-600' :
+                                network.id === 'base' ? 'bg-blue-400' :
+                                network.id === 'fantom' ? 'bg-blue-300' :
+                                'bg-gray-500'
+                              }`}>
+                                <span className="text-white text-xs font-bold">{network.symbol.charAt(0)}</span>
+                              </div>
+                              <span className="text-gray-700">{network.name}</span>
+                            </button>
+                          ))}
+          </div>
+        )}
+                    </div>
+                  </div>
+                  
+              <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Search tokens
+                </label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                        placeholder="Search tokens"
+                        className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  
+                  <button className="w-full py-3 bg-[#180CB2] text-white rounded-lg font-medium hover:bg-[#140a8f] transition-colors">
+                    Import
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Networks
+                    </label>
+                    <div className="relative">
+                  <button
+                        onClick={() => setShowCustomNetworkDropdown(!showCustomNetworkDropdown)}
+                        className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg text-left flex items-center justify-between hover:bg-gray-50 transition-colors"
+                  >
+                        <span className="text-gray-700">
+                          {availableNetworks.find(n => n.id === newToken.network)?.name || 'Select a network'}
+                        </span>
+                        <ChevronDown className="w-4 h-4 text-gray-500" />
+                  </button>
+                      
+                      {showCustomNetworkDropdown && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+                          {availableNetworks.map((network) => (
+                            <button
+                              key={network.id}
+                              onClick={() => {
+                                setNewToken({ ...newToken, network: network.id });
+                                setShowCustomNetworkDropdown(false);
+                              }}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center space-x-3"
+                            >
+                              <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                                network.id === 'ethereum' ? 'bg-blue-500' :
+                                network.id === 'polygon' ? 'bg-purple-500' :
+                                network.id === 'bsc' ? 'bg-yellow-500' :
+                                network.id === 'arbitrum' ? 'bg-blue-600' :
+                                network.id === 'optimism' ? 'bg-red-500' :
+                                network.id === 'avalanche' ? 'bg-red-600' :
+                                network.id === 'base' ? 'bg-blue-400' :
+                                network.id === 'fantom' ? 'bg-blue-300' :
+                                'bg-gray-500'
+                              }`}>
+                                <span className="text-white text-xs font-bold">{network.symbol.charAt(0)}</span>
+                </div>
+                              <span className="text-gray-700">{network.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Token contract address
                 </label>
                 <div className="flex space-x-2">
                   <input
                     type="text"
-                    value={newToken.address}
-                    onChange={(e) => setNewToken(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="0x..."
-                    className="flex-1 px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent text-white placeholder-slate-400"
+                        placeholder="Enter address"
+                        value={newToken.address}
+                        onChange={(e) => setNewToken({ ...newToken, address: e.target.value })}
+                        className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
                   />
                   <button
-                    onClick={handleValidateToken}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                    onClick={handleImportFromExplorer}
+                    disabled={!newToken.address}
+                    className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                    title="Import token info from blockchain explorer"
                   >
-                    Validate
+                    Import
                   </button>
                 </div>
-                <p className="text-xs text-slate-500 mt-1">
-                  Enter the token's contract address to validate it
-                </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Token Symbol
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Token symbol
                 </label>
                 <input
                   type="text"
-                  value={newToken.symbol}
-                  onChange={(e) => setNewToken(prev => ({ ...prev, symbol: e.target.value }))}
-                  placeholder="e.g., TOKEN"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent text-white placeholder-slate-400"
+                      placeholder="Enter symbol"
+                      value={newToken.symbol}
+                      onChange={(e) => setNewToken({ ...newToken, symbol: e.target.value })}
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Token Name
-                </label>
-                <input
-                  type="text"
-                  value={newToken.name}
-                  onChange={(e) => setNewToken(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="e.g., My Token"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent text-white placeholder-slate-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">
-                  Decimals
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Token decimal
                 </label>
                 <input
                   type="number"
+                      placeholder="Enter decimals"
                   value={newToken.decimals}
-                  onChange={(e) => setNewToken(prev => ({ ...prev, decimals: parseInt(e.target.value) || 18 }))}
-                  placeholder="18"
-                  className="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent text-white placeholder-slate-400"
+                      onChange={(e) => setNewToken({ ...newToken, decimals: parseInt(e.target.value) || 18 })}
+                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
                 />
-              </div>
             </div>
 
-            <div className="flex space-x-3 mt-6">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setIsAddingToken(false)}
-                className="flex-1 px-4 py-2 border border-slate-600 text-slate-300 rounded-lg hover:bg-slate-700"
-              >
-                Cancel
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleAddToken}
-                className="flex-1 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f]"
-              >
-                Add Token
-              </motion.button>
+                  <button
+                    onClick={handleAddCustomToken}
+                    className="w-full py-3 bg-[#180CB2] text-white rounded-lg font-medium hover:bg-[#140a8f] transition-colors"
+                  >
+                    Import
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         </div>

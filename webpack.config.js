@@ -29,7 +29,7 @@ module.exports = (env, argv) => {
 
     entry: {
       popup: './src/popup/index.tsx',
-      background: './src/background/index.ts',
+      background: './src/background/background.js',
       content: './src/content/index.ts',
       injected: './src/injected/index.ts',
       options: './src/options/index.tsx'

@@ -82,19 +82,45 @@ async function resolveBNBDomain(domain: string): Promise<string | null> {
   try {
     const provider = new ethers.JsonRpcProvider('https://bsc-dataseed1.binance.org');
     
-    // Space ID contract on BSC
-    const SPACE_ID_CONTRACT = '0x08CEd32a7f3eCf3562427ddf9a624E9Df47d65Fc';
+    // Space ID Registry contract on BSC (corrected address)
+    const SPACE_ID_REGISTRY = '0x08CEd32a7f3eCf3562427ddf9a624E9Df47d65Fc';
     const SPACE_ID_ABI = [
-      'function resolve(bytes32 node) view returns (address)',
+      'function resolver(bytes32 node) view returns (address)',
+      'function owner(bytes32 node) view returns (address)'
+    ];
+    
+    // Space ID Public Resolver contract
+    const SPACE_ID_RESOLVER = '0x1b02da8cb0d097eb8d57a175b88c7d8b47997506';
+    const RESOLVER_ABI = [
       'function addr(bytes32 node) view returns (address)'
     ];
     
-    const contract = new ethers.Contract(SPACE_ID_CONTRACT, SPACE_ID_ABI, provider);
+    const registry = new ethers.Contract(SPACE_ID_REGISTRY, SPACE_ID_ABI, provider);
     const node = namehash(domain);
-    const address = await contract.addr(node);
     
-    if (address && address !== '0x0000000000000000000000000000000000000000') {
-      return address;
+    // Get the resolver address
+    const resolverAddress = await registry.resolver(node);
+    
+    if (resolverAddress && resolverAddress !== '0x0000000000000000000000000000000000000000') {
+      // Use the specific resolver
+      const resolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, provider);
+      const address = await resolver.addr(node);
+      
+      if (address && address !== '0x0000000000000000000000000000000000000000') {
+        return address;
+      }
+    }
+    
+    // Fallback: try the public resolver directly
+    try {
+      const publicResolver = new ethers.Contract(SPACE_ID_RESOLVER, RESOLVER_ABI, provider);
+      const address = await publicResolver.addr(node);
+      
+      if (address && address !== '0x0000000000000000000000000000000000000000') {
+        return address;
+      }
+    } catch (fallbackError) {
+      console.warn('Fallback BNB domain resolution failed:', fallbackError);
     }
     
     return null;

@@ -57,6 +57,10 @@ import MoreScreen from './components/screens/MoreScreen';
 import AccountDetailsScreen from './components/screens/AccountDetailsScreen';
 import ManageNetworksScreen from './components/screens/ManageNetworksScreen';
 import AddCustomNetworkScreen from './components/screens/AddCustomNetworkScreen';
+import NotificationsScreen from './components/screens/NotificationsScreen';
+import SupportScreen from './components/screens/SupportScreen';
+import ExpandViewScreen from './components/screens/ExpandViewScreen';
+import PasswordModal from './components/modals/PasswordModal';
 
 import type { ScreenId } from './types/index';
 
@@ -65,6 +69,10 @@ const App: React.FC = () => {
   const [navigationHistory, setNavigationHistory] = useState<ScreenId[]>(['welcome']);
   const [isAppInitialized, setIsAppInitialized] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  
+  // Password modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalProps, setPasswordModalProps] = useState<any>(null);
 
   const { 
     wallet, 
@@ -89,6 +97,40 @@ const App: React.FC = () => {
     console.log('App: Wallet state - hasWallet:', hasWallet, 'isWalletUnlocked:', isWalletUnlocked);
     setIsAppInitialized(true);
     setCurrentScreen('welcome');
+  }, []);
+
+  // Handle password modal events
+  useEffect(() => {
+    const handlePasswordModal = (event: CustomEvent) => {
+      const { title, message, networkName, onConfirm, onCancel } = event.detail;
+      
+      setPasswordModalProps({
+        title,
+        message,
+        networkName,
+        onConfirm: async (password: string) => {
+          try {
+            await onConfirm(password);
+            setShowPasswordModal(false);
+          } catch (error) {
+            // Error will be handled by the modal
+            throw error;
+          }
+        },
+        onCancel: () => {
+          onCancel();
+          setShowPasswordModal(false);
+        }
+      });
+      
+      setShowPasswordModal(true);
+    };
+
+    window.addEventListener('showPasswordModal', handlePasswordModal as EventListener);
+    
+    return () => {
+      window.removeEventListener('showPasswordModal', handlePasswordModal as EventListener);
+    };
   }, []);
 
   // Determine initial screen based on wallet state
@@ -172,7 +214,6 @@ const App: React.FC = () => {
     // Special handling for accounts screen
     if (screen === 'accounts') {
       console.log('🎯 App.tsx: Navigating to accounts screen');
-      toast.success('🎯 Navigating to accounts screen', { duration: 3000 });
     }
     
     // Update navigation history
@@ -268,7 +309,7 @@ const App: React.FC = () => {
       case 'networks':
         return <NetworksScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'accounts':
-        return <AccountsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+        return <AccountsScreen onNavigate={handleNavigate} />;
       case 'tokens':
         return <TokensScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'ens':
@@ -298,9 +339,15 @@ const App: React.FC = () => {
       case 'portfolio':
         return <PortfolioScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'transactions':
-        return <TransactionsScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+        return <TransactionsScreen onNavigate={handleNavigate} />;
       case 'transaction-history':
         return <TransactionHistoryScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
+      case 'notifications':
+        return <NotificationsScreen onNavigate={handleNavigate} />;
+      case 'support':
+        return <SupportScreen onNavigate={handleNavigate} />;
+      case 'expand-view':
+        return <ExpandViewScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       default:
         return (
           <WelcomeScreen 
@@ -342,6 +389,18 @@ const App: React.FC = () => {
           },
         }}
       />
+      
+      {/* Password Modal */}
+      {passwordModalProps && (
+        <PasswordModal
+          isOpen={showPasswordModal}
+          onClose={() => setShowPasswordModal(false)}
+          onConfirm={passwordModalProps.onConfirm}
+          title={passwordModalProps.title}
+          message={passwordModalProps.message}
+          networkName={passwordModalProps.networkName}
+        />
+      )}
     </div>
   );
 };

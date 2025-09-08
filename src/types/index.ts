@@ -268,7 +268,7 @@ export interface WalletContextType {
   initializeWallet: () => Promise<void>;
   addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
-  addAccount: (password: string) => Promise<any>;
+  addAccount: (password: string, accountName?: string) => Promise<any>;
   removeAccount: (accountId: string) => Promise<void>;
   getCurrentAccount: () => Promise<any>;
   getWalletAccounts: () => Promise<any[]>;
@@ -276,10 +276,13 @@ export interface WalletContextType {
   decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
   getAccountPrivateKey: (accountId: string, password: string) => Promise<string | null>; // Add new function
   getAccountSeedPhrase: (accountId: string, password: string) => Promise<string | null>; // Add new function
+  refreshWallet: () => Promise<void>; // Add refresh wallet function
   setGlobalPassword: (password: string) => void;
   setGlobalPasswordAndHash: (password: string) => Promise<void>;
   clearError: () => void;
   extendSession: () => Promise<void>;
+  debugSessionStatus: () => Promise<void>;
+  testAddressCompatibility: () => Promise<any>;
 }
 
 export interface SecurityContextType {
