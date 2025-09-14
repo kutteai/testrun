@@ -98,8 +98,8 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         }
 
         // Estimate gas and get current gas price
-        let gasEst = 21000; // Default gas limit
-        let currentGasPrice = '20'; // Fallback gas price in gwei
+        let gasEst = 21000;         // Default gas limit
+        let currentGasPrice = '0.5'; // Fallback gas price in gwei (more realistic)
         
         try {
           gasEst = await estimateGas(parsedData.toAddress, parsedData.amount, networkInfo);
@@ -189,7 +189,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     
     // If no fee data available, try to get from network
     const gasPrice = await provider.send('eth_gasPrice', []);
-    return ethers.formatUnits(gasPrice, 'wei');
+    return ethers.formatUnits(gasPrice, 'gwei');
   };
 
   // Get nonce for the account

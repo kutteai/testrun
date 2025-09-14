@@ -45,16 +45,18 @@ declare global {
   }
 }
 
+import { getConfig as getConfigFromInjector } from './config-injector';
+
 // Get configuration from environment
 const getConfig = () => {
   try {
-    // Only access window if we're in a browser environment
-    if (typeof window !== 'undefined' && window.CONFIG) {
-      console.log('PayCio: Using window.CONFIG:', window.CONFIG);
-      return window.CONFIG;
+    const config = getConfigFromInjector();
+    if (config) {
+      console.log('PayCio: Using injected CONFIG:', config);
+      return config;
     }
   } catch (error) {
-    console.log('PayCio: Window access failed, using default config:', error.message);
+    console.log('PayCio: Config injection failed, using fallback:', error.message);
   }
   
   const defaultConfig = {
@@ -414,7 +416,7 @@ export async function getTokenBalance(
   }
 }
 
-// Get gas price (real implementation)
+// Get gas price (real implementation with fallbacks)
 export async function getGasPrice(network: string): Promise<string> {
   try {
     const networkConfig = getNetworks()[network];
@@ -455,15 +457,52 @@ export async function getGasPrice(network: string): Promise<string> {
       throw new Error(data.error.message);
     }
 
-    return data.result || '0x0';
+    const gasPrice = data.result || '0x0';
+    
+    // Convert to Gwei for better readability and validation
+    const gasPriceWei = BigInt(gasPrice);
+    const gasPriceGwei = Number(gasPriceWei) / 1e9;
+    
+    console.log(`PayCio: Gas price for ${network}: ${gasPriceGwei.toFixed(2)} Gwei`);
+    
+    // Validate gas price is reasonable (not too high or too low)
+    if (gasPriceGwei < 0.01) {
+      console.warn(`PayCio: Gas price seems too low (${gasPriceGwei} Gwei), using fallback`);
+      return getFallbackGasPrice(network);
+    }
+    
+    if (gasPriceGwei > 1000) {
+      console.warn(`PayCio: Gas price seems too high (${gasPriceGwei} Gwei), using fallback`);
+      return getFallbackGasPrice(network);
+    }
+
+    return gasPrice;
   } catch (error) {
     if (error.name === 'AbortError') {
-      console.error('Gas price request timed out');
-      throw new Error('Request timeout');
+      console.error('Gas price request timed out, using fallback');
+      return getFallbackGasPrice(network);
     }
-    console.error('Error getting gas price:', error);
-    throw error;
+    console.error('Error getting gas price, using fallback:', error);
+    return getFallbackGasPrice(network);
   }
+}
+
+// Fallback gas prices based on current network conditions
+function getFallbackGasPrice(network: string): string {
+  const fallbackPrices: Record<string, string> = {
+    'ethereum': '0x12a05f200', // 5 Gwei (0.5 USD equivalent)
+    'bsc': '0x5d21dba00', // 2.5 Gwei (0.1 USD equivalent)
+    'polygon': '0x3b9aca00', // 1 Gwei
+    'avalanche': '0x3b9aca00', // 1 Gwei
+    'arbitrum': '0x3b9aca00', // 1 Gwei
+    'optimism': '0x3b9aca00', // 1 Gwei
+    'base': '0x3b9aca00', // 1 Gwei
+    'fantom': '0x3b9aca00', // 1 Gwei
+  };
+  
+  const fallbackPrice = fallbackPrices[network] || '0x3b9aca00'; // Default 1 Gwei
+  console.log(`PayCio: Using fallback gas price for ${network}: ${fallbackPrice}`);
+  return fallbackPrice;
 }
 
 // Estimate gas limit (real implementation)

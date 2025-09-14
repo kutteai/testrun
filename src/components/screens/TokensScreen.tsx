@@ -8,6 +8,7 @@ import type { ScreenProps } from '../../types/index';
 import { detectTokensWithBalances, getAllPopularTokens, getNetworkRPCUrl, type TokenBalance } from '../../utils/token-balance-utils';
 import { storage } from '../../utils/storage-utils';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
+import { searchTokens, getTokenDetails, validateTokenContract, autoCompleteTokenSearch, getPopularTokens, type TokenSearchSuggestion } from '../../utils/token-search-utils';
 
 interface Token {
   id: string;
@@ -51,6 +52,11 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     decimals: 18,
     network: 'ethereum'
   });
+  
+  // Token search state
+  const [searchSuggestions, setSearchSuggestions] = useState<TokenSearchSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Available networks
   const availableNetworks = [
@@ -175,7 +181,7 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         
         const allTokens = [...filteredDefaultTokens, ...savedCustomTokens, ...savedAutoTokens].map(token => ({
           ...token,
-          isEnabled: enabledTokenIds.includes(token.id)
+          isEnabled: enabledTokenIds.length === 0 ? true : enabledTokenIds.includes(token.id)
         }));
         
         setTokens(allTokens);
@@ -238,8 +244,16 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       
       // Add newly discovered tokens that aren't already in the list
       const existingAddresses = new Set(existingTokens.map(t => t.address.toLowerCase()));
+      
+      // Get removed auto-discovered tokens to avoid re-adding them
+      const removedResult = await storage.get(['removedAutoDiscoveredTokens']);
+      const removedAutoTokens = removedResult.removedAutoDiscoveredTokens || [];
+      
       const newTokens: Token[] = discoveredTokens
-        .filter(discovered => !existingAddresses.has(discovered.address.toLowerCase()))
+        .filter(discovered => 
+          !existingAddresses.has(discovered.address.toLowerCase()) &&
+          !removedAutoTokens.includes(discovered.address.toLowerCase())
+        )
         .map(discovered => ({
           id: `discovered-${discovered.address}`,
           symbol: discovered.symbol,
@@ -290,6 +304,14 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         const savedAutoTokens = result.autoDiscoveredTokens || [];
         const updatedAutoTokens = savedAutoTokens.filter((token: Token) => token.id !== tokenId);
         await storage.set({ autoDiscoveredTokens: updatedAutoTokens });
+        
+        // Also add to removed auto-discovered tokens list to prevent re-discovery
+        const removedResult = await storage.get(['removedAutoDiscoveredTokens']);
+        const removedAutoTokens = removedResult.removedAutoDiscoveredTokens || [];
+        if (!removedAutoTokens.includes(tokenToRemove.address.toLowerCase())) {
+          removedAutoTokens.push(tokenToRemove.address.toLowerCase());
+          await storage.set({ removedAutoDiscoveredTokens: removedAutoTokens });
+        }
       } else if (tokenToRemove.isCustom) {
         // Remove from custom tokens
         const result = await storage.get(['customTokens']);
@@ -404,6 +426,18 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Fetch token info from blockchain explorer
   const fetchTokenInfoFromExplorer = async (address: string, network: string) => {
     try {
+      // First try to use the enhanced token search utility
+      const tokenDetails = await getTokenDetails(address, network);
+      if (tokenDetails) {
+        return {
+          name: tokenDetails.name,
+          symbol: tokenDetails.symbol,
+          decimals: tokenDetails.decimals,
+          address: tokenDetails.address
+        };
+      }
+      
+      // Fallback to direct explorer API calls
       let apiUrl = '';
       let apiKey = '';
       
@@ -454,19 +488,61 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     }
   };
 
-  // Add custom token
+  // Add custom token with enhanced validation
   const handleAddCustomToken = async () => {
     if (!newToken.address || !newToken.symbol || !newToken.name) {
       toast.error('Please fill in all fields');
       return;
     }
 
+    // Enhanced validation
+    if (!newToken.address.startsWith('0x') || newToken.address.length !== 42) {
+      toast.error('Please enter a valid contract address (0x...)');
+      return;
+    }
+
+    if (newToken.symbol.length < 2 || newToken.symbol.length > 10) {
+      toast.error('Token symbol must be between 2-10 characters');
+      return;
+    }
+
+    if (newToken.name.length < 2 || newToken.name.length > 50) {
+      toast.error('Token name must be between 2-50 characters');
+      return;
+    }
+
+    if (newToken.decimals < 0 || newToken.decimals > 18) {
+      toast.error('Token decimals must be between 0-18');
+      return;
+    }
+
+    // Check if token already exists
+    const existingTokens = tokens.filter(token => 
+      token.address.toLowerCase() === newToken.address.toLowerCase() && 
+      token.network === newToken.network
+    );
+    
+    if (existingTokens.length > 0) {
+      toast.error('This token is already added to your wallet');
+      return;
+    }
+
     try {
+      // Validate token contract exists on blockchain
+      toast.loading('Validating token contract...');
+      
+      const isValidContract = await validateTokenContract(newToken.address, newToken.network);
+      if (!isValidContract) {
+        toast.dismiss();
+        toast.error('Invalid token contract address or network');
+        return;
+      }
+
       const customToken: Token = {
         id: `custom-${Date.now()}`,
-        symbol: newToken.symbol,
+        symbol: newToken.symbol.toUpperCase(),
         name: newToken.name,
-        address: newToken.address,
+        address: newToken.address.toLowerCase(),
         balance: '0',
         decimals: newToken.decimals,
         price: 0,
@@ -478,6 +554,19 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
 
       const result = await storage.get(['customTokens']);
       const savedCustomTokens = result.customTokens || [];
+      
+      // Check for duplicates in storage
+      const duplicateInStorage = savedCustomTokens.find((token: Token) => 
+        token.address.toLowerCase() === customToken.address && 
+        token.network === customToken.network
+      );
+      
+      if (duplicateInStorage) {
+        toast.dismiss();
+        toast.error('This token is already saved in your custom tokens');
+        return;
+      }
+      
       const updatedCustomTokens = [...savedCustomTokens, customToken];
       
       await storage.set({ customTokens: updatedCustomTokens });
@@ -486,10 +575,93 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setNewToken({ address: '', symbol: '', name: '', decimals: 18, network: 'ethereum' });
       setShowAddTokensModal(false);
       
-      toast.success(`${customToken.symbol} added successfully and saved to storage`);
+      toast.dismiss();
+      toast.success(`${customToken.symbol} added successfully!`);
     } catch (error) {
+      toast.dismiss();
       console.error('Failed to add custom token:', error);
-      toast.error('Failed to add token');
+      toast.error(`Failed to add token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Remove custom token
+  const handleRemoveCustomToken = async (tokenId: string) => {
+    try {
+      const result = await storage.get(['customTokens']);
+      const savedCustomTokens = result.customTokens || [];
+      const updatedCustomTokens = savedCustomTokens.filter((token: Token) => token.id !== tokenId);
+      
+      await storage.set({ customTokens: updatedCustomTokens });
+      
+      setTokens(prev => prev.filter(token => token.id !== tokenId));
+      
+      toast.success('Token removed successfully');
+    } catch (error) {
+      console.error('Failed to remove custom token:', error);
+      toast.error('Failed to remove token');
+    }
+  };
+
+  // Enhanced token search with auto-complete
+  const handleTokenSearch = async (query: string) => {
+    setIsSearching(true);
+    try {
+      const suggestions = await autoCompleteTokenSearch(query, newToken.network);
+      setSearchSuggestions(suggestions);
+      setShowSuggestions(suggestions.length > 0);
+    } catch (error) {
+      console.error('Token search failed:', error);
+      setSearchSuggestions([]);
+      setShowSuggestions(false);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Trigger search when network changes
+  useEffect(() => {
+    if (newToken.symbol || newToken.address) {
+      handleTokenSearch(newToken.symbol || newToken.address);
+    } else {
+      // Show popular tokens for the selected network when no query
+      const popularTokens = getPopularTokens(newToken.network);
+      setSearchSuggestions(popularTokens.slice(0, 5));
+      setShowSuggestions(popularTokens.length > 0);
+    }
+  }, [newToken.network]);
+
+  // Handle token suggestion selection
+  const handleTokenSuggestionSelect = async (suggestion: TokenSearchSuggestion) => {
+    try {
+      // If suggestion has an address, fetch full details
+      if (suggestion.address) {
+        const tokenDetails = await getTokenDetails(suggestion.address, suggestion.network);
+        if (tokenDetails) {
+          setNewToken(prev => ({
+            ...prev,
+            address: tokenDetails.address,
+            symbol: tokenDetails.symbol,
+            name: tokenDetails.name,
+            decimals: tokenDetails.decimals,
+            network: tokenDetails.network
+          }));
+        }
+      } else {
+        // Update with suggestion data
+        setNewToken(prev => ({
+          ...prev,
+          symbol: suggestion.symbol,
+          name: suggestion.name,
+          network: suggestion.network
+        }));
+      }
+      
+      setShowSuggestions(false);
+      setSearchSuggestions([]);
+      toast.success('Token information loaded!');
+    } catch (error) {
+      console.error('Failed to load token details:', error);
+      toast.error('Failed to load token details');
     }
   };
 
@@ -911,17 +1083,79 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                     </div>
                   </div>
                   
-              <div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Search tokens
-                </label>
+                    </label>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                        placeholder="Search tokens"
+                      <input
+                        type="text"
+                        placeholder="Search tokens (e.g., USDT, USDC, or contract address)"
+                        value={newToken.symbol || newToken.address}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setNewToken(prev => ({ ...prev, symbol: value, address: value }));
+                          handleTokenSearch(value);
+                        }}
+                        onFocus={() => {
+                          if (searchSuggestions.length > 0) {
+                            setShowSuggestions(true);
+                          } else if (!newToken.symbol && !newToken.address) {
+                            // Show popular tokens for the selected network when focused and empty
+                            const popularTokens = getPopularTokens(newToken.network);
+                            setSearchSuggestions(popularTokens.slice(0, 5));
+                            setShowSuggestions(popularTokens.length > 0);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Delay hiding suggestions to allow clicking on them
+                          setTimeout(() => setShowSuggestions(false), 200);
+                        }}
                         className="w-full pl-10 pr-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
                       />
+                      
+                      {/* Search suggestions dropdown */}
+                      {showSuggestions && searchSuggestions.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
+                          {searchSuggestions.map((suggestion, index) => (
+                            <div
+                              key={index}
+                              onClick={() => handleTokenSuggestionSelect(suggestion)}
+                              className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-medium text-gray-900">
+                                    {suggestion.symbol}
+                                    {suggestion.isPopular && (
+                                      <span className="ml-2 px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded-full">
+                                        Popular
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm text-gray-500">{suggestion.name}</div>
+                                  {suggestion.address && (
+                                    <div className="text-xs text-gray-400 font-mono">
+                                      {suggestion.address.slice(0, 6)}...{suggestion.address.slice(-4)}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="text-xs text-gray-400 uppercase">
+                                  {suggestion.network}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Loading indicator */}
+                      {isSearching && (
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                          <RefreshCw className="w-4 h-4 text-gray-400 animate-spin" />
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -985,14 +1219,23 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                 <div className="flex space-x-2">
                   <input
                     type="text"
-                        placeholder="Enter address"
+                        placeholder="Enter contract address (0x...)"
                         value={newToken.address}
-                        onChange={(e) => setNewToken({ ...newToken, address: e.target.value })}
+                        onChange={(e) => {
+                          const address = e.target.value;
+                          setNewToken({ ...newToken, address });
+                          
+                          // Auto-validate address format
+                          if (address.length >= 42 && address.startsWith('0x') && /^0x[a-fA-F0-9]{40}$/.test(address)) {
+                            // Valid address format, could auto-fetch here
+                            console.log('Valid contract address detected');
+                          }
+                        }}
                         className="flex-1 px-4 py-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
                   />
                   <button
                     onClick={handleImportFromExplorer}
-                    disabled={!newToken.address}
+                    disabled={!newToken.address || newToken.address.length < 42}
                     className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
                     title="Import token info from blockchain explorer"
                   >

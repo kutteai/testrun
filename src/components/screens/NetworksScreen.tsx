@@ -13,6 +13,8 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [isTestingConnection, setIsTestingConnection] = useState<string | null>(null);
   const [isAddingNetwork, setIsAddingNetwork] = useState(false);
+  const [isImportingFromChainlist, setIsImportingFromChainlist] = useState(false);
+  const [chainlistUrl, setChainlistUrl] = useState('');
   const [customNetwork, setCustomNetwork] = useState({
     name: '',
     symbol: '',
@@ -169,6 +171,120 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       toast.error('Failed to add custom network');
     } finally {
       setIsAddingNetwork(false);
+    }
+  };
+
+  const handleImportFromChainlist = async () => {
+    if (!chainlistUrl.trim()) {
+      toast.error('Please enter a chainlist.org URL');
+      return;
+    }
+
+    setIsImportingFromChainlist(true);
+    try {
+      // Extract chain ID from URL (e.g., https://chainlist.org/chain/130)
+      const chainIdMatch = chainlistUrl.match(/\/chain\/(\d+)/);
+      if (!chainIdMatch) {
+        throw new Error('Invalid chainlist.org URL format. Expected: https://chainlist.org/chain/CHAIN_ID');
+      }
+
+      const chainId = chainIdMatch[1];
+      console.log('Importing chain with ID:', chainId);
+      
+      // Try multiple chainlist API endpoints
+      let chainData = null;
+      const apiEndpoints = [
+        `https://chainlist.org/api/v1/chains/${chainId}`,
+        `https://raw.githubusercontent.com/ethereum-lists/chains/master/_data/chains/eip155-${chainId}.json`,
+        `https://chainid.network/chains.json`
+      ];
+      
+      for (const endpoint of apiEndpoints) {
+        try {
+          console.log('Trying endpoint:', endpoint);
+          const response = await fetch(endpoint);
+          
+          if (response.ok) {
+            if (endpoint.includes('chains.json')) {
+              // Handle the chains.json format
+              const chains = await response.json();
+              chainData = chains.find((chain: any) => chain.chainId === parseInt(chainId));
+            } else {
+              // Handle direct chain endpoint
+              chainData = await response.json();
+            }
+            
+            if (chainData) {
+              console.log('Found chain data:', chainData);
+              break;
+            }
+          }
+        } catch (endpointError) {
+          console.warn('Endpoint failed:', endpoint, endpointError);
+          continue;
+        }
+      }
+      
+      if (!chainData) {
+        throw new Error('Chain not found on chainlist.org or chainid.network');
+      }
+
+      // Create network object from chainlist data
+      const newNetwork: Network = {
+        id: chainData.shortName || chainData.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+        name: chainData.name,
+        symbol: chainData.nativeCurrency?.symbol || 'TOKEN',
+        rpcUrl: Array.isArray(chainData.rpc) ? chainData.rpc[0] : (chainData.rpc || ''),
+        chainId: chainData.chainId.toString(),
+        explorerUrl: Array.isArray(chainData.explorers) ? chainData.explorers[0]?.url : (chainData.explorers || ''),
+        isCustom: true,
+        isEnabled: true
+      };
+
+      // Validate required fields
+      if (!newNetwork.rpcUrl) {
+        throw new Error('No RPC URL available for this chain');
+      }
+      
+      if (!newNetwork.chainId) {
+        throw new Error('No chain ID found for this chain');
+      }
+
+      // Test the RPC URL before adding
+      console.log('Testing RPC URL:', newNetwork.rpcUrl);
+      try {
+        const testResponse = await fetch(newNetwork.rpcUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            method: 'eth_chainId',
+            params: [],
+            id: 1
+          })
+        });
+        
+        if (testResponse.ok) {
+          const testData = await testResponse.json();
+          if (testData.result) {
+            console.log('RPC test successful, chain ID:', testData.result);
+          }
+        }
+      } catch (rpcError) {
+        console.warn('RPC test failed, but continuing:', rpcError);
+      }
+
+      await addCustomNetwork(newNetwork);
+      toast.success(`${newNetwork.name} imported successfully from chainlist.org`);
+      
+      // Reset form
+      setChainlistUrl('');
+      setIsAddingCustom(false);
+    } catch (error) {
+      console.error('Chainlist import failed:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to import from chainlist.org');
+    } finally {
+      setIsImportingFromChainlist(false);
     }
   };
 
@@ -358,88 +474,148 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                   <X className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
+
+              {/* Tab Navigation */}
+              <div className="flex space-x-1 mb-6 bg-gray-100 rounded-lg p-1">
+                <button
+                  onClick={() => setChainlistUrl('')}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    !chainlistUrl ? 'bg-white text-[#180CB2] shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Manual Entry
+                </button>
+                <button
+                  onClick={() => setCustomNetwork({ name: '', symbol: '', rpcUrl: '', chainId: '', explorerUrl: '' })}
+                  className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+                    chainlistUrl ? 'bg-white text-[#180CB2] shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  Import from Chainlist
+                </button>
+              </div>
               
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Network Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={customNetwork.name}
-                    onChange={(e) => setCustomNetwork({ ...customNetwork, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
-                    placeholder="e.g., My Custom Network"
-                  />
-                </div>
+                {!chainlistUrl ? (
+                  // Manual Entry Tab
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Network Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={customNetwork.name}
+                        onChange={(e) => setCustomNetwork({ ...customNetwork, name: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                        placeholder="e.g., My Custom Network"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Symbol
-                  </label>
-                  <input
-                    type="text"
-                    value={customNetwork.symbol}
-                    onChange={(e) => setCustomNetwork({ ...customNetwork, symbol: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
-                    placeholder="e.g., TOKEN"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Symbol
+                      </label>
+                      <input
+                        type="text"
+                        value={customNetwork.symbol}
+                        onChange={(e) => setCustomNetwork({ ...customNetwork, symbol: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                        placeholder="e.g., TOKEN"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    RPC URL *
-                  </label>
-                  <input
-                    type="text"
-                    value={customNetwork.rpcUrl}
-                    onChange={(e) => setCustomNetwork({ ...customNetwork, rpcUrl: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
-                    placeholder="https://rpc.example.com"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        RPC URL *
+                      </label>
+                      <input
+                        type="text"
+                        value={customNetwork.rpcUrl}
+                        onChange={(e) => setCustomNetwork({ ...customNetwork, rpcUrl: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                        placeholder="https://rpc.example.com"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Chain ID *
-                  </label>
-                  <input
-                    type="text"
-                    value={customNetwork.chainId}
-                    onChange={(e) => setCustomNetwork({ ...customNetwork, chainId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
-                    placeholder="e.g., 12345"
-                  />
-                </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Chain ID *
+                      </label>
+                      <input
+                        type="text"
+                        value={customNetwork.chainId}
+                        onChange={(e) => setCustomNetwork({ ...customNetwork, chainId: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                        placeholder="e.g., 12345"
+                      />
+                    </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Explorer URL
-                  </label>
-                  <input
-                    type="text"
-                    value={customNetwork.explorerUrl}
-                    onChange={(e) => setCustomNetwork({ ...customNetwork, explorerUrl: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
-                    placeholder="https://explorer.example.com"
-                  />
-              </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Explorer URL
+                      </label>
+                      <input
+                        type="text"
+                        value={customNetwork.explorerUrl}
+                        onChange={(e) => setCustomNetwork({ ...customNetwork, explorerUrl: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                        placeholder="https://explorer.example.com"
+                      />
+                    </div>
 
-                <div className="flex space-x-3 pt-4">
-                  <button
-                  onClick={() => setIsAddingCustom(false)}
-                    className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                  </button>
-                  <button
-                  onClick={handleAddCustomNetwork}
-                  disabled={isAddingNetwork}
-                    className="flex-1 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors disabled:opacity-50"
-                  >
-                    {isAddingNetwork ? 'Adding...' : 'Add Network'}
-                  </button>
-                </div>
+                    <div className="flex space-x-3 pt-4">
+                      <button
+                        onClick={() => setIsAddingCustom(false)}
+                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAddCustomNetwork}
+                        disabled={isAddingNetwork}
+                        className="flex-1 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors disabled:opacity-50"
+                      >
+                        {isAddingNetwork ? 'Adding...' : 'Add Network'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  // Chainlist Import Tab
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Chainlist.org URL *
+                      </label>
+                      <input
+                        type="text"
+                        value={chainlistUrl}
+                        onChange={(e) => setChainlistUrl(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#180CB2] focus:border-transparent"
+                        placeholder="https://chainlist.org/chain/130"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Enter a chainlist.org URL (e.g., https://chainlist.org/chain/130)
+                      </p>
+                    </div>
+
+                    <div className="flex space-x-3 pt-4">
+                      <button
+                        onClick={() => setIsAddingCustom(false)}
+                        className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleImportFromChainlist}
+                        disabled={isImportingFromChainlist}
+                        className="flex-1 px-4 py-2 bg-[#180CB2] text-white rounded-lg hover:bg-[#140a8f] transition-colors disabled:opacity-50"
+                      >
+                        {isImportingFromChainlist ? 'Importing...' : 'Import Network'}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </motion.div>
           </motion.div>

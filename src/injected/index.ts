@@ -3,6 +3,7 @@ import { crossBrowserSendMessage } from '../utils/runtime-utils';
 
 // PayCio Wallet injection script - runs in page context
 console.log('🔍 PayCio: Injecting into page context...');
+alert('💉 INJECTED SCRIPT IS RUNNING!');
 
 // Toast notification function
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
@@ -191,6 +192,204 @@ async function showWalletUnlockPopup(): Promise<boolean> {
       window.removeEventListener('message', messageHandler);
       resolve(false);
     }, 10000);
+  });
+}
+
+// Create wallet selection modal
+function createWalletSelectionModal(): Promise<string | null> {
+  return new Promise((resolve) => {
+    // Create modal container
+    const modalContainer = document.createElement('div');
+    modalContainer.id = 'paycio-wallet-selection-modal';
+    modalContainer.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 999999;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    `;
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.style.cssText = `
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      width: 90%;
+      max-width: 400px;
+      max-height: 80vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+    `;
+
+    // Create header
+    const header = document.createElement('div');
+    header.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Select Account';
+    title.style.cssText = `
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+      margin: 0;
+    `;
+
+    const closeButton = document.createElement('button');
+    closeButton.innerHTML = '×';
+    closeButton.style.cssText = `
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: #6b7280;
+      cursor: pointer;
+      padding: 4px;
+      border-radius: 4px;
+    `;
+    closeButton.onclick = () => {
+      document.body.removeChild(modalContainer);
+      resolve(null);
+    };
+
+    header.appendChild(title);
+    header.appendChild(closeButton);
+
+    // Create accounts list
+    const accountsList = document.createElement('div');
+    accountsList.style.cssText = `
+      margin-bottom: 24px;
+    `;
+
+    // Get wallet accounts from background script
+    chrome.runtime.sendMessage({ type: 'GET_WALLET_ACCOUNTS' }, (response) => {
+      if (response && response.success && response.accounts) {
+        const accounts = response.accounts;
+        
+        if (accounts.length === 0) {
+          const noAccounts = document.createElement('p');
+          noAccounts.textContent = 'No accounts available';
+          noAccounts.style.cssText = `
+            text-align: center;
+            color: #6b7280;
+            padding: 20px;
+          `;
+          accountsList.appendChild(noAccounts);
+        } else {
+          accounts.forEach((account: any) => {
+            const accountItem = document.createElement('div');
+            accountItem.style.cssText = `
+              padding: 16px;
+              border: 2px solid #e5e7eb;
+              border-radius: 12px;
+              margin-bottom: 12px;
+              cursor: pointer;
+              transition: all 0.2s;
+            `;
+
+            const accountName = document.createElement('div');
+            accountName.textContent = account.name || 'Account';
+            accountName.style.cssText = `
+              font-weight: 500;
+              color: #111827;
+              margin-bottom: 4px;
+            `;
+
+            const accountAddress = document.createElement('div');
+            const address = account.addresses?.ethereum || account.address || 'No address';
+            accountAddress.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
+            accountAddress.style.cssText = `
+              font-family: monospace;
+              font-size: 14px;
+              color: #6b7280;
+            `;
+
+            accountItem.appendChild(accountName);
+            accountItem.appendChild(accountAddress);
+
+            accountItem.onclick = () => {
+              document.body.removeChild(modalContainer);
+              resolve(address);
+            };
+
+            accountItem.onmouseover = () => {
+              accountItem.style.borderColor = '#d1d5db';
+              accountItem.style.backgroundColor = '#f9fafb';
+            };
+
+            accountItem.onmouseout = () => {
+              accountItem.style.borderColor = '#e5e7eb';
+              accountItem.style.backgroundColor = 'white';
+            };
+
+            accountsList.appendChild(accountItem);
+          });
+        }
+      } else {
+        const error = document.createElement('p');
+        error.textContent = 'Failed to load accounts';
+        error.style.cssText = `
+          text-align: center;
+          color: #ef4444;
+          padding: 20px;
+        `;
+        accountsList.appendChild(error);
+      }
+    });
+
+    // Create cancel button
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.cssText = `
+      width: 100%;
+      padding: 12px;
+      background: #f3f4f6;
+      color: #374151;
+      border: none;
+      border-radius: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    `;
+    cancelButton.onclick = () => {
+      document.body.removeChild(modalContainer);
+      resolve(null);
+    };
+
+    cancelButton.onmouseover = () => {
+      cancelButton.style.backgroundColor = '#e5e7eb';
+    };
+
+    cancelButton.onmouseout = () => {
+      cancelButton.style.backgroundColor = '#f3f4f6';
+    };
+
+    // Assemble modal
+    modalContent.appendChild(header);
+    modalContent.appendChild(accountsList);
+    modalContent.appendChild(cancelButton);
+    modalContainer.appendChild(modalContent);
+
+    // Add to page
+    document.body.appendChild(modalContainer);
+
+    // Close on background click
+    modalContainer.onclick = (e) => {
+      if (e.target === modalContainer) {
+        document.body.removeChild(modalContainer);
+        resolve(null);
+      }
+    };
   });
 }
 
@@ -521,15 +720,15 @@ function createUnlockModal(): Promise<boolean> {
         const testResponse = await new Promise((resolve) => {
           const messageId = Date.now().toString();
           const testMessage = {
-            type: 'PAYCIO_CHECK_WALLET_STATUS',
+            type: 'PAYCIO_TEST_MESSAGE',
             id: messageId
           };
           
           const messageHandler = (event: MessageEvent) => {
             if (event.source !== window) return;
-            if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
+            if (event.data.type === 'PAYCIO_TEST_RESPONSE' && event.data.id === messageId) {
               window.removeEventListener('message', messageHandler);
-              resolve({ success: true, isUnlocked: event.data.isUnlocked });
+              resolve({ success: true, timestamp: event.data.timestamp });
             }
           };
           
@@ -549,20 +748,93 @@ function createUnlockModal(): Promise<boolean> {
           alert('❌ Content script connection failed');
         }
         
-        // Send unlock request through content script
-        alert('🔍 Sending unlock request through content script...');
+         // Debug: Show password comparison
+        alert(`🔍 PASSWORD DEBUG:
+        
+Entered Password: "${password}"
+Password Length: ${password.length}
+Password Type: ${typeof password}
+
+Sending unlock request through content script...`);
+
+        // Also get and show wallet password for comparison
+        try {
+          const walletResponse = await new Promise((resolve) => {
+            const messageId = Date.now().toString();
+            const walletMessage = {
+              type: 'PAYCIO_CHECK_WALLET_STATUS',
+              id: messageId
+            };
+            
+            const messageHandler = (event: MessageEvent) => {
+              if (event.source !== window) return;
+              if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
+                window.removeEventListener('message', messageHandler);
+                resolve(event.data);
+              }
+            };
+            
+            window.addEventListener('message', messageHandler);
+            window.postMessage(walletMessage, '*');
+            
+            setTimeout(() => {
+              window.removeEventListener('message', messageHandler);
+              resolve({ success: false, error: 'Timeout' });
+            }, 5000);
+          });
+
+          // Get wallet password from background
+          const passwordResponse = await new Promise((resolve) => {
+            const messageId = Date.now().toString();
+            const passwordMessage = {
+              type: 'DEBUG_PASSWORD',
+              id: messageId
+            };
+            
+            const messageHandler = (event: MessageEvent) => {
+              if (event.source !== window) return;
+              if (event.data.type === 'PAYCIO_DEBUG_PASSWORD_RESPONSE' && event.data.id === messageId) {
+                window.removeEventListener('message', messageHandler);
+                resolve(event.data);
+              }
+            };
+            
+            window.addEventListener('message', messageHandler);
+            window.postMessage(passwordMessage, '*');
+            
+            setTimeout(() => {
+              window.removeEventListener('message', messageHandler);
+              resolve({ success: false, error: 'Timeout' });
+            }, 5000);
+          });
+
+          if ((passwordResponse as any)?.success) {
+            const passwordInfo = (passwordResponse as any).passwordInfo;
+            alert(`🔑 WALLET PASSWORD DEBUG:
+
+Stored Password: "${passwordInfo.walletPassword || 'N/A'}"
+Stored Password Length: ${passwordInfo.walletPasswordLength || 'N/A'}
+Stored Password Preview: "${passwordInfo.walletPasswordPreview || 'N/A'}"
+
+Password Hash Preview: "${passwordInfo.passwordHashPreview || 'N/A'}"
+Has Encrypted Seed Phrase: ${passwordInfo.hasEncryptedSeedPhrase}
+Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/A'}"`);
+          }
+        } catch (error) {
+          alert(`❌ Error getting wallet password: ${error.message}`);
+        }
+        
         const response = await new Promise((resolve) => {
           const messageId = Date.now().toString();
           const unlockMessage = {
-            type: 'PAYCIO_WALLET_REQUEST',
+            type: 'PAYCIO_SHOW_WALLET_UNLOCK_POPUP',
             id: messageId,
-          method: 'unlock_wallet',
-          params: [password]
+            password: password
           };
           
           const messageHandler = (event: MessageEvent) => {
             if (event.source !== window) return;
-            if (event.data.type === 'PAYCIO_WALLET_REQUEST_RESPONSE' && event.data.id === messageId) {
+            if (event.data.type === 'PAYCIO_WALLET_UNLOCK_RESPONSE' && event.data.id === messageId) {
               window.removeEventListener('message', messageHandler);
               resolve(event.data);
             }
@@ -586,7 +858,9 @@ function createUnlockModal(): Promise<boolean> {
         } else {
           // Show detailed error in alert
           const errorDetails = (response as any)?.error ? `\n\nError details: ${(response as any).error}` : '';
-          alert(`❌ Unlock failed: ${(response as any)?.error || 'Unknown error'}${errorDetails}`);
+          alert(`❌ Unlock failed: ${(response as any)?.error || 'Unknown error'}${errorDetails}
+
+🔍 Password comparison details should be shown in the alerts above.`);
           
           unlockBtn.textContent = 'Unlock Wallet';
           unlockBtn.disabled = false;
@@ -1463,29 +1737,22 @@ try {
               }
             }
             
-            createConfirmationPopup(
-              'This site would like to connect to your PayCio Wallet',
-              async () => {
-                console.log('PayCio: Connection approved by user');
-                
-                // Get the real wallet address
-                const realAddress = await provider.getRealWalletAddress();
-                
-                if (realAddress) {
-                  provider.selectedAddress = realAddress;
-                  provider._state.accounts = [realAddress];
-                  console.log('✅ PayCio: Connected with real address:', realAddress);
-                  resolve([realAddress]);
-                } else {
-                  console.log('⚠️ PayCio: No real wallet found');
-                  reject(new Error('No wallet available. Please create or import a wallet first.'));
-                }
-              },
-              () => {
-                console.log('PayCio: Connection rejected by user');
-                reject(new Error('User rejected the connection'));
+            // Show wallet selection modal instead of simple confirmation
+            try {
+              const selectedAddress = await createWalletSelectionModal();
+              if (selectedAddress) {
+                provider.selectedAddress = selectedAddress;
+                provider._state.accounts = [selectedAddress];
+                console.log('✅ PayCio: Connected with selected address:', selectedAddress);
+                resolve([selectedAddress]);
+              } else {
+                console.log('PayCio: User cancelled wallet selection');
+                reject(new Error('User cancelled wallet selection'));
               }
-            );
+            } catch (error) {
+              console.error('PayCio: Error during wallet selection:', error);
+              reject(new Error('Failed to select wallet'));
+            }
           });
           
         case 'eth_chainId': {
@@ -1800,11 +2067,76 @@ try {
     getProvider: () => provider,
     isAuthorized: () => provider._state.accounts.length > 0,
     switchChain: async (chainId: number) => {
-      // For now, only support mainnet
-      if (chainId !== 1) {
-        throw new Error('Chain not supported');
+      // Support multiple chains
+      const supportedChains = {
+        1: 'ethereum',
+        56: 'bsc',
+        137: 'polygon',
+        43114: 'avalanche',
+        42161: 'arbitrum',
+        10: 'optimism',
+        250: 'fantom',
+        25: 'cronos'
+      };
+      
+      const chainName = supportedChains[chainId];
+      if (!chainName) {
+        throw new Error(`Chain ${chainId} not supported`);
       }
+      
+      try {
+        await provider.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: `0x${chainId.toString(16)}` }]
+        });
       return provider;
+      } catch (error) {
+        if (error.code === 4902) {
+          // Chain not added, try to add it
+          const chainConfigs = {
+            56: {
+              chainName: 'BNB Smart Chain',
+              rpcUrls: ['https://bsc-dataseed.binance.org'],
+              nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+              blockExplorerUrls: ['https://bscscan.com']
+            },
+            137: {
+              chainName: 'Polygon',
+              rpcUrls: ['https://polygon-rpc.com'],
+              nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+              blockExplorerUrls: ['https://polygonscan.com']
+            },
+            43114: {
+              chainName: 'Avalanche',
+              rpcUrls: ['https://api.avax.network/ext/bc/C/rpc'],
+              nativeCurrency: { name: 'AVAX', symbol: 'AVAX', decimals: 18 },
+              blockExplorerUrls: ['https://snowtrace.io']
+            },
+            42161: {
+              chainName: 'Arbitrum One',
+              rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+              nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+              blockExplorerUrls: ['https://arbiscan.io']
+            },
+            10: {
+              chainName: 'Optimism',
+              rpcUrls: ['https://mainnet.optimism.io'],
+              nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+              blockExplorerUrls: ['https://optimistic.etherscan.io']
+            }
+          };
+          
+          const config = chainConfigs[chainId];
+          if (config) {
+            await provider.request({
+              method: 'wallet_addEthereumChain',
+              params: [{ chainId: `0x${chainId.toString(16)}`, ...config }]
+            });
+            return provider;
+          }
+        }
+        throw error;
+      }
     }
   };
 

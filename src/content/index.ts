@@ -1,373 +1,272 @@
-// PayCio Wallet Content Script - Cross-Browser Compatible
-console.log('🔍 PayCio content script starting...');
+// content.js - WORKING VERSION
+console.log('🚀 PayCio Content Script Loading...');
 
-import { storage } from '../utils/storage-utils';
-import { runtime, safeSendMessage } from '../utils/runtime-utils';
-
-// Toast function for debugging
-function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
-  if (typeof window !== 'undefined') {
-    // Create a simple toast notification
-    const toast = document.createElement('div');
-    toast.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${type === 'error' ? '#ff4444' : type === 'success' ? '#44ff44' : '#4444ff'};
-      color: white;
-      padding: 12px 16px;
-      border-radius: 8px;
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 999999;
-      max-width: 300px;
-      word-wrap: break-word;
-    `;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    
-    // Remove after 3 seconds
-    setTimeout(() => {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
-    }, 3000);
-  }
-}
-
-// Set up the window object
+// Set up content script indicator FIRST
 (window as any).paycioWalletContentScript = {
-  isRunning: true,
-  timestamp: Date.now(),
-  message: 'PayCio content script is running!'
+    isRunning: true,
+    timestamp: Date.now(),
+    version: '1.0.0'
 };
-console.log('✅ PayCio: window.paycioWalletContentScript set up');
 
-// Function to inject the web accessible resource script
-function injectScript() {
-  console.log('Injecting PayCio Wallet script using web accessible resource...');
-  
-  const script = document.createElement('script');
-  script.src = runtime().getURL('injected.js');
-  script.onload = () => {
-    console.log('✅ PayCio Wallet injected script loaded successfully');
-    script.remove();
-  };
-  script.onerror = (error) => {
-    console.error('❌ Error loading injected script:', error);
-  };
-  
-  (document.head || document.documentElement).appendChild(script);
-}
+// Alert that content script is running
+alert('📄 CONTENT SCRIPT IS RUNNING!');
 
-// Function to add visual indicator
-function addIndicator() {
-  if (document.body) {
-    const indicator = document.createElement('div');
-    indicator.id = 'paycio-content-script-indicator';
-    indicator.style.cssText = `
-      position: fixed;
-      top: 10px;
-      right: 10px;
-      background: #007bff;
-      color: white;
-      padding: 10px;
-      border-radius: 5px;
-      font-family: monospace;
-      font-size: 12px;
-      z-index: 999999;
-    `;
-    indicator.innerHTML = 'PayCio Content Script: ✅ Running';
-    document.body.appendChild(indicator);
-    
-    // Remove indicator after 5 seconds
-    setTimeout(() => {
-      if (indicator.parentNode) {
-        indicator.parentNode.removeChild(indicator);
-      }
-    }, 5000);
-    
-    console.log('✅ PayCio: Indicator added to page');
-  } else {
-    console.log('⚠️ PayCio: Document body not ready, retrying...');
-    setTimeout(addIndicator, 100);
-  }
-}
-
-// Function to handle messages from injected script
-function handlePageMessages(event: MessageEvent) {
-  if (event.source !== window) return;
-  
-  // Handle crossBrowserSendMessage format (with _id field)
-  if (event.data._id && event.data.type) {
-    console.log('PayCio: Received crossBrowserSendMessage:', event.data);
-    
-    switch (event.data.type) {
-      case 'WALLET_REQUEST':
-        console.log('PayCio: Processing WALLET_REQUEST via crossBrowserSendMessage:', event.data.method);
+// Inject wallet script
+function injectWalletScript() {
+    try {
+        console.log('📥 Injecting wallet script...');
         
-        // Send message to background script to process wallet request
-        console.log('PayCio: Sending message to background script:', {
-          type: 'WALLET_REQUEST',
-          method: event.data.method,
-          params: event.data.params
-        });
-        
-        safeSendMessage({
-          type: 'WALLET_REQUEST',
-          method: event.data.method,
-          params: event.data.params
-        }).then((response) => {
-          console.log('PayCio: Received response from background script:', response);
-          console.log('PayCio: Response type:', typeof response);
-          console.log('PayCio: Response success:', response?.success);
-          console.log('PayCio: Response result:', response?.result);
-          
-          if (response?.success) {
-            console.log('PayCio: Sending success response to injected script');
-            window.postMessage({
-              _id: event.data._id,
-              response: response
-            }, '*');
-          } else {
-            console.log('PayCio: Sending error response to injected script');
-            window.postMessage({
-              _id: event.data._id,
-              error: response?.error || 'Unknown error'
-            }, '*');
-          }
-        }).catch((error) => {
-          console.error('PayCio: Error processing wallet request:', error);
-          console.error('PayCio: Error message:', error.message);
-          
-          // Provide more specific error messages
-          let errorMessage = error.message || 'Unknown error';
-          if (error.message.includes('Extension context invalidated')) {
-            errorMessage = 'Extension context invalidated. Please refresh the page and try again.';
-            showToast('🔧 Extension Context Invalidated: Please refresh page', 'error');
-          } else if (error.message.includes('Receiving end does not exist')) {
-            errorMessage = 'Wallet extension is not responding. Please refresh the page and try again.';
-            showToast('🔧 Connection Error: Extension not responding', 'error');
-          } else if (error.message.includes('timeout')) {
-            errorMessage = 'Request timed out. Please check if the wallet extension is running.';
-            showToast('🔧 Timeout Error: Extension not responding', 'error');
-          } else if (error.message.includes('disabled')) {
-            errorMessage = 'Wallet extension is disabled. Please enable it and try again.';
-            showToast('🔧 Extension Disabled: Please enable wallet', 'error');
-          }
-          
-          window.postMessage({
-            _id: event.data._id,
-            error: errorMessage
-          }, '*');
-        });
-        return;
-    }
-  }
-  
-  switch (event.data.type) {
-    case 'PAYCIO_GET_WALLET_ADDRESS':
-      console.log('PayCio: Received wallet address request from page with ID:', event.data.id);
-      
-      // Get wallet address from storage using correct structure
-      storage.get(['wallet', 'network']).then((result) => {
-        console.log('PayCio: Storage result:', result);
-        const wallet = result.wallet;
-        const currentNetwork = result.network;
-        
-        console.log('PayCio: Wallet data:', wallet);
-        console.log('PayCio: Current network:', currentNetwork);
-        
-        // Get current account address
-        const currentAccount = wallet?.accounts?.find((acc: any) => acc.isActive) || wallet?.accounts?.[0];
-        console.log('PayCio: Current account:', currentAccount);
-        
-        const address = currentAccount?.addresses?.[currentNetwork?.id || 'ethereum'];
-        console.log('PayCio: Derived address:', address);
-        
-        console.log('PayCio: Sending wallet address response with ID:', event.data.id);
-        
-        window.postMessage({
-          type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
-          id: event.data.id,
-          address: address
-        }, '*');
-      }).catch((error) => {
-        console.error('Error getting wallet from storage:', error);
-        window.postMessage({
-          type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
-          id: event.data.id,
-          address: null
-        }, '*');
-      });
-      break;
-
-    case 'PAYCIO_CHECK_WALLET_STATUS':
-      console.log('PayCio: Received wallet status check from page with ID:', event.data.id);
-      
-      // Check wallet unlock status
-      storage.get(['walletState']).then((result) => {
-        console.log('PayCio: Wallet state result:', result);
-        const isUnlocked = result.walletState?.isWalletUnlocked || false;
-        console.log('PayCio: Wallet unlocked status:', isUnlocked);
-        console.log('PayCio: Sending wallet status response with ID:', event.data.id);
-        
-        window.postMessage({
-          type: 'PAYCIO_WALLET_STATUS_RESPONSE',
-          id: event.data.id,
-          isUnlocked: isUnlocked
-        }, '*');
-      }).catch((error) => {
-        console.error('Error checking wallet status:', error);
-        window.postMessage({
-          type: 'PAYCIO_WALLET_STATUS_RESPONSE',
-          id: event.data.id,
-          isUnlocked: false
-        }, '*');
-      });
-      break;
-
-    case 'PAYCIO_SHOW_UNLOCK_POPUP':
-      console.log('PayCio: Received show unlock popup request from page');
-      
-      // Send message to background script to open popup
-      safeSendMessage({
-        type: 'SHOW_WALLET_UNLOCK_POPUP'
-      }).then((response) => {
-        const success = response?.success || false;
-        console.log('PayCio: Sending unlock popup response:', success);
-        
-        window.postMessage({
-          type: 'PAYCIO_UNLOCK_POPUP_RESPONSE',
-          id: event.data.id,
-          success: success
-        }, '*');
-      }).catch((error) => {
-        console.error('Error showing unlock popup:', error);
-        window.postMessage({
-          type: 'PAYCIO_UNLOCK_POPUP_RESPONSE',
-          id: event.data.id,
-          success: false
-        }, '*');
-      });
-      break;
-
-    case 'PAYCIO_WALLET_REQUEST':
-    case 'WALLET_REQUEST':
-      console.log('PayCio: Received wallet request from page:', event.data.method);
-      
-      // Send message to background script to process wallet request
-      console.log('PayCio: Sending wallet request to background script:', event.data.method);
-      
-      // First, try to wake up the background script with a simple ping
-      safeSendMessage({
-        type: 'PING'
-      }).then(() => {
-        console.log('PayCio: Background script is awake, sending wallet request');
-        return safeSendMessage({
-          type: 'WALLET_REQUEST',
-          method: event.data.method,
-          params: event.data.params
-        });
-      }).then((response) => {
-        console.log('PayCio: Received response from background script:', response);
-        if (response?.success) {
-          window.postMessage({
-            type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
-            id: event.data.id,
-            success: true,
-            result: response.result
-          }, '*');
-        } else {
-          window.postMessage({
-            type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
-            id: event.data.id,
-            success: false,
-            error: response?.error || 'Unknown error'
-          }, '*');
+        // Check if extension context is still valid
+        if (!chrome.runtime || !chrome.runtime.getURL) {
+            console.error('❌ PayCio: Extension context invalidated');
+            return;
         }
-      }).catch((error) => {
-        console.error('PayCio: Error processing wallet request:', error);
-        console.error('PayCio: Error message:', error.message);
-        console.error('PayCio: Error stack:', error.stack);
-        window.postMessage({
-          type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
-          id: event.data.id,
-          success: false,
-          error: error.message || 'Unknown error'
-        }, '*');
-      });
-      break;
-
-    case 'STORAGE_CHECK_REQUEST':
-      console.log('PayCio: Received storage check request from page with ID:', event.data.id);
-      
-      // Check storage and send response
-      storage.get(['wallet', 'walletState', 'network']).then((result) => {
-        console.log('PayCio: Storage result:', result);
         
-        window.postMessage({
-          type: 'STORAGE_CHECK_RESPONSE',
-          id: event.data.id,
-          success: true,
-          wallet: result.wallet,
-          walletState: result.walletState,
-          network: result.network
-        }, '*');
-      }).catch((error) => {
-        console.error('Error checking storage:', error);
-        window.postMessage({
-          type: 'STORAGE_CHECK_RESPONSE',
-          id: event.data.id,
-          success: false,
-          error: error.message || 'Unknown error'
-        }, '*');
-      });
-      break;
-  }
+        const script = document.createElement('script');
+        script.src = chrome.runtime.getURL('injected.js');
+        
+        script.onload = function() {
+            console.log('✅ PayCio: Wallet script injected successfully');
+            script.remove();
+        };
+        
+        script.onerror = function() {
+            console.error('❌ PayCio: Failed to inject wallet script');
+            script.remove();
+        };
+        
+        (document.head || document.documentElement).appendChild(script);
+        
+    } catch (error) {
+        console.error('❌ PayCio: Error injecting script:', error);
+    }
 }
 
-// Note: Storage change listeners are not available in cross-browser storage utility
-// Wallet status changes will be handled through other mechanisms
-
-// Initialize the content script
-console.log('🚀 PayCio: Initializing content script...');
-
-// Wait for DOM to be ready
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    console.log('✅ PayCio: DOM loaded, starting content script');
-    injectScript();
-    addIndicator();
-  });
-} else {
-  console.log('✅ PayCio: DOM already ready, starting content script');
-  injectScript();
-  addIndicator();
-}
-
-// Listen for messages from the page
-window.addEventListener('message', handlePageMessages);
-
-// Listen for messages from the extension
-runtime().onMessage.addListener((message, sender, sendResponse) => {
-  console.log('PayCio: Received message from extension:', message);
-  
-  switch (message.type) {
-    case 'WALLET_STATUS_CHANGED':
-      // Handle wallet status changes
-      console.log('PayCio: Wallet status changed:', message.isUnlocked);
-      break;
-      
-    case 'WALLET_ADDRESS_CHANGED':
-      // Handle wallet address changes
-      console.log('PayCio: Wallet address changed:', message.address);
-      break;
-      
-    default:
-      console.log('PayCio: Unknown message type:', message.type);
-      break;
-  }
+// Listen for messages from injected script
+window.addEventListener('message', (event) => {
+    // Only accept messages from same window
+    if (event.source !== window) return;
+    if (!event.data || !event.data.type) return;
+    if (!event.data.type.startsWith('PAYCIO_')) return;
+    
+    console.log('📨 PayCio Content: Message from injected script:', event.data.type);
+    handleInjectedMessage(event.data);
 });
 
-console.log('✅ PayCio: Content script initialization complete');
+// Handle messages from injected script
+function handleInjectedMessage(message: any) {
+    const { type, id } = message;
+    
+    switch (type) {
+        case 'PAYCIO_WALLET_REQUEST':
+            forwardWalletRequest(message);
+            break;
+            
+        case 'PAYCIO_CHECK_WALLET_STATUS':
+            forwardStatusCheck(message);
+            break;
+            
+        case 'PAYCIO_GET_WALLET_ADDRESS':
+            forwardAddressRequest(message);
+            break;
+            
+        case 'PAYCIO_SHOW_WALLET_UNLOCK_POPUP':
+            forwardWalletUnlockPopup(message);
+            break;
+            
+        case 'PAYCIO_DEBUG_PASSWORD':
+            forwardDebugPassword(message);
+            break;
+            
+        case 'PAYCIO_TEST_MESSAGE':
+            // Respond to test message
+            console.log('PayCio Content: Responding to test message with ID:', message.id);
+            try {
+                window.postMessage({
+                    type: 'PAYCIO_TEST_RESPONSE',
+                    id: message.id,
+                    success: true,
+                    timestamp: Date.now()
+                }, '*');
+                console.log('PayCio Content: Test response sent successfully');
+            } catch (error) {
+                console.error('PayCio Content: Error sending test response:', error);
+            }
+            break;
+            
+        default:
+            console.log('❓ Unknown injected message:', type);
+            sendErrorToInjected(type + '_RESPONSE', id, 'Unknown message type');
+    }
+}
+
+// Forward wallet request to background
+function forwardWalletRequest(message: any) {
+    const backgroundMessage = {
+        type: 'WALLET_REQUEST',
+        method: message.method,
+        params: message.params || []
+    };
+    
+    chrome.runtime.sendMessage(backgroundMessage, (response) => {
+        if (chrome.runtime.lastError) {
+            console.error('❌ Background error:', chrome.runtime.lastError.message);
+            sendErrorToInjected('PAYCIO_WALLET_REQUEST_RESPONSE', message.id, chrome.runtime.lastError.message);
+        } else {
+            console.log('✅ Background response:', response);
+            window.postMessage({
+                type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
+                id: message.id,
+                success: response.success,
+                result: response.result,
+                error: response.error
+            }, '*');
+        }
+    });
+}
+
+// Forward status check to background
+function forwardStatusCheck(message: any) {
+    chrome.runtime.sendMessage({ type: 'CHECK_WALLET_STATUS' }, (response) => {
+        if (chrome.runtime.lastError) {
+            sendErrorToInjected('PAYCIO_WALLET_STATUS_RESPONSE', message.id, chrome.runtime.lastError.message);
+        } else {
+            window.postMessage({
+                type: 'PAYCIO_WALLET_STATUS_RESPONSE',
+                id: message.id,
+                success: response.success,
+                isUnlocked: response.result?.isUnlocked || false,
+                hasWallet: response.result?.hasWallet || false,
+                address: response.result?.address || null
+            }, '*');
+        }
+    });
+}
+
+// Forward address request to background
+function forwardAddressRequest(message: any) {
+    chrome.runtime.sendMessage({ type: 'GET_WALLET_ADDRESS' }, (response) => {
+        if (chrome.runtime.lastError) {
+            sendErrorToInjected('PAYCIO_WALLET_ADDRESS_RESPONSE', message.id, chrome.runtime.lastError.message);
+        } else {
+            window.postMessage({
+                type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
+                id: message.id,
+                success: response.success,
+                address: response.address || null
+            }, '*');
+        }
+    });
+}
+
+// Forward wallet unlock popup request to background
+function forwardWalletUnlockPopup(message: any) {
+    chrome.runtime.sendMessage({ 
+        type: 'SHOW_WALLET_UNLOCK_POPUP',
+        password: message.password 
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            sendErrorToInjected('PAYCIO_WALLET_UNLOCK_RESPONSE', message.id, chrome.runtime.lastError.message);
+        } else {
+            window.postMessage({
+                type: 'PAYCIO_WALLET_UNLOCK_RESPONSE',
+                id: message.id,
+                success: response.success,
+                error: response.error || null
+            }, '*');
+        }
+    });
+}
+
+// Forward debug password request to background
+function forwardDebugPassword(message: any) {
+    chrome.runtime.sendMessage({ 
+        type: 'DEBUG_PASSWORD'
+    }, (response) => {
+        if (chrome.runtime.lastError) {
+            sendErrorToInjected('PAYCIO_DEBUG_PASSWORD_RESPONSE', message.id, chrome.runtime.lastError.message);
+        } else {
+            window.postMessage({
+                type: 'PAYCIO_DEBUG_PASSWORD_RESPONSE',
+                id: message.id,
+                success: response.success,
+                passwordInfo: response.passwordInfo || null,
+                error: response.error || null
+            }, '*');
+        }
+    });
+}
+
+// Send error response to injected script
+function sendErrorToInjected(responseType: string, messageId: any, error: string) {
+    window.postMessage({
+        type: responseType,
+        id: messageId,
+        success: false,
+        error: error
+    }, '*');
+}
+
+// Test connection function
+function testConnection() {
+    console.log('🔍 PayCio Content: Testing connection...');
+    
+    // Check if extension context is still valid
+    if (!chrome.runtime || !chrome.runtime.sendMessage) {
+        console.error('❌ PayCio Content: Extension context invalidated');
+        return;
+    }
+    
+    // Test background script connection
+    try {
+        chrome.runtime.sendMessage({ type: 'PING' }, (response) => {
+            if (chrome.runtime.lastError) {
+                console.error('❌ PayCio Content: Background connection failed:', chrome.runtime.lastError.message);
+            } else {
+                console.log('✅ PayCio Content: Background connection OK:', response);
+            }
+        });
+    } catch (error) {
+        console.error('❌ PayCio Content: Error sending message:', error);
+    }
+    
+    // Test injected script communication
+    const testMessage = {
+        type: 'PAYCIO_TEST_MESSAGE',
+        id: 'content-test-' + Date.now()
+    };
+    
+    window.postMessage(testMessage, '*');
+    console.log('🔍 PayCio Content: Test message sent to injected script');
+}
+
+// Listen for messages from background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log('📨 PayCio Content: Message from background:', message.type);
+    
+    if (message.type === 'PASSWORD_DEBUG_INFO') {
+        console.log('🔍 PayCio Content: Received password debug info');
+        // Display the debug information in an alert
+        alert(message.debugInfo);
+    }
+    
+    return true; // Keep message channel open for async response
+});
+
+// Expose test function globally for debugging
+(window as any).paycioTestConnection = testConnection;
+
+// Initialize content script
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        injectWalletScript();
+        // Test connection after a short delay
+        setTimeout(testConnection, 1000);
+    });
+} else {
+    injectWalletScript();
+    // Test connection after a short delay
+    setTimeout(testConnection, 1000);
+}
+
+console.log('✅ PayCio Content Script Ready!');

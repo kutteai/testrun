@@ -184,8 +184,39 @@ export class WalletConnectManager {
               'wallet_switchEthereumChain',
               'wallet_addEthereumChain'
             ],
-            chains: ['eip155:1', 'eip155:56', 'eip155:137', 'eip155:42161', 'eip155:10'],
+            chains: ['eip155:1', 'eip155:56', 'eip155:137', 'eip155:42161', 'eip155:10', 'eip155:43114'],
             events: ['chainChanged', 'accountsChanged', 'connect', 'disconnect']
+          },
+          // Add support for non-EVM chains
+          bitcoin: {
+            methods: [
+              'btc_getBalance',
+              'btc_getAddress',
+              'btc_sendTransaction',
+              'btc_signMessage'
+            ],
+            chains: ['bitcoin:0'],
+            events: ['accountsChanged']
+          },
+          solana: {
+            methods: [
+              'sol_requestAccounts',
+              'sol_getBalance',
+              'sol_sendTransaction',
+              'sol_signMessage'
+            ],
+            chains: ['solana:5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp'],
+            events: ['accountsChanged']
+          },
+          tron: {
+            methods: [
+              'tron_requestAccounts',
+              'tron_getBalance',
+              'tron_sendTransaction',
+              'tron_signMessage'
+            ],
+            chains: ['tron:0x2b6653dc'],
+            events: ['accountsChanged']
           }
         },
         optionalNamespaces: {
@@ -197,7 +228,25 @@ export class WalletConnectManager {
               'eth_getTransactionReceipt',
               'eth_getBlockByNumber'
             ],
-            chains: ['eip155:43114']
+            chains: ['eip155:43114', 'eip155:250', 'eip155:25']
+          },
+          litecoin: {
+            methods: [
+              'ltc_getBalance',
+              'ltc_getAddress',
+              'ltc_sendTransaction'
+            ],
+            chains: ['litecoin:0'],
+            events: ['accountsChanged']
+          },
+          ton: {
+            methods: [
+              'ton_requestAccounts',
+              'ton_getBalance',
+              'ton_sendTransaction'
+            ],
+            chains: ['ton:mainnet'],
+            events: ['accountsChanged']
           }
         }
       });
@@ -431,6 +480,37 @@ export class WalletConnectManager {
             id: request.id,
             jsonrpc: '2.0',
             result: null
+          };
+
+        case 'wallet_unlock':
+          // WalletConnect doesn't support unlock method - wallets should be pre-unlocked
+          return {
+            id: request.id,
+            jsonrpc: '2.0',
+            error: {
+              code: -32601,
+              message: 'wallet_unlock method not supported. Please unlock your wallet manually.'
+            }
+          };
+
+        case 'wallet_requestPermissions':
+          // Handle permission requests
+          return {
+            id: request.id,
+            jsonrpc: '2.0',
+            result: [{
+              'eth_accounts': {}
+            }]
+          };
+
+        case 'wallet_getPermissions':
+          // Return current permissions
+          return {
+            id: request.id,
+            jsonrpc: '2.0',
+            result: [{
+              'eth_accounts': {}
+            }]
           };
 
         default:

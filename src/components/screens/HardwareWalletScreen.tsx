@@ -95,9 +95,11 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         
         if (errorMessage.includes('WebUSB')) {
-          toast.error('WebUSB not supported. Please use a modern browser with USB support.');
+          toast.error('WebUSB not supported. Please use Chrome or Edge browser for hardware wallet support.');
         } else if (errorMessage.includes('secure context')) {
           toast.error('Hardware wallets require HTTPS or chrome-extension context for security.');
+        } else if (errorMessage.includes('USB permissions') || errorMessage.includes('usb permission')) {
+          toast.error('USB permissions not available. Chrome extensions can use WebUSB without explicit permissions.');
         } else {
           toast.error(`Failed to initialize hardware wallet support: ${errorMessage}`);
         }
@@ -181,8 +183,41 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         connecting: option.id === selectedWallet
       })));
 
+      console.log(`Attempting to connect to ${selectedWallet}...`);
+      
+      // First, try to detect already connected devices
+      const connectedDevices = await hardwareWalletManager.detectConnectedDevices();
+      
+      if (connectedDevices.length === 0) {
+        // No devices detected, request USB permissions
+        toast.loading('Requesting USB device access...');
+        
+        try {
+          const permissionResult = await hardwareWalletManager.requestUSBPermissions();
+          
+          if (!permissionResult.success) {
+            throw new Error(permissionResult.error || 'Failed to get USB device access');
+          }
+          
+          toast.dismiss();
+          toast.success('USB device access granted!');
+        } catch (permissionError) {
+          toast.dismiss();
+          // Provide specific guidance for USB permission issues
+          if (permissionError.message.includes('NotFoundError') || permissionError.message.includes('No device selected')) {
+            throw new Error('No hardware wallet device selected. Please select your device when prompted.');
+          } else if (permissionError.message.includes('SecurityError') || permissionError.message.includes('Permission denied')) {
+            throw new Error('USB device access denied. Please allow access to your hardware wallet device when prompted.');
+          } else {
+            throw new Error(`USB device access failed: ${permissionError.message}`);
+          }
+        }
+      }
+      
       // Connect to the device
       await hardwareWalletManager.connectToDevice(selectedWallet as 'ledger' | 'trezor');
+      
+      console.log('Device connected successfully, getting device info...');
       
       // Get device info and map it to our interface
       const info = await hardwareWalletManager.getDeviceInfo();
@@ -196,12 +231,16 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
       };
       setDeviceInfo(mappedDeviceInfo);
       
+      console.log('Getting wallet addresses...');
+      
       // Get wallet addresses
       const addresses = await hardwareWalletManager.getHardwareWalletAddresses(
         hardwareWalletManager.derivationPath
       );
       
       if (addresses.length > 0) {
+        console.log(`Found ${addresses.length} addresses, adding to wallet...`);
+        
         // Add hardware wallet to the wallet context
         await addHardwareWallet(
           selectedWallet as 'ledger' | 'trezor',
@@ -234,14 +273,24 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
       // Provide specific error messages based on error type
       let userErrorMessage = 'Connection failed';
       if (error instanceof Error) {
-        if (error.message.includes('not connected')) {
+        if (error.message.includes('WebUSB')) {
+          userErrorMessage = 'WebUSB not supported. Please use Chrome or Edge browser.';
+        } else if (error.message.includes('Permission denied') || error.message.includes('SecurityError')) {
+          userErrorMessage = 'USB device access denied. Please allow access to your hardware wallet device when prompted.';
+        } else if (error.message.includes('No device selected') || error.message.includes('NotFoundError')) {
+          userErrorMessage = 'No hardware wallet device selected. Please select your device when prompted.';
+        } else if (error.message.includes('not connected')) {
           userErrorMessage = 'Device not connected. Please ensure your hardware wallet is plugged in and unlocked.';
+        } else if (error.message.includes('USB permissions') || error.message.includes('usb permission')) {
+          userErrorMessage = 'USB device access required. Chrome extensions can use WebUSB without explicit permissions.';
         } else if (error.message.includes('not responding')) {
           userErrorMessage = 'Device not responding. Please check if the Ethereum app is open on your device.';
         } else if (error.message.includes('access denied')) {
           userErrorMessage = 'Access denied. Please check if another application is using the device.';
         } else if (error.message.includes('timeout')) {
           userErrorMessage = 'Connection timeout. Please try again and ensure your device is ready.';
+        } else if (error.message.includes('Security error')) {
+          userErrorMessage = 'Security error: WebUSB requires user interaction. Please try again.';
         } else {
           userErrorMessage = error.message;
         }
@@ -463,6 +512,36 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
           <p className="text-gray-700 text-lg">
             {getConnectionInstruction()}
           </p>
+          
+          {/* Request Device Access Button */}
+          {connectionStatus === 'idle' && !walletOptions.find(w => w.id === selectedWallet)?.detected && (
+            <div className="mt-4">
+              <button
+                onClick={async () => {
+                  try {
+                    setConnectionStatus('connecting');
+                    const result = await hardwareWalletManager.requestDeviceAccess(selectedWallet);
+                    if (result.success) {
+                      toast.success('Device access granted! You can now connect.');
+                      await refreshDeviceDetection();
+                    }
+                  } catch (error) {
+                    console.error('Failed to request device access:', error);
+                    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                    toast.error(`Failed to request device access: ${errorMessage}`);
+                  } finally {
+                    setConnectionStatus('idle');
+                  }
+                }}
+                className="px-6 py-3 bg-[#180CB2] text-white rounded-lg font-medium hover:bg-[#1409a0] transition-colors"
+              >
+                Request Device Access
+              </button>
+              <p className="text-sm text-gray-500 mt-2">
+                Click this if your device is connected but not detected
+              </p>
+            </div>
+          )}
           
           {errorMessage && (
             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">

@@ -246,7 +246,41 @@ const App: React.FC = () => {
       case 'backups':
         return <BackupsScreen onNavigate={handleNavigate} />;
       case 'expand-view':
-        return <div className="p-6 text-center">Expand View - Coming Soon</div>;
+        return <div className="p-6 text-center">
+          <div className="mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Expand to Full Screen</h3>
+            <p className="text-gray-600 mb-4">Open PayCio Wallet in a full-screen window for a better experience.</p>
+            <button
+              onClick={async () => {
+                try {
+                  // Import the expand utility
+                  const { openExpandedView, isWindowOpeningSupported } = await import('../utils/expand-utils');
+                  
+                  if (isWindowOpeningSupported()) {
+                    await openExpandedView({
+                      width: 1200,
+                      height: 800,
+                      left: 100,
+                      top: 100,
+                      focused: true,
+                      type: 'normal'
+                    });
+                    // Close the popup after opening expanded view
+                    window.close();
+                  } else {
+                    alert('Full screen mode not supported in this browser');
+                  }
+                } catch (error) {
+                  console.error('Failed to open expanded view:', error);
+                  alert('Failed to open full screen mode');
+                }
+              }}
+              className="w-full bg-[#180CB2] text-white py-3 px-4 rounded-lg font-medium hover:bg-[#1409a0] transition-colors"
+            >
+              Open Full Screen
+            </button>
+          </div>
+        </div>;
       case 'support':
         return <SupportScreen onNavigate={handleNavigate} />;
       case 'lock-paycio':

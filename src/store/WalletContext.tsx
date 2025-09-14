@@ -927,8 +927,116 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     
   };
 
-   // Switch network
-   const switchNetwork = async (networkId: string): Promise<void> => {
+  // Helper function to get chain ID for network
+  const getChainIdForNetwork = (networkId: string): number | null => {
+    const chainIds = {
+      'ethereum': 1,
+      'bsc': 56,
+      'polygon': 137,
+      'avalanche': 43114,
+      'arbitrum': 42161,
+      'optimism': 10,
+      'fantom': 250,
+      'cronos': 25,
+      'base': 8453,
+      'zksync': 324,
+      'linea': 59144,
+      'mantle': 5000,
+      'scroll': 534352
+    };
+    return chainIds[networkId] || null;
+  };
+
+  // Helper function to add Ethereum chain
+  const addEthereumChain = async (chainId: number, networkId: string): Promise<void> => {
+    const chainConfigs = {
+      56: {
+        chainName: 'BNB Smart Chain',
+        rpcUrls: ['https://bsc-dataseed.binance.org'],
+        nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+        blockExplorerUrls: ['https://bscscan.com']
+      },
+      137: {
+        chainName: 'Polygon',
+        rpcUrls: ['https://polygon-rpc.com'],
+        nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+        blockExplorerUrls: ['https://polygonscan.com']
+      },
+      43114: {
+        chainName: 'Avalanche',
+        rpcUrls: ['https://api.avax.network/ext/bc/C/rpc'],
+        nativeCurrency: { name: 'AVAX', symbol: 'AVAX', decimals: 18 },
+        blockExplorerUrls: ['https://snowtrace.io']
+      },
+      42161: {
+        chainName: 'Arbitrum One',
+        rpcUrls: ['https://arb1.arbitrum.io/rpc'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://arbiscan.io']
+      },
+      10: {
+        chainName: 'Optimism',
+        rpcUrls: ['https://mainnet.optimism.io'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://optimistic.etherscan.io']
+      },
+      250: {
+        chainName: 'Fantom Opera',
+        rpcUrls: ['https://rpc.ftm.tools'],
+        nativeCurrency: { name: 'FTM', symbol: 'FTM', decimals: 18 },
+        blockExplorerUrls: ['https://ftmscan.com']
+      },
+      25: {
+        chainName: 'Cronos',
+        rpcUrls: ['https://evm.cronos.org'],
+        nativeCurrency: { name: 'CRO', symbol: 'CRO', decimals: 18 },
+        blockExplorerUrls: ['https://cronoscan.com']
+      },
+      8453: {
+        chainName: 'Base',
+        rpcUrls: ['https://mainnet.base.org'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://basescan.org']
+      },
+      324: {
+        chainName: 'zkSync Era',
+        rpcUrls: ['https://mainnet.era.zksync.io'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://explorer.zksync.io']
+      },
+      59144: {
+        chainName: 'Linea',
+        rpcUrls: ['https://rpc.linea.build'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://lineascan.build']
+      },
+      5000: {
+        chainName: 'Mantle',
+        rpcUrls: ['https://rpc.mantle.xyz'],
+        nativeCurrency: { name: 'MNT', symbol: 'MNT', decimals: 18 },
+        blockExplorerUrls: ['https://mantlescan.xyz']
+      },
+      534352: {
+        chainName: 'Scroll',
+        rpcUrls: ['https://rpc.scroll.io'],
+        nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+        blockExplorerUrls: ['https://scrollscan.com']
+      }
+    };
+
+    const config = chainConfigs[chainId];
+    if (config) {
+      await window.ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [{ chainId: `0x${chainId.toString(16)}`, ...config }]
+      });
+    }
+  };
+
+  // Switch network
+  const switchNetwork = async (networkId: string): Promise<void> => {
+    const originalNetwork = state.currentNetwork; // Store original network for rollback
+    
     try {
       
       
@@ -1010,6 +1118,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
                   }
                 },
                 onCancel: () => {
+                  // When user cancels password input, revert to previous network
+                  console.log('User cancelled password input, reverting network switch');
+                  dispatch({ type: 'SET_CURRENT_NETWORK', payload: state.currentNetwork });
                   reject(new Error('User cancelled password input'));
                 }
               }
@@ -1073,9 +1184,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
             console.log(`✅ Derived EVM address for ${networkId}: ${newAddress} (path: ${derivationPath})`);
           } else {
             // For non-EVM networks, derive network-specific address
-          toast.info(`🔧 About to call deriveNetworkSpecificAddress for ${networkId}`);
-          toast.info(`🔧 Seed phrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
-          toast.info(`🔧 Seed phrase value: ${seedPhrase ? 'exists' : 'null/undefined'}`);
+          toast(`🔧 About to call deriveNetworkSpecificAddress for ${networkId}`);
+          toast(`🔧 Seed phrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
+          toast(`🔧 Seed phrase value: ${seedPhrase ? 'exists' : 'null/undefined'}`);
             
             if (!seedPhrase || typeof seedPhrase !== 'string') {
               throw new Error(`Invalid seed phrase for ${networkId} derivation: ${typeof seedPhrase}`);
@@ -1111,9 +1222,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
                     newAddress = derivedWallet.address;
                     console.log(`✅ Derived EVM address with stored password: ${newAddress}`);
                   } else {
-                    toast.info(`🔧 Retry: About to call deriveNetworkSpecificAddress for ${networkId}`);
-                    toast.info(`🔧 Retry: Seed phrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
-                    toast.info(`🔧 Retry: Seed phrase value: ${seedPhrase ? 'exists' : 'null/undefined'}`);
+                    toast(`🔧 Retry: About to call deriveNetworkSpecificAddress for ${networkId}`);
+                    toast(`🔧 Retry: Seed phrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
+                    toast(`🔧 Retry: Seed phrase value: ${seedPhrase ? 'exists' : 'null/undefined'}`);
                     
                     if (!seedPhrase || typeof seedPhrase !== 'string') {
                       throw new Error(`Invalid seed phrase for ${networkId} derivation (retry): ${typeof seedPhrase}`);
@@ -1147,6 +1258,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const isTronAddress = newAddress.startsWith('T') && newAddress.length === 34;
       const isTonAddress = newAddress.startsWith('EQ') && newAddress.length === 48;
       const isXrpAddress = newAddress.startsWith('r') && newAddress.length === 34;
+      
+      // Check if address is valid for the network
+      const isValidAddress = isEvmAddress || isBitcoinAddress || isSolanaAddress || isTronAddress || isTonAddress || isXrpAddress;
+      
+      if (!isValidAddress || newAddress === '0000000000000000000000005eccb429') {
+        console.error(`❌ Invalid address generated for ${networkId}: ${newAddress}`);
+        throw new Error(`Failed to generate valid address for ${networkId}. Please try again or contact support.`);
+      }
       
       
       
@@ -1245,8 +1364,46 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       } else {
       }
       
+      // For EVM networks, also trigger ethereum provider chain change
+      if (typeof window.ethereum !== 'undefined' && isEvmNetwork) {
+        const chainId = getChainIdForNetwork(networkId);
+        if (chainId) {
+          try {
+            await window.ethereum.request({
+              method: 'wallet_switchEthereumChain',
+              params: [{ chainId: `0x${chainId.toString(16)}` }]
+            });
+            console.log(`✅ EVM chain switched to ${chainId} (${networkId})`);
+          } catch (error) {
+            if (error.code === 4902) {
+              // Chain not added, try to add it
+              await addEthereumChain(chainId, networkId);
+            } else {
+              console.warn(`Failed to switch EVM chain: ${error.message}`);
+            }
+          }
+        }
+      }
+      
     } catch (error) {
       console.error('Network switch failed:', error);
+      
+      // Revert to original network on error
+      if (originalNetwork) {
+        console.log('Reverting to original network:', originalNetwork.id);
+        dispatch({ type: 'SET_CURRENT_NETWORK', payload: originalNetwork });
+      }
+      
+      // If it's a user cancellation, don't show error toast
+      if (error instanceof Error && error.message.includes('User cancelled')) {
+        console.log('User cancelled network switch, no error shown');
+        return;
+      }
+      
+      // Show error message
+      const errorMessage = error instanceof Error ? error.message : 'Network switch failed';
+      toast.error(`Failed to switch to ${networkId}: ${errorMessage}`);
+      
       throw error;
     }
   };
@@ -1283,9 +1440,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Helper functions for address derivation
   const deriveNetworkSpecificAddress = async (networkId: string, seedPhrase: string): Promise<string> => {
     try {
-      toast.info(`🔧 Deriving address for ${networkId} with seed phrase length: ${seedPhrase?.length || 'undefined'}`);
-      toast.info(`🔧 NetworkId type: ${typeof networkId}, value: "${networkId}"`);
-      toast.info(`🔧 SeedPhrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
+      toast(`🔧 Deriving address for ${networkId} with seed phrase length: ${seedPhrase?.length || 'undefined'}`);
+      toast(`🔧 NetworkId type: ${typeof networkId}, value: "${networkId}"`);
+      toast(`🔧 SeedPhrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
       
       // Validate inputs
       if (!networkId || !seedPhrase) {
@@ -1313,7 +1470,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       console.log(`🔧 Using derivation path: ${derivationPath} for ${networkId}`);
       
       // Use the centralized address generation function
-      const address = generateNetworkAddress(seedPhrase, derivationPath, networkId);
+      console.log(`🔧 Calling generateNetworkAddress with:`);
+      console.log(`  - seedPhrase: "${seedPhrase.substring(0, 20)}..." (length: ${seedPhrase.length})`);
+      console.log(`  - derivationPath: "${derivationPath}"`);
+      console.log(`  - networkId: "${networkId}"`);
+      
+      const address = await generateNetworkAddress(seedPhrase, derivationPath, networkId);
+      
+      console.log(`🔧 generateNetworkAddress returned: "${address}" (type: ${typeof address}, length: ${address?.length || 'undefined'})`);
       
       if (!address || address.trim() === '') {
         throw new Error(`generateNetworkAddress returned empty address for ${networkId}`);
@@ -1338,29 +1502,85 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const { WalletManager } = await import('../core/wallet-manager');
       const walletManager = new WalletManager();
       
+      // Get the current wallet data
+      const currentWallet = await walletManager.getWallet(state.wallet.id);
+      if (!currentWallet) {
+        throw new Error('Wallet not found');
+      }
+
+      // Find the account to switch to
+      const targetAccount = currentWallet.accounts.find(acc => acc.id === accountId);
+      if (!targetAccount) {
+        throw new Error('Account not found');
+      }
+
+      // Get the current network
+      const currentNetworkId = state.currentNetwork?.id || 'ethereum';
+      
+      // Ensure the account has an address for the current network
+      let accountAddress = targetAccount.addresses?.[currentNetworkId];
+      
+      if (!accountAddress && targetAccount.encryptedSeedPhrase) {
+        // Derive address for the current network
+        console.log(`🔧 Deriving ${currentNetworkId} address for account ${accountId}`);
+        
+        const password = await getPassword();
+        if (!password) {
+          throw new Error('Password required to derive address');
+        }
+
+        const seedPhrase = await decryptData(targetAccount.encryptedSeedPhrase, password);
+        if (!seedPhrase) {
+          throw new Error('Failed to decrypt seed phrase');
+        }
+
+        // Derive address for the current network
+        const { generateNetworkAddress } = await import('../utils/network-address-utils');
+        
+        // Get derivation path for the account
+        const derivationPath = targetAccount.derivationPath || `m/44'/60'/0'/0/0`;
+        
+        // Generate address for current network
+        accountAddress = await generateNetworkAddress(seedPhrase, derivationPath, currentNetworkId);
+        
+        // Update the account with the new address
+        if (!targetAccount.addresses) {
+          targetAccount.addresses = {};
+        }
+        targetAccount.addresses[currentNetworkId] = accountAddress;
+        
+        // Save the updated wallet
+        await (walletManager as any).saveWallets();
+      }
+
       // Switch to the account
       await walletManager.switchToAccount(state.wallet.id, accountId);
       
       // Get the updated wallet with the new account
       const updatedWallet = await walletManager.getWallet(state.wallet.id);
       if (updatedWallet) {
-        // Update the wallet state
-        dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+        // Update the wallet state with the correct address for current network
+        const updatedWalletWithAddress = {
+          ...updatedWallet,
+          address: accountAddress || updatedWallet.address
+        };
+        
+        dispatch({ type: 'SET_WALLET', payload: updatedWalletWithAddress });
         
         // Dispatch custom event to notify all components
         if (typeof window !== 'undefined') {
           const event = new CustomEvent('accountSwitched', {
             detail: {
-              wallet: updatedWallet,
+              wallet: updatedWalletWithAddress,
               accountId: accountId,
-              address: updatedWallet.address,
-              network: updatedWallet.currentNetwork
+              address: accountAddress || updatedWallet.address,
+              network: currentNetworkId
             }
           });
           window.dispatchEvent(event);
         }
         
-        console.log(`✅ Account switched to: ${accountId}, address: ${updatedWallet.address}`);
+        console.log(`✅ Account switched to: ${accountId}, address: ${accountAddress || updatedWallet.address} on ${currentNetworkId}`);
       }
     } catch (error) {
       console.error('Failed to switch account:', error);
@@ -1475,7 +1695,61 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Don't set error state to avoid persistent "something went wrong"
       throw error; // Re-throw the error so the caller can handle it
   }
-};
+  };
+
+  // Add new account from seed phrase
+  const addAccountFromSeedPhrase = async (seedPhrase: string, password: string, accountName?: string): Promise<any> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      const newAccount = await walletManager.addAccountFromSeedPhrase(state.wallet.id, seedPhrase, password, accountName);
+      
+      // Get the updated wallet
+      const updatedWallet = await walletManager.getWallet(state.wallet.id);
+      if (updatedWallet) {
+        dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
+        await storeWallet(updatedWallet);
+        
+        console.log(`✅ Account added from seed phrase: ${newAccount.name}`);
+        return newAccount;
+      }
+    } catch (error) {
+      console.error('Failed to add account from seed phrase:', error);
+      throw error;
+    }
+  };
+
+  // Add new account from private key
+  const addAccountFromPrivateKey = async (privateKey: string, password: string, accountName?: string): Promise<any> => {
+    try {
+      if (!state.wallet) {
+        throw new Error('No wallet available');
+      }
+
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      const newAccount = await walletManager.addAccountFromPrivateKey(state.wallet.id, privateKey, password, accountName);
+      
+      // Get the updated wallet
+      const updatedWallet = await walletManager.getWallet(state.wallet.id);
+      if (updatedWallet) {
+        dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
+        await storeWallet(updatedWallet);
+        
+        console.log(`✅ Account added from private key: ${newAccount.name}`);
+        return newAccount;
+      }
+    } catch (error) {
+      console.error('Failed to add account from private key:', error);
+      throw error;
+    }
+  };
 
   // Remove account
   const removeAccount = async (accountId: string): Promise<void> => {
@@ -2041,6 +2315,8 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     addHardwareWallet,
     switchAccount,
     addAccount,
+    addAccountFromSeedPhrase,
+    addAccountFromPrivateKey,
     removeAccount,
     getCurrentAccount,
     getWalletAccounts,
@@ -2053,18 +2329,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     setGlobalPasswordAndHash,
     clearError,
     extendSession,
-    debugSessionStatus,
-    testAddressCompatibility: async () => {
-      try {
-        const { runCompatibilityTests } = await import('../utils/address-compatibility-test');
-        const results = await runCompatibilityTests();
-        console.log('🔍 Address Compatibility Test Results:', results);
-        return results;
-      } catch (error) {
-        console.error('❌ Failed to run compatibility tests:', error);
-        return null;
-      }
-    }
+    debugSessionStatus
   };
 
   return (

@@ -10,8 +10,10 @@
     "alarms",
     "notifications",
     "clipboardWrite",
-    "background"
+    "background",
+    "tabs"
   ],
+  "optional_permissions": [],
   "host_permissions": [
     "https://*/*",
     "http://*/*"
@@ -37,14 +39,16 @@
       "js": [
         "content.js"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
         "injected.js",
-        "assets/*"
+        "assets/*",
+        "expand.html"
       ],
       "matches": [
         "<all_urls>"

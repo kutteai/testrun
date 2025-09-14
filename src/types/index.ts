@@ -269,6 +269,8 @@ export interface WalletContextType {
   addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
   addAccount: (password: string, accountName?: string) => Promise<any>;
+  addAccountFromSeedPhrase: (seedPhrase: string, password: string, accountName?: string) => Promise<any>;
+  addAccountFromPrivateKey: (privateKey: string, password: string, accountName?: string) => Promise<any>;
   removeAccount: (accountId: string) => Promise<void>;
   getCurrentAccount: () => Promise<any>;
   getWalletAccounts: () => Promise<any[]>;
@@ -282,7 +284,6 @@ export interface WalletContextType {
   clearError: () => void;
   extendSession: () => Promise<void>;
   debugSessionStatus: () => Promise<void>;
-  testAddressCompatibility: () => Promise<any>;
 }
 
 export interface SecurityContextType {

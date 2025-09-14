@@ -167,11 +167,11 @@ export class AddressBook {
   }
 
   // Find contact by ENS name
-  async findContactByENS(ensName: string): Promise<Contact | undefined> {
-    const address = await resolveENS(ensName);
+  async findContactByENS(ensName: string, network: string = 'ethereum'): Promise<Contact | undefined> {
+    const address = await resolveENS(ensName, network);
     if (!address) return undefined;
 
-    return this.findContactByAddress(address, 'ethereum');
+    return this.findContactByAddress(address, network);
   }
 
   // Toggle favorite status

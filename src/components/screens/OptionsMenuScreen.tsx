@@ -15,6 +15,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 import { tabs, action, runtime } from '../../utils/runtime-utils';
+import { openExpandedView, isWindowOpeningSupported } from '../../utils/expand-utils';
 
 const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { lockWallet } = useWallet();
@@ -25,7 +26,7 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     { icon: Settings, label: 'Settings', screen: 'settings' as const },
     { icon: Globe, label: 'Networks', screen: 'networks' as const },
     { icon: Headphones, label: 'Support', screen: 'support' as const },
-    // { icon: Maximize, label: 'Expand view', screen: 'expand-view' as const },
+    { icon: Maximize, label: 'Expand to Full Screen', screen: 'expand-view' as const },
     { icon: Lock, label: 'Lock Paycio', screen: 'lock-paycio' as const },
   ];
 
@@ -50,9 +51,27 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         toast.error('Failed to lock wallet');
         // Don't navigate on error - let user retry
       }
-    // } else if (screen === 'expand-view') {
-    //   // Navigate to expand view screen
-    //   onNavigate('expand-view' as any);
+    } else if (screen === 'expand-view') {
+      // Open expanded view in new window
+      try {
+        if (isWindowOpeningSupported()) {
+          await openExpandedView({
+            width: 1200,
+            height: 800,
+            left: 100,
+            top: 100,
+            focused: true,
+            type: 'normal'
+          });
+          toast.success('Opened wallet in full screen');
+          onGoBack(); // Close the options menu
+        } else {
+          toast.error('Full screen mode not supported in this browser');
+        }
+      } catch (error) {
+        console.error('Failed to open expanded view:', error);
+        toast.error('Failed to open full screen mode');
+      }
     } else if (screen === 'networks') {
       onNavigate('networks' as any); // Navigate to networks screen
     } else {

@@ -119,7 +119,7 @@ export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: 
       };
     } else {
       // For non-EVM networks, use proper address generation
-      const networkAddress = generateNetworkAddress(seedPhrase, derivationPath, network || 'unknown');
+      const networkAddress = await generateNetworkAddress(seedPhrase, derivationPath, network || 'unknown');
       
       console.log(`🔧 Generated ${network || 'unknown'} address: ${networkAddress} (from path: ${derivationPath})`);
       

@@ -32,7 +32,8 @@ module.exports = (env, argv) => {
       background: './src/background/background.js',
       content: './src/content/index.ts',
       injected: './src/injected/index.ts',
-      options: './src/options/index.tsx'
+      options: './src/options/index.tsx',
+      expand: './src/expand.tsx'
     },
     output: {
       path: path.resolve(__dirname, `dist/${browser}`),
@@ -143,12 +144,13 @@ module.exports = (env, argv) => {
         }),
         'process.env.NODE_ENV': JSON.stringify(argv.mode),
         'process.env.BROWSER': JSON.stringify(browser),
-        'window.CONFIG': JSON.stringify(CONFIG),
         'global': 'globalThis',
         // Define process for browser compatibility
         'process.browser': JSON.stringify(true),
         'process.version': JSON.stringify(''),
         'process.versions': JSON.stringify({}),
+        // Inject CONFIG as a global constant
+        'PAYCIO_CONFIG': JSON.stringify(CONFIG),
       }),
 
       // Provide Buffer and process globals
@@ -177,6 +179,20 @@ module.exports = (env, argv) => {
         template: './src/options/options.html',
         filename: 'options.html',
         chunks: ['options'],
+        inject: true,
+        minify: isProduction ? {
+          removeComments: true,
+          collapseWhitespace: true,
+          removeRedundantAttributes: true,
+          removeScriptTypeAttributes: true,
+          removeStyleLinkTypeAttributes: true
+        } : false
+      }),
+
+      new HtmlWebpackPlugin({
+        template: './src/expand.html',
+        filename: 'expand.html',
+        chunks: ['expand'],
         inject: true,
         minify: isProduction ? {
           removeComments: true,
