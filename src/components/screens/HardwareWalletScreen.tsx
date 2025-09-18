@@ -520,7 +520,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
                 onClick={async () => {
                   try {
                     setConnectionStatus('connecting');
-                    const result = await hardwareWalletManager.requestDeviceAccess(selectedWallet);
+                    const result = await hardwareWalletManager.requestDeviceAccess();
                     if (result.success) {
                       toast.success('Device access granted! You can now connect.');
                       await refreshDeviceDetection();

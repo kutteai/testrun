@@ -151,28 +151,15 @@ export class DeFiManager {
 
   // Get yield opportunities
   async getYieldOpportunities(network: string, token: string): Promise<DeFiYield[]> {
-    const protocols = this.getProtocolsByNetwork(network);
-    const yields: DeFiYield[] = [];
-
-    for (const protocol of protocols) {
-      try {
-        // In a real implementation, you would fetch actual APY data from APIs
-        const yieldData: DeFiYield = {
-          protocol: protocol.id,
-          token,
-          apy: protocol.apy + Math.random() * 5, // Add some variation
-          tvl: protocol.tvl,
-          risk: protocol.risk,
-          minAmount: '0.01',
-          maxAmount: '1000000'
-        };
-        yields.push(yieldData);
-      } catch (error) {
-        console.warn(`Failed to get yield for ${protocol.name}:`, error);
-      }
-    }
-
-    return yields.sort((a, b) => b.apy - a.apy);
+    // Real implementation requires actual DeFi protocol APIs
+    throw new Error('DeFi yield opportunities require real protocol integration. Connect to Uniswap, Aave, Compound, etc. APIs for live data.');
+    
+    // This would integrate with:
+    // - Uniswap V3 API for LP yields
+    // - Aave API for lending yields
+    // - Compound API for lending/borrowing
+    // - Yearn Finance API for vault yields
+    // - Curve Finance API for stablecoin yields
   }
 
   // Add liquidity to DEX
@@ -208,7 +195,7 @@ export class DeFiManager {
       };
 
       this.positions.set(position.id, position);
-      this.savePositions();
+      await this.savePositions([]);
 
       return position;
     } catch (error) {
@@ -246,7 +233,7 @@ export class DeFiManager {
       };
 
       this.positions.set(position.id, position);
-      this.savePositions();
+      await this.savePositions([]);
 
       return position;
     } catch (error) {
@@ -284,7 +271,7 @@ export class DeFiManager {
       };
 
       this.positions.set(position.id, position);
-      this.savePositions();
+      await this.savePositions([]);
 
       return position;
     } catch (error) {

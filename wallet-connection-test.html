@@ -327,6 +327,19 @@
         </div>
 
         <div class="content">
+            <!-- Extension Context Warning -->
+            <div class="test-section" style="background: #fff3cd; border-color: #ffeaa7;">
+                <h2>⚠️ Important Notice</h2>
+                <p><strong>This test suite requires Chrome extension APIs to function properly.</strong></p>
+                <p>To run these tests:</p>
+                <ul>
+                    <li>Load this file as an extension page (not as a regular web page)</li>
+                    <li>Or run it from within the extension's popup/options page</li>
+                    <li>Make sure the PayCio Wallet extension is installed and enabled</li>
+                </ul>
+                <p>If you see "Chrome extension APIs not available" errors, you're running this in the wrong context.</p>
+            </div>
+
             <!-- Wallet Status Section -->
             <div class="test-section">
                 <h2>📊 Wallet Status</h2>
@@ -502,11 +515,47 @@
         let currentAccount = null;
         let currentChainId = '0x1';
         let testResults = [];
+        
+        // Extension ID - PayCio Wallet extension
+        let EXTENSION_ID = 'lapeknkoloapahfmbgmgihphiepiebno';
+        
+        // Function to send message to extension (works in both contexts)
+        function sendMessageToExtension(message, callback) {
+            // Use the working PayCio communication method
+            const id = Date.now();
+            
+            // Listen for response
+            const responseHandler = (event) => {
+                // Ignore messages from content script
+                if (event.data && event.data.from && event.data.from.startsWith('paycio-content-script-')) {
+                    return;
+                }
+                
+                if (event.data && event.data.type === 'PAYCIO_EXTENSION_RESPONSE' && event.data.id === id) {
+                    callback(event.data.response);
+                    window.removeEventListener('message', responseHandler);
+                }
+            };
+            
+            window.addEventListener('message', responseHandler);
+            
+            // Send message
+            window.postMessage({
+                type: 'PAYCIO_EXTENSION_MESSAGE',
+                id: id,
+                payload: message
+            }, '*');
+        }
 
         // Debug wallet function
         async function debugWallet() {
             try {
                 log('Debugging wallet...');
+                
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
                 
                 // Use the wallet unlock functionality to get debug info
                 const password = prompt('Enter password to debug wallet:');
@@ -531,6 +580,11 @@
             try {
                 log('Debugging password...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 // Use the wallet unlock functionality to get debug info
                 const password = prompt('Enter password to debug:');
                 if (!password) {
@@ -553,6 +607,11 @@
         async function testContentScriptConnection() {
             try {
                 log('Testing content script connection...');
+                
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
                 
                 // Test if content script is loaded
                 if (window.paycioWalletContentScript) {
@@ -588,6 +647,11 @@
             try {
                 log('Debugging storage contents...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 // Use wallet unlock to trigger storage debug
                 const password = prompt('Enter password to debug storage:');
                 if (password) {
@@ -605,6 +669,11 @@
         // Test password hashing
         async function testPasswordHash() {
             try {
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const password = prompt('Enter password to test hashing:');
                 if (!password) {
                     log('Password test cancelled', 'info');
@@ -625,6 +694,11 @@
         // Show wallet password function
         async function showWalletPassword() {
             try {
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const password = prompt('Enter password to see wallet password comparison:');
                 if (!password) {
                     log('Password comparison cancelled', 'info');

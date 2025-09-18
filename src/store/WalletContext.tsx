@@ -2,6 +2,7 @@ import React, { createContext, useContext, useReducer, useEffect, useRef, useCal
 import toast from 'react-hot-toast';
 import { getRealBalance } from '../utils/web3-utils';
 import { generateBIP39SeedPhrase, validateBIP39SeedPhrase, validateBIP39SeedPhraseWithFeedback, validatePrivateKey, hashPassword, verifyPassword, encryptData, decryptData, importFromPrivateKey } from '../utils/crypto-utils';
+import { UnifiedCrypto } from '../utils/unified-crypto';
 import { deriveWalletFromSeed } from '../utils/key-derivation';
 import { storage, storageUtils } from '../utils/storage-utils';
 import { 
@@ -10,6 +11,151 @@ import {
   WalletContextType, 
   Network
 } from '../types/index';
+
+// ============================================================================
+// SECURE CRYPTO UTILITIES - ALIGNED WITH BACKGROUND SCRIPT
+// ============================================================================
+
+// Use UnifiedCrypto for consistent encryption across frontend and background
+const SecureCrypto = UnifiedCrypto;
+
+// ============================================================================
+// SECURE SESSION MANAGER
+// ============================================================================
+
+class SecureSessionManager {
+  static sessionTimeout = 15 * 60 * 1000; // 15 minutes
+  
+  static async createSession(password: string) {
+    const sessionId = crypto.randomUUID();
+    const timestamp = Date.now();
+    
+    // Store only session metadata, never the password
+    await storage.setSession({
+      sessionId: sessionId,
+      timestamp: timestamp,
+      isValid: true
+    });
+    
+    return { sessionId, timestamp };
+  }
+  
+  static async validateSession() {
+    try {
+      const session = await storage.getSession(['sessionId', 'timestamp', 'isValid']);
+      
+      if (!session.sessionId || !session.timestamp || !session.isValid) {
+        return false;
+      }
+      
+      const now = Date.now();
+      const sessionAge = now - session.timestamp;
+      
+      if (sessionAge > this.sessionTimeout) {
+        await this.destroySession();
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Session validation failed:', error);
+      return false;
+    }
+  }
+  
+  static async extendSession() {
+    try {
+      const session = await storage.getSession(['sessionId', 'isValid']);
+      
+      if (session.sessionId && session.isValid) {
+        await storage.setSession({
+          ...session,
+          timestamp: Date.now()
+        });
+        return true;
+      }
+      
+      return false;
+    } catch (error) {
+      console.error('Session extension failed:', error);
+      return false;
+    }
+  }
+  
+  static async destroySession() {
+    try {
+      await storage.removeSession(['sessionId', 'timestamp', 'isValid']);
+      console.log('Session destroyed securely');
+    } catch (error) {
+      console.error('Session destruction failed:', error);
+    }
+  }
+}
+
+// ============================================================================
+// SECURE WALLET COMMUNICATION
+// ============================================================================
+
+class SecureWalletComm {
+  static async sendMessage(type: string, payload: any = {}) {
+    // Cross-browser compatibility
+    const browserAPI = (() => {
+      if (typeof browser !== 'undefined') return browser;
+      if (typeof chrome !== 'undefined') return chrome;
+      throw new Error('No browser API available');
+    })();
+
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        reject(new Error('Request timeout'));
+      }, 30000);
+
+      try {
+        browserAPI.runtime.sendMessage({ type, ...payload }, (response) => {
+          clearTimeout(timeoutId);
+          
+          if (browserAPI.runtime.lastError) {
+            reject(new Error(browserAPI.runtime.lastError.message));
+            return;
+          }
+          
+          if (response?.success) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response?.error || 'Unknown error'));
+          }
+        });
+      } catch (error) {
+        clearTimeout(timeoutId);
+        reject(error);
+      }
+    });
+  }
+  
+  static async createWallet(name: string, seedPhrase: string, password: string) {
+    return await this.sendMessage('CREATE_WALLET', {
+      name,
+      seedPhrase,
+      password
+    });
+  }
+  
+  static async unlockWallet(password: string) {
+    return await this.sendMessage('UNLOCK_WALLET', { password });
+  }
+  
+  static async lockWallet() {
+    return await this.sendMessage('LOCK_WALLET');
+  }
+  
+  static async getWalletStatus() {
+    return await this.sendMessage('GET_WALLET_STATUS');
+  }
+  
+  static async getAccounts() {
+    return await this.sendMessage('GET_ACCOUNTS');
+  }
+}
 
 
 // Auto-lock timeout (15 minutes)
@@ -32,8 +178,49 @@ const getConfig = () => {
     return (window as any).CONFIG;
   }
   return {
-    INFURA_PROJECT_ID: '',
+    INFURA_PROJECT_ID: 'f9231922e4914834b76b67b67367f3f2',
   };
+};
+
+// Helper functions for network configuration
+const getExplorerUrl = (network: string): string => {
+  const explorers = {
+    ethereum: 'https://etherscan.io',
+    bsc: 'https://bscscan.com',
+    polygon: 'https://polygonscan.com',
+    arbitrum: 'https://arbiscan.io',
+    optimism: 'https://optimistic.etherscan.io',
+    avalanche: 'https://snowtrace.io'
+  };
+  return explorers[network] || `https://${network}scan.com`;
+};
+
+const getChainId = (network: string): string => {
+  const chainIds = {
+    ethereum: '0x1',
+    bsc: '0x38',
+    polygon: '0x89',
+    arbitrum: '0xa4b1',
+    optimism: '0xa',
+    avalanche: '0xa86a'
+  };
+  return chainIds[network] || '0x1';
+};
+
+const getRpcUrl = (network: string): string => {
+  const config = getConfig();
+  const infuraProjectId = config.INFURA_PROJECT_ID || 'f9231922e4914834b76b67b67367f3f2';
+  
+  const rpcUrls = {
+    ethereum: `https://mainnet.infura.io/v3/${infuraProjectId}`,
+    bsc: 'https://bsc-dataseed1.binance.org',
+    polygon: `https://polygon-mainnet.infura.io/v3/${infuraProjectId}`,
+    arbitrum: `https://arbitrum-mainnet.infura.io/v3/${infuraProjectId}`,
+    optimism: `https://optimism-mainnet.infura.io/v3/${infuraProjectId}`,
+    avalanche: 'https://api.avax.network/ext/bc/C/rpc'
+  };
+  
+  return rpcUrls[network] || `https://mainnet.infura.io/v3/${infuraProjectId}`;
 };
 
 // Default networks - All supported networks with proper derivation paths
@@ -477,9 +664,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Update all balances
   const updateAllBalances = async (): Promise<void> => {
-    if (!state.address) return;
+    if (!state.address) {
+      console.log('❌ DEBUG: No current account address available');
+      return;
+    }
 
     try {
+      console.log(`🔍 DEBUG: updateAllBalances called with address="${state.address}"`);
       // Get current network from storage
               const result = await storage.get(['currentNetwork']);
       const currentNetworkId = result.currentNetwork || 'ethereum';
@@ -712,9 +903,9 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
       id: network,
       name: network.charAt(0).toUpperCase() + network.slice(1),
       symbol: network === 'ethereum' ? 'ETH' : network.toUpperCase(),
-      rpcUrl: `https://${network}.infura.io/v3/your-project-id`,
-      explorerUrl: `https://${network === 'ethereum' ? 'etherscan.io' : network + 'scan.io'}`,
-      chainId: network === 'ethereum' ? '1' : '56',
+      rpcUrl: getRpcUrl(network),
+      explorerUrl: getExplorerUrl(network),
+      chainId: getChainId(network),
       isCustom: false,
       isEnabled: true
     };
@@ -818,9 +1009,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       id: network,
       name: network.charAt(0).toUpperCase() + network.slice(1),
       symbol: network === 'ethereum' ? 'ETH' : network.toUpperCase(),
-      rpcUrl: `https://${network}.infura.io/v3/your-project-id`,
-      explorerUrl: `https://${network === 'ethereum' ? 'etherscan.io' : network + 'scan.io'}`,
-      chainId: network === 'ethereum' ? '1' : '56',
+      rpcUrl: getRpcUrl(network),
+      explorerUrl: getExplorerUrl(network),
+      chainId: getChainId(network),
       isCustom: false,
       isEnabled: true
     };
@@ -858,60 +1049,52 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     dispatch({ type: 'SET_ERROR', payload: null });
   };
 
-  // Unlock wallet with real password verification
+  // Unlock wallet using secure background script
   const unlockWallet = async (password: string): Promise<boolean> => {
     try {
-      const storedWallet = await getStoredWallet();
-      if (!storedWallet) {
-        throw new Error('No wallet found');
-      }
-
-      // Get stored password hash
-      const storedHash = await getStoredPasswordHash();
-      if (!storedHash) {
-        // First time unlock, create password hash
-        const hash = await hashPassword(password);
-        await storePasswordHash(hash);
-        dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
-        dispatch({ type: 'SET_WALLET', payload: storedWallet });
-        dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
+      // Use secure background script for wallet unlock
+      const result = await SecureWalletComm.unlockWallet(password) as { success: boolean };
+      
+      if (result.success) {
+        // Create secure session
+        await SecureSessionManager.createSession(password);
         
-        // Store password using utility function
-        const stored = await storePassword(password);
-        if (stored) {
-          console.log('✅ Password stored successfully');
-        } else {
-          console.log('⚠️ Failed to store password');
+        // Get wallet data from background script
+        const accounts = await SecureWalletComm.getAccounts() as any[];
+        const status = await SecureWalletComm.getWalletStatus() as { walletId: string };
+        const primaryAccount = accounts[0];
+        
+        if (primaryAccount) {
+          // Get current network from storage or use the account's network
+          const storedData = await storage.get(['currentNetwork']);
+          const currentNetwork = storedData.currentNetwork || primaryAccount.network || 'ethereum';
+          
+          const walletData: WalletData = {
+            id: status.walletId,
+            name: primaryAccount.name || 'Main Account',
+            address: primaryAccount.address,
+            privateKey: '', // Not exposed to frontend
+            publicKey: '', // Not exposed to frontend
+            encryptedSeedPhrase: '', // Not exposed to frontend
+            accounts: accounts,
+            networks: ['ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche'], // Supported networks
+            currentNetwork: currentNetwork,
+            derivationPath: "m/44'/60'/0'/0/0", // Standard Ethereum derivation path
+            balance: '0',
+            createdAt: Date.now(),
+            lastUsed: Date.now(),
+            decryptPrivateKey: async (password: string) => null // Not implemented in secure version
+          };
+          
+          dispatch({ type: 'SET_WALLET', payload: walletData });
+          dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+          return true;
         }
-        
-        await storeUnlockTime(Date.now());
-        return true;
       }
-
-      // Verify password
-      const isValid = await verifyPassword(password, storedHash);
-      if (isValid) {
-        dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
-        dispatch({ type: 'SET_WALLET', payload: storedWallet });
-        dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
-        
-        // Store password using utility function
-        const stored = await storePassword(password);
-        if (stored) {
-          console.log('✅ Password stored successfully');
-        } else {
-          console.log('⚠️ Failed to store password');
-        }
-        
-        await storeUnlockTime(Date.now());
-        return true;
-      } else {
+      
         return false;
-      }
     } catch (error) {
-      console.error('Unlock wallet failed:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to unlock wallet';
-      // Don't set error state to avoid persistent "something went wrong"
+      console.error('Secure wallet unlock failed:', error);
       return false;
     }
   };
@@ -1088,15 +1271,53 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Ensure we have a password for address derivation
       let passwordToUse = state.globalPassword;
       
+      console.log(`🔍 DEBUG: Initial password check:`);
+      console.log(`  - globalPassword available: ${!!state.globalPassword}`);
+      console.log(`  - encryptedSeedPhrase available: ${!!state.wallet.encryptedSeedPhrase}`);
+      console.log(`  - wallet unlocked: ${state.isWalletUnlocked}`);
+      
       // Check if wallet is actually unlocked by verifying session
       const isSessionValid = await checkSessionValidity();
       console.log(`🔧 Session validity check: ${isSessionValid}`);
       
       if (!passwordToUse && state.isWalletUnlocked && isSessionValid) {
         passwordToUse = await getPassword();
+        console.log(`🔍 DEBUG: Retrieved password from getPassword(): ${!!passwordToUse}`);
         if (passwordToUse) {
           dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: passwordToUse });
         } else {
+          // For the secure implementation, we should derive addresses through the background script
+          // instead of requiring the password in the frontend
+          console.log(`🔧 No password available, attempting to derive address through background script`);
+          try {
+            // Try to derive the address through the background script
+            const response = await SecureWalletComm.sendMessage('DERIVE_NETWORK_ADDRESS', {
+              networkId: networkId
+            });
+            
+            if (response && response.address) {
+              newAddress = response.address;
+              console.log(`✅ Derived ${networkId} address through background script: ${newAddress}`);
+              
+              // Update wallet with new address and continue
+              const updatedWallet = { ...state.wallet, address: newAddress };
+              dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+              await storeWallet(updatedWallet);
+              
+              // Dispatch network changed event
+              if (typeof window !== 'undefined') {
+                const event = new CustomEvent('networkChanged', {
+                  detail: { networkId, address: newAddress }
+                });
+                window.dispatchEvent(event);
+              }
+              
+              return; // Exit early since we've successfully derived the address
+            }
+          } catch (backgroundError) {
+            console.log(`🔧 Background address derivation failed: ${backgroundError.message}`);
+            // Fall through to password modal
+          }
           // Show password modal for network switching
           return new Promise<void>((resolve, reject) => {
             // Create a custom event to show password modal
@@ -1134,6 +1355,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           });
         }
       }
+      
+      console.log(`🔍 DEBUG: Final condition check before address derivation:`);
+      console.log(`  - encryptedSeedPhrase: ${!!state.wallet.encryptedSeedPhrase}`);
+      console.log(`  - passwordToUse: ${!!passwordToUse}`);
+      console.log(`  - passwordToUse length: ${passwordToUse?.length || 'undefined'}`);
       
       if (state.wallet.encryptedSeedPhrase && passwordToUse) {
                   try {
@@ -2329,7 +2555,149 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     setGlobalPasswordAndHash,
     clearError,
     extendSession,
-    debugSessionStatus
+    debugSessionStatus,
+    
+    // Debug function for password testing
+    debugPassword: async (testPassword?: string) => {
+      try {
+        console.log('🔍 Debugging wallet password verification...');
+        
+        // Get current storage data using cross-browser compatible storage
+        const storageData = await storage.get(null);
+        
+        console.log('📦 Storage keys found:', Object.keys(storageData));
+        
+        const wallet = storageData.wallet as any;
+        const passwordHash = storageData.passwordHash as string;
+        const walletState = storageData.walletState as any;
+        
+        console.log('📋 Wallet analysis:');
+        console.log('  - Has wallet:', !!wallet);
+        console.log('  - Has password hash:', !!passwordHash);
+        console.log('  - Has wallet state:', !!walletState);
+        
+        if (wallet) {
+          console.log('  - Wallet ID:', wallet.id);
+          console.log('  - Wallet name:', wallet.name);
+          console.log('  - Has encrypted seed phrase:', !!wallet.encryptedSeedPhrase);
+          console.log('  - Has legacy password:', !!wallet.password);
+          console.log('  - Current address:', wallet.address);
+        }
+        
+        if (!testPassword) {
+          console.log('ℹ️ No test password provided. Storage analysis complete.');
+          return;
+        }
+        
+        console.log('🔐 Testing password verification methods...');
+        
+        // Test 1: Hash verification
+        if (passwordHash) {
+          try {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(testPassword);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const testHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            
+            const hashMatch = testHash === passwordHash;
+            console.log('✅ Hash verification:', hashMatch ? 'PASS' : 'FAIL');
+            console.log('  - Test hash:', testHash.substring(0, 20) + '...');
+            console.log('  - Stored hash:', passwordHash.substring(0, 20) + '...');
+          } catch (error) {
+            console.log('❌ Hash verification error:', error.message);
+          }
+        } else {
+          console.log('⚠️ No password hash found in storage');
+        }
+        
+        // Test 2: Seed phrase decryption
+        if (wallet && wallet.encryptedSeedPhrase) {
+          try {
+            const data = new Uint8Array(
+              atob(wallet.encryptedSeedPhrase).split('').map(c => c.charCodeAt(0))
+            );
+            
+            const salt = data.slice(0, 16);
+            const iv = data.slice(16, 28);
+            const encrypted = data.slice(28);
+            
+            console.log('🔍 Encrypted data structure:');
+            console.log('  - Total length:', data.length);
+            console.log('  - Salt length:', salt.length);
+            console.log('  - IV length:', iv.length);
+            console.log('  - Encrypted length:', encrypted.length);
+            
+            // Try to derive key and decrypt
+            const encoder = new TextEncoder();
+            const keyMaterial = await crypto.subtle.importKey(
+              'raw',
+              encoder.encode(testPassword),
+              { name: 'PBKDF2' },
+              false,
+              ['deriveBits', 'deriveKey']
+            );
+
+            const key = await crypto.subtle.deriveKey(
+              {
+                name: 'PBKDF2',
+                salt: salt,
+                iterations: 100000,
+                hash: 'SHA-256'
+              },
+              keyMaterial,
+              { name: 'AES-GCM', length: 256 },
+              false,
+              ['encrypt', 'decrypt']
+            );
+            
+            const decrypted = await crypto.subtle.decrypt(
+              { name: 'AES-GCM', iv: iv },
+              key,
+              encrypted
+            );
+            
+            const seedPhrase = new TextDecoder().decode(decrypted);
+            const words = seedPhrase.trim().split(' ');
+            
+            console.log('✅ Seed phrase decryption: PASS');
+            console.log('  - Decrypted length:', seedPhrase.length);
+            console.log('  - Word count:', words.length);
+            console.log('  - First 3 words:', words.slice(0, 3).join(' ') + '...');
+            
+          } catch (error) {
+            console.log('❌ Seed phrase decryption: FAIL');
+            console.log('  - Error:', error.message);
+          }
+        } else {
+          console.log('⚠️ No encrypted seed phrase found');
+        }
+        
+        // Test 3: Legacy password check
+        if (wallet && wallet.password) {
+          const legacyMatch = wallet.password === testPassword;
+          console.log('✅ Legacy password check:', legacyMatch ? 'PASS' : 'FAIL');
+          console.log('  - Stored password:', wallet.password.substring(0, 3) + '***');
+          console.log('  - Test password:', testPassword.substring(0, 3) + '***');
+        } else {
+          console.log('⚠️ No legacy password found');
+        }
+        
+        // Test 4: Send message to background script using secure communication
+        try {
+          const response = await SecureWalletComm.unlockWallet(testPassword);
+          
+          console.log('📨 Background script response:', response);
+        } catch (error) {
+          console.log('❌ Background script communication error:', error.message);
+        }
+        
+        console.log('🏁 Password debugging complete!');
+        
+      } catch (error) {
+        console.error('❌ Debug function error:', error);
+      }
+    }
   };
 
   return (

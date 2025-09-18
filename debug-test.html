@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayCio Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-btn {
+            background: #180CB2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .test-btn:hover {
+            background: #0f0880;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PayCio Debug Test</h1>
+        <p>This page helps debug the PayCio Wallet extension communication.</p>
+        
+        <div>
+            <button class="test-btn" onclick="checkContentScript()">Check Content Script</button>
+            <button class="test-btn" onclick="testDirectMessage()">Test Direct Message</button>
+            <button class="test-btn" onclick="testPing()">Test PING</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        function addResult(message, type) {
+            const resultsDiv = document.getElementById('results');
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'result ' + type;
+            resultDiv.textContent = message;
+            resultsDiv.appendChild(resultDiv);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function checkContentScript() {
+            addResult('Checking if content script is running...', 'info');
+            
+            // Check if the content script global is available
+            if (window.paycioWalletContentScript) {
+                addResult('✅ Content script is running! Version: ' + window.paycioWalletContentScript.version, 'success');
+            } else {
+                addResult('❌ Content script is NOT running', 'error');
+            }
+        }
+
+        function testDirectMessage() {
+            addResult('Testing direct message to content script...', 'info');
+            
+            // Send a test message directly
+            const testMessage = {
+                type: 'PAYCIO_TEST_MESSAGE',
+                id: 'debug-test-' + Date.now()
+            };
+            
+            window.postMessage(testMessage, '*');
+            addResult('Test message sent: ' + JSON.stringify(testMessage), 'info');
+            
+            // Listen for response
+            const responseHandler = (event) => {
+                if (event.data && event.data.type === 'PAYCIO_TEST_RESPONSE' && event.data.id === testMessage.id) {
+                    addResult('✅ Received test response: ' + JSON.stringify(event.data), 'success');
+                    window.removeEventListener('message', responseHandler);
+                }
+            };
+            
+            window.addEventListener('message', responseHandler);
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+                addResult('❌ No response received after 5 seconds', 'error');
+                window.removeEventListener('message', responseHandler);
+            }, 5000);
+        }
+
+        function testPing() {
+            addResult('Testing PING via extension message...', 'info');
+            
+            const id = Date.now();
+            
+            // Listen for response
+            const responseHandler = (event) => {
+                if (event.data && event.data.type === 'PAYCIO_EXTENSION_RESPONSE' && event.data.id === id) {
+                    addResult('✅ Received PING response: ' + JSON.stringify(event.data.response), 'success');
+                    window.removeEventListener('message', responseHandler);
+                }
+            };
+
+            window.addEventListener('message', responseHandler);
+
+            // Send message
+            window.postMessage({
+                type: 'PAYCIO_EXTENSION_MESSAGE',
+                id: id,
+                payload: { type: 'PING' }
+            }, '*');
+            
+            addResult('PING message sent with ID: ' + id, 'info');
+            
+            // Timeout after 5 seconds
+            setTimeout(() => {
+                addResult('❌ No PING response received after 5 seconds', 'error');
+                window.removeEventListener('message', responseHandler);
+            }, 5000);
+        }
+
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            addResult('Page loaded. Starting debug checks...', 'info');
+            setTimeout(checkContentScript, 1000);
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+

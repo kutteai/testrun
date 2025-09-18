@@ -246,7 +246,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         toPrice: cryptoPrices[toCurrency] || 0,
         timestamp: Date.now(),
         status: 'completed',
-        txHash: `0x${Math.random().toString(16).substr(2, 64)}`
+        txHash: null // Real transaction hash will be provided by actual swap execution
       };
 
       // Save transaction

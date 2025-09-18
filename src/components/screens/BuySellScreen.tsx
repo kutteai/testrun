@@ -253,67 +253,15 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     setErrorMessage('');
 
     try {
-      // Simulate transaction processing (since we don't have real exchange integration)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Real exchange integration required
+      throw new Error('Buy/Sell functionality requires real exchange integration. Please connect to a supported exchange API (Binance, Coinbase, etc.)');
       
-      if (activeTab === 'buy') {
-        // Create a simulated buy transaction
-        const transaction = {
-          id: `buy_${Date.now()}`,
-          type: 'buy',
-          cryptoAmount: buyAmount,
-          cryptoSymbol: selectedCrypto.symbol,
-          fiatAmount: spendAmount,
-          fiatSymbol: selectedFiat.symbol,
-          price: cryptoPrices[selectedCrypto.symbol] || 0,
-          timestamp: Date.now(),
-          status: 'completed',
-          txHash: `0x${Math.random().toString(16).substr(2, 64)}`,
-          exchangeOrderId: `order_${Date.now()}`
-        };
-
-        // Save to storage
-        await saveTransactions([transaction]);
-
-        toast.success(`Successfully bought ${buyAmount} ${selectedCrypto.symbol}`);
-        setTransactionStatus('success');
-        
-        // Reset form after successful transaction
-        setTimeout(() => {
-        setSpendAmount('0');
-        setBuyAmount('0');
-        setTransactionStatus('idle');
-        }, 2000);
-
-      } else {
-        // Create a simulated sell transaction
-        const transaction = {
-          id: `sell_${Date.now()}`,
-          type: 'sell',
-          cryptoAmount: spendAmount,
-          cryptoSymbol: selectedCrypto.symbol,
-          fiatAmount: buyAmount,
-          fiatSymbol: selectedFiat.symbol,
-          price: cryptoPrices[selectedCrypto.symbol] || 0,
-          timestamp: Date.now(),
-          status: 'completed',
-          txHash: `0x${Math.random().toString(16).substr(2, 64)}`,
-          exchangeOrderId: `order_${Date.now()}`
-        };
-
-        // Save to storage
-        await saveTransactions([transaction]);
-
-        toast.success(`Successfully sold ${spendAmount} ${selectedCrypto.symbol}`);
-        setTransactionStatus('success');
-        
-        // Reset form after successful transaction
-        setTimeout(() => {
-        setSpendAmount('0');
-        setBuyAmount('0');
-        setTransactionStatus('idle');
-        }, 2000);
-      }
+      // This is where real exchange API calls would go:
+      // 1. Create order on exchange
+      // 2. Handle payment processing
+      // 3. Execute trade
+      // 4. Confirm settlement
+      
     } catch (error) {
       console.error('Transaction failed:', error);
       setErrorMessage('Transaction failed. Please try again.');

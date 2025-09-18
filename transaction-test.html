@@ -165,6 +165,19 @@
     <div class="container">
         <h1>🚀 PayCio Wallet Transaction Test Suite</h1>
         
+        <!-- Extension Context Warning -->
+        <div class="test-section" style="background: #fff3cd; border-color: #ffeaa7;">
+            <h2>⚠️ Important Notice</h2>
+            <p><strong>This test suite requires Chrome extension APIs to function properly.</strong></p>
+            <p>To run these tests:</p>
+            <ul>
+                <li>Load this file as an extension page (not as a regular web page)</li>
+                <li>Or run it from within the extension's popup/options page</li>
+                <li>Make sure the PayCio Wallet extension is installed and enabled</li>
+            </ul>
+            <p>If you see "Chrome extension APIs not available" errors, you're running this in the wrong context.</p>
+        </div>
+
         <!-- Wallet Status -->
         <div class="test-section">
             <h2>📊 Wallet Status</h2>
@@ -314,6 +327,55 @@
 
     <script>
         let logs = [];
+        
+        // Extension ID - PayCio Wallet extension
+        let EXTENSION_ID = 'lapeknkoloapahfmbgmgihphiepiebno';
+        
+        // Function to detect extension ID
+        function detectExtensionId() {
+            // Try to get extension ID from various sources
+            if (window.chrome && window.chrome.runtime && window.chrome.runtime.id) {
+                EXTENSION_ID = window.chrome.runtime.id;
+                return EXTENSION_ID;
+            }
+            
+            // If running from webpage, try to find PayCio Wallet extension
+            if (window.chrome && window.chrome.management) {
+                // This requires the management permission, which we don't have
+                // So we'll use a different approach
+            }
+            
+            // For now, return null - user will need to set it manually
+            return null;
+        }
+        
+        // Function to send message to extension (works in both contexts)
+        function sendMessageToExtension(message, callback) {
+            // Use the working PayCio communication method
+            const id = Date.now();
+            
+            // Listen for response
+            const responseHandler = (event) => {
+                // Ignore messages from content script
+                if (event.data && event.data.from && event.data.from.startsWith('paycio-content-script-')) {
+                    return;
+                }
+                
+                if (event.data && event.data.type === 'PAYCIO_EXTENSION_RESPONSE' && event.data.id === id) {
+                    callback(event.data.response);
+                    window.removeEventListener('message', responseHandler);
+                }
+            };
+            
+            window.addEventListener('message', responseHandler);
+            
+            // Send message
+            window.postMessage({
+                type: 'PAYCIO_EXTENSION_MESSAGE',
+                id: id,
+                payload: message
+            }, '*');
+        }
         
         function log(message, type = 'info') {
             const timestamp = new Date().toISOString();
@@ -489,6 +551,11 @@
             try {
                 log('Testing Bitcoin transaction...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const to = document.getElementById('btcTo').value;
                 const amount = document.getElementById('btcAmount').value;
                 
@@ -502,10 +569,18 @@
                 };
                 
                 // Test via background script
-                const response = await chrome.runtime.sendMessage({
-                    type: 'WALLET_REQUEST',
-                    method: 'btc_sendTransaction',
-                    params: [transaction]
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({
+                        type: 'WALLET_REQUEST',
+                        method: 'btc_sendTransaction',
+                        params: [transaction]
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
                 });
                 
                 if (response.success) {
@@ -525,6 +600,11 @@
             try {
                 log('Testing Litecoin transaction...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const to = document.getElementById('ltcTo').value;
                 const amount = document.getElementById('ltcAmount').value;
                 
@@ -537,10 +617,18 @@
                     amount: amount
                 };
                 
-                const response = await chrome.runtime.sendMessage({
-                    type: 'WALLET_REQUEST',
-                    method: 'ltc_sendTransaction',
-                    params: [transaction]
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({
+                        type: 'WALLET_REQUEST',
+                        method: 'ltc_sendTransaction',
+                        params: [transaction]
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
                 });
                 
                 if (response.success) {
@@ -560,6 +648,11 @@
             try {
                 log('Testing Solana transaction...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const to = document.getElementById('solTo').value;
                 const amount = document.getElementById('solAmount').value;
                 
@@ -572,10 +665,18 @@
                     amount: amount
                 };
                 
-                const response = await chrome.runtime.sendMessage({
-                    type: 'WALLET_REQUEST',
-                    method: 'sol_sendTransaction',
-                    params: [transaction]
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({
+                        type: 'WALLET_REQUEST',
+                        method: 'sol_sendTransaction',
+                        params: [transaction]
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
                 });
                 
                 if (response.success) {
@@ -595,6 +696,11 @@
             try {
                 log('Testing TRON transaction...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const to = document.getElementById('tronTo').value;
                 const amount = document.getElementById('tronAmount').value;
                 
@@ -607,10 +713,18 @@
                     amount: amount
                 };
                 
-                const response = await chrome.runtime.sendMessage({
-                    type: 'WALLET_REQUEST',
-                    method: 'tron_sendTransaction',
-                    params: [transaction]
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({
+                        type: 'WALLET_REQUEST',
+                        method: 'tron_sendTransaction',
+                        params: [transaction]
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
                 });
                 
                 if (response.success) {
@@ -630,6 +744,11 @@
             try {
                 log('Testing TON transaction...');
                 
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
                 const to = document.getElementById('tonTo').value;
                 const amount = document.getElementById('tonAmount').value;
                 
@@ -642,10 +761,18 @@
                     amount: amount
                 };
                 
-                const response = await chrome.runtime.sendMessage({
-                    type: 'WALLET_REQUEST',
-                    method: 'ton_sendTransaction',
-                    params: [transaction]
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({
+                        type: 'WALLET_REQUEST',
+                        method: 'ton_sendTransaction',
+                        params: [transaction]
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
                 });
                 
                 if (response.success) {
@@ -666,8 +793,21 @@
             try {
                 log('Loading transaction history...');
                 
-                const response = await chrome.runtime.sendMessage({
-                    type: 'GET_TRANSACTION_HISTORY'
+                // Check if Chrome extension APIs are available
+                if (typeof chrome === 'undefined' || !chrome.runtime) {
+                    throw new Error('Chrome extension APIs not available. Please run this test from within the extension context.');
+                }
+                
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({
+                        type: 'GET_TRANSACTION_HISTORY'
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
                 });
                 
                 if (response.success && response.transactions) {
@@ -694,9 +834,100 @@
             }
         }
         
+        // Test extension connection
+        async function testExtensionConnection() {
+            try {
+                log('Testing extension connection...');
+                
+                const response = await new Promise((resolve, reject) => {
+                    sendMessageToExtension({type: 'PING'}, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
+                });
+                
+                if (response && response.success) {
+                    log('✅ Extension connection successful: ' + response.message, 'success');
+                    log('✅ Background script is running and responding!', 'success');
+                    return true;
+                } else {
+                    log('❌ Extension connection failed: ' + (response ? response.error : 'No response'), 'error');
+                    return false;
+                }
+            } catch (error) {
+                log('❌ Extension connection error: ' + error.message, 'error');
+                log('💡 Tip: Check chrome://extensions/ and look for "service worker" link to see background script console', 'info');
+                return false;
+            }
+        }
+        
+        // Simple extension test
+        async function simpleExtensionTest() {
+            try {
+                log('🔍 Running simple extension test...');
+                
+                // Test 1: Check if chrome APIs are available
+                if (typeof chrome === 'undefined') {
+                    log('❌ Chrome APIs not available', 'error');
+                    return false;
+                }
+                log('✅ Chrome APIs available', 'success');
+                
+                // Test 2: Check if runtime is available
+                if (!chrome.runtime) {
+                    log('❌ Chrome runtime not available', 'error');
+                    return false;
+                }
+                log('✅ Chrome runtime available', 'success');
+                
+                // Test 3: Try to send PING message
+                log('📤 Sending PING message to extension...');
+                const response = await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Timeout - no response from extension'));
+                    }, 5000);
+                    
+                    sendMessageToExtension({type: 'PING'}, (response) => {
+                        clearTimeout(timeout);
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(response);
+                        }
+                    });
+                });
+                
+                if (response && response.success) {
+                    log('✅ Extension responded to PING: ' + response.message, 'success');
+                    return true;
+                } else {
+                    log('❌ Extension responded but with error: ' + (response ? response.error : 'No response'), 'error');
+                    return false;
+                }
+                
+            } catch (error) {
+                log('❌ Extension test failed: ' + error.message, 'error');
+                log('💡 Try reloading the extension in chrome://extensions/', 'info');
+                return false;
+            }
+        }
+        
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
             log('Transaction test suite initialized', 'success');
+            
+            // Run simple extension test first
+            simpleExtensionTest().then(connected => {
+                if (connected) {
+                    log('✅ Extension is working! Ready to run tests', 'success');
+                } else {
+                    log('⚠️ Extension not working - please check chrome://extensions/', 'warning');
+                }
+            });
+            
             checkWalletStatus();
         });
     </script>

@@ -317,12 +317,31 @@ export const NETWORKS = new Proxy({} as Record<string, NetworkConfig>, {
 // Get balance from RPC (real implementation)
 export async function getBalance(address: string, network: string): Promise<string> {
   try {
+    console.log(`🔍 DEBUG: getBalance called with address="${address}" (length: ${address?.length}), network="${network}"`);
+    console.log(`🔍 DEBUG: address starts with 0x: ${address?.startsWith('0x')}`);
+    
     const networkConfig = getNetworks()[network];
     if (!networkConfig) {
       throw new Error(`Unsupported network: ${network}`);
     }
     
-    console.log(`PayCio: Getting balance for ${address} on ${network} using RPC: ${networkConfig.rpcUrl}`);
+    // Ensure address has 0x prefix for Ethereum-compatible networks
+    let formattedAddress = address;
+    if (network === 'ethereum' || network === 'bsc' || network === 'polygon' || network === 'arbitrum' || network === 'optimism' || network === 'avalanche') {
+      if (!address.startsWith('0x')) {
+        formattedAddress = '0x' + address;
+        console.log(`🔧 DEBUG: Added 0x prefix to address: ${formattedAddress}`);
+      }
+      
+      // Check if the address has the correct length (42 characters for 0x + 40 hex chars)
+      if (formattedAddress.length !== 42) {
+        console.error(`❌ DEBUG: Invalid EVM address length: ${formattedAddress.length} (expected 42)`);
+        console.error(`❌ DEBUG: Address: "${formattedAddress}"`);
+        throw new Error(`Invalid address length: ${formattedAddress.length} characters, expected 42 for EVM address`);
+      }
+    }
+    
+    console.log(`PayCio: Getting balance for ${formattedAddress} on ${network} using RPC: ${networkConfig.rpcUrl}`);
 
     // Create AbortController for timeout
     const controller = new AbortController();
@@ -336,7 +355,7 @@ export async function getBalance(address: string, network: string): Promise<stri
       body: JSON.stringify({
         jsonrpc: '2.0',
         method: 'eth_getBalance',
-        params: [address, 'latest'],
+        params: [formattedAddress, 'latest'],
         id: 1
       }),
       signal: controller.signal

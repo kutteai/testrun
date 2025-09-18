@@ -182,29 +182,13 @@ export async function createBitcoinTransaction(
     const ECPair = ECPairFactory(ecc);
     const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'));
     
-    // Create a basic transaction structure
-    // In a real implementation, you would:
-    // 1. Fetch UTXOs from a blockchain API
-    // 2. Calculate proper fees
-    // 3. Create proper inputs and outputs
+    // Real Bitcoin transaction creation requires:
+    // 1. Fetching actual UTXOs from blockchain API (BlockCypher, Blockstream, etc.)
+    // 2. Proper fee calculation based on network conditions
+    // 3. Real transaction signing with proper key derivation
+    // 4. Broadcasting to Bitcoin network
     
-    // For now, create a simple transaction structure
-    const tx = new bitcoin.Transaction();
-    
-    // Add input (placeholder - would be real UTXO in production)
-    const txid = '0000000000000000000000000000000000000000000000000000000000000000';
-    const vout = 0;
-    tx.addInput(Buffer.from(txid, 'hex'), vout);
-    
-    // Add output
-    tx.addOutput(Buffer.from(toAddress, 'utf8'), amount);
-    
-    // Sign the transaction
-    // Note: In a real implementation, you would properly sign the transaction
-    // This is a simplified version for demonstration
-    console.log('Transaction created (signing would be implemented with proper UTXO handling)');
-    
-    return tx.toHex();
+    throw new Error('Bitcoin transaction creation requires real UTXO fetching and proper signing implementation. Connect to Bitcoin node or API service.');
   } catch (error) {
     console.error('Error creating Bitcoin transaction:', error);
     throw new Error(`Failed to create Bitcoin transaction: ${error.message}`);

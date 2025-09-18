@@ -854,3 +854,4 @@ export class WalletConnectManager {
 
 // Export singleton instance
 export const walletConnectManager = new WalletConnectManager();
+

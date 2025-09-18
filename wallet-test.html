@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayCio Wallet Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            background: #f8f9fa;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            background: white;
+            border-left: 4px solid #007bff;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .status.connected { background: #d4edda; color: #155724; }
+        .status.disconnected { background: #f8d7da; color: #721c24; }
+        .status.unknown { background: #fff3cd; color: #856404; }
+        .accounts-list {
+            margin-top: 10px;
+        }
+        .account {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 PayCio Wallet Connection Test</h1>
+        
+        <div class="test-section">
+            <h3>1. Wallet Detection</h3>
+            <p>Check if PayCio wallet is installed and accessible</p>
+            <button onclick="checkWalletDetection()">Check Wallet Detection</button>
+        <button onclick="testContentScriptDetection()">Test Content Script Logic</button>
+            <div id="detection-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>2. Connection Test</h3>
+            <p>Test basic connection to the wallet</p>
+            <button onclick="testConnection()">Test Connection</button>
+            <div id="connection-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>3. Account Request</h3>
+            <p>Request access to wallet accounts (triggers unlock if needed)</p>
+            <button onclick="requestAccounts()">Request Accounts</button>
+            <div id="accounts-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>4. Wallet Status</h3>
+            <p>Current wallet connection status</p>
+            <div id="wallet-status">
+                <span class="status unknown">Unknown</span>
+                <div id="current-accounts" class="accounts-list"></div>
+            </div>
+            <button onclick="updateStatus()">Refresh Status</button>
+        </div>
+
+        <div class="test-section">
+            <h3>5. Debug Information</h3>
+            <p>Technical details for troubleshooting</p>
+            <button onclick="showDebugInfo()">Show Debug Info</button>
+            <div id="debug-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🧪 PayCio Test Page: Script loaded');
+
+        // Global state
+        let currentAccounts = [];
+        let walletConnected = false;
+
+        function showResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.textContent = content;
+        }
+        
+        // Test content script detection
+        function testContentScriptDetection() {
+            console.log('🔍 Testing content script detection...');
+            
+            const results = {
+                'protocol': window.location.protocol,
+                'hostname': window.location.hostname,
+                'shouldInject': false,
+                'contentScriptObject': window.paycioWalletContentScript,
+                'chromeRuntimeId': window.chrome?.runtime?.id,
+                'paycioExtensionId': window.paycioExtensionId
+            };
+            
+            // Check if this should be considered a DApp site
+            const hostname = window.location.hostname.toLowerCase();
+            const skipSites = [
+                'linkedin.com', 'facebook.com', 'twitter.com', 'instagram.com',
+                'youtube.com', 'gmail.com', 'google.com', 'googleads.g.doubleclick.net',
+                'ep2.adtrafficquality.google', 'ads.yahoo.com', 'amazon.com',
+                'netflix.com', 'spotify.com', 'reddit.com', 'wikipedia.org',
+                'nairaland.com', 'stackoverflow.com', 'github.com'
+            ];
+            
+            let shouldInject = true;
+            for (const site of skipSites) {
+                if (hostname.includes(site)) {
+                    shouldInject = false;
+                    break;
+                }
+            }
+            
+            if (shouldInject) {
+                if (hostname === 'localhost' || 
+                    window.location.protocol === 'file:' ||
+                    hostname.includes('127.0.0.1') ||
+                    hostname.includes('dapp') ||
+                    hostname.includes('defi') ||
+                    hostname.includes('web3') ||
+                    hostname.includes('crypto') ||
+                    hostname.includes('nft') ||
+                    hostname.includes('blockchain')) {
+                    results.shouldInject = true;
+                }
+            }
+            
+            console.log('Content Script Detection Results:', results);
+            return results;
+        }
+
+        async function checkWalletDetection() {
+            try {
+                console.log('🔍 Checking wallet detection...');
+                
+                // Test content script detection first
+                const contentScriptResults = testContentScriptDetection();
+                
+                const checks = {
+                    'window.ethereum exists': !!window.ethereum,
+                    'window.paycioWallet exists': !!window.paycioWallet,
+                    'ethereum.isPayCio': window.ethereum?.isPayCio || false,
+                    'ethereum.request method': typeof window.ethereum?.request === 'function',
+                    'paycioWalletContentScript': !!window.paycioWalletContentScript?.isRunning,
+                    'chrome.runtime.id': window.chrome?.runtime?.id || 'Not available',
+                    'shouldInject': contentScriptResults.shouldInject,
+                    'protocol': contentScriptResults.protocol
+                };
+
+                let result = 'Wallet Detection Results:\n';
+                for (const [check, value] of Object.entries(checks)) {
+                    result += `${check}: ${value}\n`;
+                }
+
+                const hasWallet = checks['window.ethereum exists'] && checks['ethereum.request method'];
+                showResult('detection-result', result, hasWallet ? 'success' : 'error');
+
+            } catch (error) {
+                console.error('Detection check failed:', error);
+                showResult('detection-result', `Detection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function testConnection() {
+            try {
+                console.log('🔍 Testing wallet connection...');
+                
+                if (!window.ethereum) {
+                    throw new Error('No ethereum provider found');
+                }
+
+                // Test basic provider methods
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                const version = await window.ethereum.request({ method: 'net_version' });
+                
+                let result = 'Connection Test Results:\n';
+                result += `Chain ID: ${chainId}\n`;
+                result += `Network Version: ${version}\n`;
+                result += `Provider: ${window.ethereum.isPayCio ? 'PayCio' : 'Unknown'}\n`;
+                result += 'Basic connection: ✅ Success\n';
+
+                showResult('connection-result', result, 'success');
+
+            } catch (error) {
+                console.error('Connection test failed:', error);
+                showResult('connection-result', `Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        async function requestAccounts() {
+            try {
+                console.log('🔍 Requesting accounts...');
+                
+                if (!window.ethereum) {
+                    throw new Error('No ethereum provider found');
+                }
+
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                
+                let result = 'Account Request Results:\n';
+                if (accounts && accounts.length > 0) {
+                    result += `Found ${accounts.length} account(s):\n`;
+                    accounts.forEach((account, index) => {
+                        result += `Account ${index + 1}: ${account}\n`;
+                    });
+                    
+                    currentAccounts = accounts;
+                    walletConnected = true;
+                    updateStatus();
+                } else {
+                    result += 'No accounts returned\n';
+                }
+
+                showResult('accounts-result', result, accounts?.length > 0 ? 'success' : 'error');
+
+            } catch (error) {
+                console.error('Account request failed:', error);
+                
+                let errorMsg = `Account request failed: ${error.message}`;
+                if (error.message.includes('User rejected')) {
+                    errorMsg += '\n\nThis is normal if you clicked "Cancel" in the wallet popup.';
+                } else if (error.message.includes('locked')) {
+                    errorMsg += '\n\nWallet appears to be locked. Try unlocking it first.';
+                }
+                
+                showResult('accounts-result', errorMsg, 'error');
+            }
+        }
+
+        function updateStatus() {
+            const statusElement = document.querySelector('.status');
+            const accountsElement = document.getElementById('current-accounts');
+            
+            if (walletConnected && currentAccounts.length > 0) {
+                statusElement.className = 'status connected';
+                statusElement.textContent = 'Connected';
+                
+                accountsElement.innerHTML = '';
+                currentAccounts.forEach((account, index) => {
+                    const accountDiv = document.createElement('div');
+                    accountDiv.className = 'account';
+                    accountDiv.textContent = `Account ${index + 1}: ${account}`;
+                    accountsElement.appendChild(accountDiv);
+                });
+            } else {
+                statusElement.className = 'status disconnected';
+                statusElement.textContent = 'Disconnected';
+                accountsElement.innerHTML = '';
+            }
+        }
+
+        async function showDebugInfo() {
+            try {
+                let debug = 'Debug Information:\n';
+                debug += `Timestamp: ${new Date().toISOString()}\n`;
+                debug += `User Agent: ${navigator.userAgent}\n`;
+                debug += `URL: ${window.location.href}\n`;
+                debug += `Protocol: ${window.location.protocol}\n\n`;
+                
+                debug += 'Wallet Provider Details:\n';
+                debug += `window.ethereum: ${!!window.ethereum}\n`;
+                debug += `window.paycioWallet: ${!!window.paycioWallet}\n`;
+                debug += `ethereum.isPayCio: ${window.ethereum?.isPayCio}\n`;
+                debug += `ethereum.isMetaMask: ${window.ethereum?.isMetaMask}\n`;
+                debug += `ethereum.chainId: ${window.ethereum?.chainId}\n`;
+                debug += `ethereum.selectedAddress: ${window.ethereum?.selectedAddress}\n\n`;
+                
+                debug += 'Content Script Detection:\n';
+                debug += `paycioWalletContentScript: ${!!window.paycioWalletContentScript?.isRunning}\n`;
+                debug += `  - isRunning: ${window.paycioWalletContentScript?.isRunning || false}\n`;
+                debug += `  - version: ${window.paycioWalletContentScript?.version || 'N/A'}\n`;
+                debug += `  - timestamp: ${window.paycioWalletContentScript?.timestamp || 'N/A'}\n`;
+                debug += `chrome.runtime.id: ${window.chrome?.runtime?.id || 'N/A'}\n`;
+                debug += `paycioExtensionId: ${window.paycioExtensionId || 'N/A'}\n\n`;
+                
+                // Test content script communication
+                if (typeof window.paycioTestConnection === 'function') {
+                    debug += 'Content Script Test: Available\n';
+                    window.paycioTestConnection();
+                } else {
+                    debug += 'Content Script Test: Not Available\n';
+                }
+                
+                // Test message communication
+                debug += '\nTesting Message Communication:\n';
+                try {
+                    const testMessage = {
+                        type: 'PAYCIO_TEST_MESSAGE',
+                        id: 'test_' + Date.now()
+                    };
+                    
+                    debug += 'Sending test message...\n';
+                    window.postMessage(testMessage, '*');
+                    debug += 'Test message sent successfully\n';
+                } catch (error) {
+                    debug += `Test message failed: ${error.message}\n`;
+                }
+                
+                // Test provider methods
+                debug += '\nProvider Method Tests:\n';
+                try {
+                    if (window.ethereum) {
+                        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                        debug += `eth_chainId: ${chainId}\n`;
+                        
+                        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                        debug += `eth_accounts: ${accounts.length} account(s)\n`;
+                    }
+                } catch (error) {
+                    debug += `Provider test error: ${error.message}\n`;
+                }
+                
+                showResult('debug-result', debug, 'info');
+                
+            } catch (error) {
+                console.error('Debug info failed:', error);
+                showResult('debug-result', `Debug failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners for wallet events
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', (accounts) => {
+                console.log('Accounts changed:', accounts);
+                currentAccounts = accounts || [];
+                walletConnected = accounts && accounts.length > 0;
+                updateStatus();
+            });
+
+            window.ethereum.on('chainChanged', (chainId) => {
+                console.log('Chain changed:', chainId);
+                updateStatus();
+            });
+
+            window.ethereum.on('connect', (connectInfo) => {
+                console.log('Wallet connected:', connectInfo);
+                walletConnected = true;
+                updateStatus();
+            });
+
+            window.ethereum.on('disconnect', (error) => {
+                console.log('Wallet disconnected:', error);
+                walletConnected = false;
+                currentAccounts = [];
+                updateStatus();
+            });
+        }
+
+        // Auto-run detection check on page load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkWalletDetection();
+                updateStatus();
+            }, 1000);
+        });
+
+        // Test provider directly
+        window.testPayCioDirectly = async () => {
+            if (typeof window.testPayCioProvider === 'function') {
+                window.testPayCioProvider();
+            } else {
+                console.log('Direct provider test not available');
+            }
+        };
+
+        console.log('Test page ready. Available functions:');
+        console.log('- checkWalletDetection()');
+        console.log('- testConnection()');
+        console.log('- requestAccounts()');
+        console.log('- showDebugInfo()');
+        console.log('- testPayCioDirectly()');
+    </script>
+</body>
+</html>

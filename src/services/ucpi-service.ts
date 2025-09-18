@@ -301,14 +301,14 @@ class UCPService {
       // For non-ENS domains, we can register them locally with global-like features
       // This simulates a global registration for demonstration
       const mockTransactionHash = `0x${Date.now().toString(16)}`;
-      const mockBlockNumber = Math.floor(Math.random() * 1000000) + 18000000;
+      const currentBlockNumber = 0; // Real block number would come from actual blockchain API
 
       return {
         success: true,
         isGlobal: true,
         isLocal: true, // Also store locally
         transactionHash: mockTransactionHash,
-        blockNumber: mockBlockNumber,
+        blockNumber: currentBlockNumber,
         globalRegistryId: `global_${ucpiData.id}_${Date.now()}`
       };
 
@@ -440,14 +440,14 @@ class UCPService {
 
       // Generate mock transaction data for local registration
       const mockTransactionHash = `0x${Date.now().toString(16)}`;
-      const mockBlockNumber = Math.floor(Math.random() * 1000000) + 18000000;
+      const currentBlockNumber = 0; // Real block number would come from actual blockchain API
 
       return {
         success: true,
         isGlobal: false,
         isLocal: true,
         transactionHash: mockTransactionHash,
-        blockNumber: mockBlockNumber
+        blockNumber: currentBlockNumber
       };
 
     } catch (error) {

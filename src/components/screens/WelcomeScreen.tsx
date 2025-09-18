@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import logo from '../../assets/logo.png'; 
+
 interface WelcomeScreenProps extends ScreenProps {
   hasWallet: boolean;
   isWalletUnlocked: boolean;
@@ -24,40 +25,70 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const languages = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Japanese'];
 
+  // SECURE password validation
+  const validatePassword = (password: string): { isValid: boolean; error?: string } => {
+    if (!password) {
+      return { isValid: false, error: 'Password is required' };
+    }
+    
+    if (password.length < 8) {
+      return { isValid: false, error: 'Password must be at least 8 characters long' };
+    }
+    
+    // Additional security checks
+    if (password.includes(' ')) {
+      return { isValid: false, error: 'Password cannot contain spaces' };
+    }
+    
+    return { isValid: true };
+  };
+
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password.trim()) {
-      toast.error('Please enter your password');
+    
+    // SECURE validation
+    const validation = validatePassword(password);
+    if (!validation.isValid) {
+      toast.error(validation.error);
       return;
     }
 
     setIsLoading(true);
     try {
+      console.log('Secure WelcomeScreen: Attempting wallet unlock...');
+      
+      // Call the secure unlock method
       const success = await unlockWallet(password);
+      
       if (success) {
-        // Don't navigate manually - let App.tsx handle auto-navigation
-        // when isWalletUnlocked state updates
-        console.log('Wallet unlocked successfully - App.tsx will handle navigation');
+        console.log('Secure WelcomeScreen: Wallet unlocked successfully');
+        // Clear password from memory immediately
+        setPassword('');
+        // Navigation is handled by App.tsx when isWalletUnlocked changes
       } else {
-        // unlockWallet already shows error toast, so we don't need to show another one
-        console.log('Wallet unlock failed - invalid password');
+        console.log('Secure WelcomeScreen: Wallet unlock failed');
+        toast.error('Invalid password. Please try again.');
+        // Clear password on failure for security
+        setPassword('');
       }
     } catch (error) {
-      console.error('Failed to unlock wallet:', error);
+      console.error('Secure WelcomeScreen: Unlock error:', error);
       toast.error('Failed to unlock wallet. Please try again.');
+      // Clear password on error for security
+      setPassword('');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // If wallet exists but is locked, show unlock form
+  // If wallet exists but is locked, show SECURE unlock form
   if (hasWallet && !isWalletUnlocked) {
     return (
-          <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="h-full flex flex-col bg-white"
-    >
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="h-full flex flex-col bg-white"
+      >
         {/* Top Section - Blue Header */}
         <div className="h-1/4 bg-[#180CB2] flex items-center justify-center relative">
           {/* Yellow Circle on Border */}
@@ -72,57 +103,67 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
         {/* Bottom Section - White Content Area */}
         <div className="flex-1 bg-white flex flex-col items-center justify-center px-8 pt-8">
-        <motion.div
-          initial={{ scale: 0.8, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="w-full max-w-sm"
-        >
+          <motion.div
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="w-full max-w-sm"
+          >
             {/* Welcome Back Title */}
-          <div className="text-center mb-8">
+            <div className="text-center mb-8">
               <h1 className="text-[30px] font-extrabold text-gray-900 mb-2 leading-[35px] tracking-[0%] text-center" style={{ fontFamily: 'Inter' }}>Welcome back</h1>
-          </div>
+            </div>
 
-            {/* Password Form */}
+            {/* SECURE Password Form */}
             <form onSubmit={handleUnlock} className="space-y-6">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700 text-left">
                   Password
                 </label>
-            <div className="relative">
-              <input
+                <div className="relative">
+                  <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password here"
                     className="w-full px-4 py-4 pr-12 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                     disabled={isLoading}
+                    autoComplete="current-password"
+                    maxLength={128}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    disabled={isLoading}
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Unlock Button */}
+              {/* Secure Unlock Button */}
               <motion.button
                 whileHover={{ scale: isLoading ? 1 : 1.02 }}
                 whileTap={{ scale: isLoading ? 1 : 0.98 }}
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || !password.trim()}
                 className="w-full bg-[#180CB2] text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 ) : (
-                  <span>Unlock</span>
+                  <span>Unlock Wallet</span>
                 )}
               </motion.button>
             </form>
+
+            {/* Security Notice */}
+            <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-blue-700 text-sm text-center">
+                🔒 Your wallet is secured with military-grade encryption
+              </p>
+            </div>
 
             {/* Recovery Options */}
             <div className="mt-8 text-center space-y-2">
@@ -131,12 +172,15 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <button
                 type="button"
                 className="text-[#180CB2] font-semibold text-sm hover:underline"
+                onClick={() => {
+                  toast.error('Reset functionality will be available in a future update');
+                }}
               >
                 Reset wallet
               </button>
             </div>
           </motion.div>
-          </div>
+        </div>
       </motion.div>
     );
   }
