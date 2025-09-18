@@ -285,10 +285,14 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         }
         if (result.currentNetwork) {
           const currentNetworkId = result.currentNetwork;
-          const currentNetwork = networkState.networks.find(n => n.id === currentNetworkId) || networkState.networks[0];
+          // Use all available networks (default + custom) to find the current network
+          const allNetworks = [...defaultNetworks, ...(result.customNetworks || [])];
+          const currentNetwork = allNetworks.find(n => n.id === currentNetworkId) || allNetworks[0];
+          console.log('🔄 Loading stored network:', currentNetworkId, 'Found:', !!currentNetwork);
           setNetworkState(prev => ({
             ...prev,
-            currentNetwork
+            currentNetwork,
+            networks: allNetworks
           }));
         }
       } catch (error) {
@@ -528,10 +532,16 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
   // Switch network
   const switchNetwork = async (networkId: string): Promise<void> => {
     try {
+      console.log('🔄 NetworkContext: Switching to network:', networkId);
+      console.log('🔄 Available networks:', networkState.networks.map(n => n.id));
+      
       const network = networkState.networks.find(n => n.id === networkId);
       if (!network) {
-        throw new Error('Network not found');
+        console.error('❌ Network not found:', networkId, 'Available:', networkState.networks.map(n => n.id));
+        throw new Error(`Network '${networkId}' not found`);
       }
+      
+      console.log('✅ Network found:', network.name);
 
       // Test connection before switching (but don't block if it fails)
       let isConnected = false;
@@ -553,6 +563,8 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
 
       // Save current network to storage
       await storage.set({ currentNetwork: networkId });
+      
+      console.log('✅ NetworkContext: Successfully switched to:', network.name, '(' + networkId + ')');
 
       // Trigger a custom event to notify other contexts about network change
       window.dispatchEvent(new CustomEvent('networkChanged', { 

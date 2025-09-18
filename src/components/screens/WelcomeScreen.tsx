@@ -5,7 +5,6 @@ import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import logo from '../../assets/logo.png'; 
-
 interface WelcomeScreenProps extends ScreenProps {
   hasWallet: boolean;
   isWalletUnlocked: boolean;
@@ -25,80 +24,39 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
   const languages = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Japanese'];
 
-  // SECURE password validation
-  const validatePassword = (password: string): { isValid: boolean; error?: string } => {
-    if (!password) {
-      return { isValid: false, error: 'Password is required' };
-    }
-    
-    if (password.length < 8) {
-      return { isValid: false, error: 'Password must be at least 8 characters long' };
-    }
-    
-    // Additional security checks
-    if (password.includes(' ')) {
-      return { isValid: false, error: 'Password cannot contain spaces' };
-    }
-    
-    return { isValid: true };
-  };
-
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // SECURE validation
-    const validation = validatePassword(password);
-    if (!validation.isValid) {
-      toast.error(validation.error);
+    if (!password.trim()) {
+      toast.error('Please enter your password');
       return;
     }
 
     setIsLoading(true);
     try {
-      console.log('🔍 WelcomeScreen: Attempting wallet unlock with password length:', password.length);
-      console.log('🔍 WelcomeScreen: Password starts with:', password.substring(0, 3) + '***');
+      console.log('🔍 Starting unlock process...');
+      console.log('🔍 Password length:', password.length);
       
-      // Call the secure unlock method
       const success = await unlockWallet(password);
-      
-      console.log('🔍 WelcomeScreen: Unlock result:', success);
+      console.log('🔍 Unlock result:', success);
       
       if (success) {
-        console.log('✅ WelcomeScreen: Wallet unlocked successfully');
+        // Don't navigate manually - let App.tsx handle auto-navigation
+        // when isWalletUnlocked state updates
+        console.log('✅ Wallet unlocked successfully - App.tsx will handle navigation');
         toast.success('Wallet unlocked successfully!');
-        // Clear password from memory immediately
-        setPassword('');
-        // Navigation is handled by App.tsx when isWalletUnlocked changes
       } else {
-        console.log('❌ WelcomeScreen: Wallet unlock failed - invalid password or other issue');
-        
-        // Try to get more debug info
-        try {
-          // Access the debug function if available
-          const walletContext = require('../../store/WalletContext');
-          if (walletContext.debugPassword) {
-            console.log('🔍 Running password debug...');
-            await walletContext.debugPassword(password);
-          }
-        } catch (debugError) {
-          console.log('Could not run password debug:', debugError);
-        }
-        
+        console.log('❌ Wallet unlock failed - invalid password');
         toast.error('Invalid password. Please check your password and try again.');
-        // Clear password on failure for security
-        setPassword('');
       }
     } catch (error) {
-      console.error('❌ WelcomeScreen: Unlock error:', error);
-      toast.error(`Failed to unlock wallet: ${error.message || 'Unknown error'}`);
-      // Clear password on error for security
-      setPassword('');
+      console.error('❌ Failed to unlock wallet:', error);
+      toast.error(`Failed to unlock wallet: ${error.message || 'Please try again.'}`);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // If wallet exists but is locked, show SECURE unlock form
+  // If wallet exists but is locked, show unlock form
   if (hasWallet && !isWalletUnlocked) {
     return (
       <motion.div
@@ -131,7 +89,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
               <h1 className="text-[30px] font-extrabold text-gray-900 mb-2 leading-[35px] tracking-[0%] text-center" style={{ fontFamily: 'Inter' }}>Welcome back</h1>
             </div>
 
-            {/* SECURE Password Form */}
+            {/* Password Form */}
             <form onSubmit={handleUnlock} className="space-y-6">
               <div className="space-y-2">
                 <label className="block text-sm font-medium text-gray-700 text-left">
@@ -145,56 +103,107 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                     placeholder="Enter your password here"
                     className="w-full px-4 py-4 pr-12 rounded-lg border border-gray-300 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
                     disabled={isLoading}
-                    autoComplete="current-password"
-                    maxLength={128}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                    disabled={isLoading}
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
-              {/* Secure Unlock Button */}
+              {/* Unlock Button */}
               <motion.button
                 whileHover={{ scale: isLoading ? 1 : 1.02 }}
                 whileTap={{ scale: isLoading ? 1 : 0.98 }}
                 type="submit"
-                disabled={isLoading || !password.trim()}
+                disabled={isLoading}
                 className="w-full bg-[#180CB2] text-white font-semibold py-3 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                 ) : (
-                  <span>Unlock Wallet</span>
+                  <span>Unlock</span>
                 )}
               </motion.button>
             </form>
 
-            {/* Security Notice */}
-            <div className="mt-6 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-blue-700 text-sm text-center">
-                🔒 Your wallet is secured with military-grade encryption
-              </p>
-            </div>
-
             {/* Recovery Options */}
             <div className="mt-8 text-center space-y-2">
               <p className="text-gray-500 text-sm">Forgot your password?</p>
-              <p className="text-gray-500 text-sm">You can reset without affecting funds.</p>
+              <p className="text-gray-500 text-sm">You can debug or reset without affecting funds.</p>
+              <div className="flex flex-col space-y-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      console.log('🔍 Starting comprehensive password diagnosis...');
+                      
+                      // Run comprehensive diagnosis with password
+                      const response = await chrome.runtime.sendMessage({
+                        type: 'DIAGNOSE_PASSWORD',
+                        password: password.trim()
+                      });
+                      
+                      if (response.success) {
+                        console.log('🔍 Diagnosis completed successfully');
+                        toast.success('Diagnosis completed - check console for detailed results');
+                      } else {
+                        console.error('🔍 Diagnosis failed:', response.error);
+                        toast.error('Diagnosis failed: ' + response.error);
+                      }
+                      
+                    } catch (error) {
+                      console.error('Debug failed:', error);
+                      toast.error('Debug failed: ' + error.message);
+                    }
+                  }}
+                  className="text-blue-600 hover:text-blue-700 text-sm font-medium hover:underline"
+                >
+                  🔍 Debug Wallet Issue
+                </button>
               <button
                 type="button"
                 className="text-[#180CB2] font-semibold text-sm hover:underline"
-                onClick={() => {
-                  toast.error('Reset functionality will be available in a future update');
-                }}
-              >
-                Reset wallet
+                  onClick={async () => {
+                    if (confirm('This will attempt to fix password authentication issues. Continue?')) {
+                      try {
+                        console.log('🔧 Starting password recovery...');
+                        
+                        // Check if we have a wallet but missing password hash
+                        const { storage } = await import('../../utils/storage-utils');
+                        const data = await storage.get(['wallet', 'passwordHash']);
+                        
+                        if (!password.trim()) {
+                          toast.error('Enter your password first, then click this button');
+                          return;
+                        }
+                        
+                        // Use the background script's password hash recovery function
+                        const response = await chrome.runtime.sendMessage({
+                          type: 'FIX_PASSWORD_HASH',
+                          password: password.trim()
+                        });
+                        
+                        if (response.success) {
+                          console.log('🔧 Password hash recovery successful');
+                          toast.success(response.data.message + ' Try unlocking now!');
+                        } else {
+                          throw new Error(response.error || 'Password hash recovery failed');
+                        }
+                        
+                      } catch (error) {
+                        console.error('Password recovery failed:', error);
+                        toast.error('Recovery failed: ' + error.message);
+                      }
+                    }
+                  }}
+                >
+                  🔧 Fix Password Issue
               </button>
+              </div>
             </div>
           </motion.div>
         </div>

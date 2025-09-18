@@ -199,6 +199,15 @@ class WalletManager {
                 }
             });
 
+            // Verify password hash was stored correctly
+            const verifyResult = await storage.local.get(['passwordHash']);
+            if (!verifyResult.passwordHash) {
+                console.error('❌ Password hash was not stored properly during wallet creation');
+                throw new Error('Failed to store password hash');
+            } else {
+                console.log('✅ Password hash verified and stored successfully');
+            }
+
       return { success: true, walletId: wallet.id };
         } catch (error) {
             throw new Error(`Failed to create wallet: ${error.message}`);
@@ -307,10 +316,15 @@ class WalletManager {
 
         try {
             console.log('🔍 DEBUG: Starting wallet unlock verification');
+            console.log('🔍 DEBUG: Password length:', password.length);
             
             const result = await storage.local.get(['wallet', 'passwordHash']);
             const wallet = result.wallet;
             const storedPasswordHash = result.passwordHash;
+
+            console.log('🔍 DEBUG: Wallet exists:', !!wallet);
+            console.log('🔍 DEBUG: Password hash exists:', !!storedPasswordHash);
+            console.log('🔍 DEBUG: Stored hash length:', storedPasswordHash?.length || 0);
 
             if (!wallet) {
                 throw new Error('No wallet found');
@@ -320,20 +334,33 @@ class WalletManager {
             
             // Method 1: Use stored password hash (most reliable)
             if (storedPasswordHash) {
+                console.log('🔍 DEBUG: Using stored password hash method');
                 const passwordHash = await SecurityManager.hashPassword(password);
+                console.log('🔍 DEBUG: Generated hash length:', passwordHash?.length || 0);
+                console.log('🔍 DEBUG: Stored hash preview:', storedPasswordHash.substring(0, 20) + '...');
+                console.log('🔍 DEBUG: Generated hash preview:', passwordHash.substring(0, 20) + '...');
                 isValidPassword = passwordHash === storedPasswordHash;
                 console.log('🔍 DEBUG: Password hash verification result:', isValidPassword);
             } else {
+                console.log('🔧 No password hash found, attempting seed phrase verification and auto-fix...');
                 // Method 2: Try to decrypt seed phrase as verification
                 try {
+                    console.log('🔍 DEBUG: Attempting seed phrase decryption...');
                     const decryptedSeed = await SecurityManager.decrypt(wallet.encryptedSeedPhrase, password);
+                    console.log('🔍 DEBUG: Decryption result exists:', !!decryptedSeed);
+                    console.log('🔍 DEBUG: Decryption result length:', decryptedSeed?.length || 0);
+                    
                     if (decryptedSeed && decryptedSeed.length > 0) {
                         const words = decryptedSeed.trim().split(' ');
+                        console.log('🔍 DEBUG: Seed phrase word count:', words.length);
                         if (words.length >= 12 && words.length <= 24) {
                             isValidPassword = true;
-                            // Store hash for future use
+                            // Store hash for future use (AUTO-FIX)
                             const passwordHash = await SecurityManager.hashPassword(password);
                             await storage.local.set({ passwordHash });
+                            console.log('🔧 AUTO-FIX: Password hash recreated and stored during unlock');
+                        } else {
+                            console.log('🔍 DEBUG: Invalid seed phrase word count:', words.length);
                         }
                     }
                 } catch (error) {
@@ -658,36 +685,107 @@ class BlockchainService {
   // Generate proper Litecoin address from seed phrase
   static async generateLitecoinAddress(seedPhrase) {
     try {
-      const networkSeed = await crypto.subtle.digest('SHA-256', 
-        new TextEncoder().encode(seedPhrase + 'litecoin'));
-      const hash = Array.from(new Uint8Array(networkSeed));
+      console.log('🚀 Generating Litecoin Address using proven algorithm...');
       
-      // Generate Litecoin P2PKH address (starts with 'L')
-      // Litecoin mainnet version byte is 0x30 (48 decimal)
-      const versionByte = 0x30;
-      const base58Chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      // Helper functions from your working code
+      const hexToBytes = (hex) => {
+          const bytes = [];
+          for (let i = 0; i < hex.length; i += 2) {
+              bytes.push(parseInt(hex.substr(i, 2), 16));
+          }
+          return new Uint8Array(bytes);
+      };
+
+      const bytesToHex = (bytes) => {
+          return Array.from(bytes)
+              .map(byte => byte.toString(16).padStart(2, '0'))
+              .join('');
+      };
+
+      // SHA-256 hash function
+      const sha256Local = async (data) => {
+          const dataBuffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+          const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+          return new Uint8Array(hashBuffer);
+      };
+
+      // Simplified RIPEMD-160 (using truncated SHA-256)
+      const ripemd160 = async (data) => {
+          const sha = await sha256Local(data);
+          return sha.slice(0, 20); // Truncate to 160 bits
+      };
+
+      // Base58 encoding
+      const base58Encode = (bytes) => {
+          const base58Alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+          let num = BigInt('0x' + bytesToHex(bytes));
+          let encoded = '';
+          
+          while (num > 0) {
+              const remainder = num % 58n;
+              encoded = base58Alphabet[remainder] + encoded;
+              num = num / 58n;
+          }
+
+          // Add leading zeros
+          for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
+              encoded = '1' + encoded;
+          }
+
+          return encoded;
+      };
+
+      // Generate deterministic private key from seed phrase
+      const generatePrivateKeyFromSeed = async (seedPhrase, index = 0) => {
+          const seedData = new TextEncoder().encode(seedPhrase + 'litecoin' + index.toString());
+          const hash = await sha256Local(seedData);
+          return bytesToHex(hash);
+      };
+
+      // Generate public key from private key (simplified)
+      const generatePublicKey = async (privateKeyHex) => {
+          const privateKeyBytes = hexToBytes(privateKeyHex);
+          const hash = await sha256Local(privateKeyBytes);
+          
+          // Create uncompressed public key format (0x04 prefix)
+          const publicKey = new Uint8Array(65);
+          publicKey[0] = 0x04;
+          publicKey.set(hash, 1);
+          publicKey.set(hash, 33); // Simplified - duplicate for Y coordinate
+          
+          return publicKey;
+      };
+
+      // Generate Litecoin address from public key
+      const generateAddress = async (publicKey) => {
+          // Hash the public key
+          const sha256Hash = await sha256Local(publicKey);
+          const ripemd160Hash = await ripemd160(sha256Hash);
+          
+          // Add Litecoin mainnet prefix (0x30 for 'L' addresses)
+          const versionedHash = new Uint8Array(21);
+          versionedHash[0] = 0x30;
+          versionedHash.set(ripemd160Hash, 1);
+          
+          // Calculate checksum
+          const checksum1 = await sha256Local(versionedHash);
+          const checksum2 = await sha256Local(checksum1);
+          const checksum = checksum2.slice(0, 4);
+          
+          // Combine versioned hash and checksum
+          const addressBytes = new Uint8Array(25);
+          addressBytes.set(versionedHash, 0);
+          addressBytes.set(checksum, 21);
+          
+          return base58Encode(addressBytes);
+      };
+
+      // Generate the complete Litecoin address
+      const privateKey = await generatePrivateKeyFromSeed(seedPhrase, 0);
+      const publicKey = await generatePublicKey(privateKey);
+      const address = await generateAddress(publicKey);
       
-      // Create 20-byte hash160 from seed
-      const hash160 = hash.slice(0, 20);
-      
-      // Add version byte
-      const versionedPayload = [versionByte, ...hash160];
-      
-      // Calculate double SHA-256 checksum
-      const firstHash = await crypto.subtle.digest('SHA-256', new Uint8Array(versionedPayload));
-      const secondHash = await crypto.subtle.digest('SHA-256', firstHash);
-      const checksum = Array.from(new Uint8Array(secondHash)).slice(0, 4);
-      
-      // Combine version + hash160 + checksum
-      const fullPayload = [...versionedPayload, ...checksum];
-      
-      // Convert to Base58
-      let address = SecurityManager.encodeBase58(fullPayload);
-      
-      // Validate Litecoin address format
-      if (!address.startsWith('L') || address.length < 26 || address.length > 35) {
-        throw new Error('Generated invalid Litecoin address format');
-      }
+      console.log('✅ Litecoin address generated:', address);
       
       return address;
     } catch (error) {
@@ -928,12 +1026,22 @@ const messageHandlers = {
 
   'UNLOCK_WALLET': async (message) => {
     const { password } = message;
+    console.log('🚀 UNLOCK_WALLET handler called');
+    console.log('🔍 Password provided:', !!password, 'length:', password?.length || 0);
+    
     if (!password) {
       throw new Error('Password is required');
     }
     
-    const result = await WalletManager.unlockWallet(password);
-    return { success: true, data: result };
+    try {
+      console.log('🔍 Calling WalletManager.unlockWallet...');
+      const result = await WalletManager.unlockWallet(password);
+      console.log('🔍 WalletManager.unlockWallet result:', result);
+      return { success: true, data: result };
+    } catch (error) {
+      console.error('❌ UNLOCK_WALLET handler error:', error);
+      throw error; // Re-throw to maintain error handling
+    }
   },
 
   'LOCK_WALLET': async () => {
@@ -944,6 +1052,148 @@ const messageHandlers = {
   'GET_ACCOUNTS': async () => {
     const accounts = await WalletManager.getAccounts();
     return { success: true, data: accounts };
+  },
+
+  'DIAGNOSE_PASSWORD': async (message) => {
+    const { password } = message;
+    
+    try {
+      console.log('🔍 === COMPREHENSIVE PASSWORD DIAGNOSIS START ===');
+      
+      const result = await storage.local.get(['wallet', 'passwordHash', 'walletState']);
+      const wallet = result.wallet;
+      const storedPasswordHash = result.passwordHash;
+      const walletState = result.walletState;
+      
+      const diagnosis = {
+        walletExists: !!wallet,
+        passwordHashExists: !!storedPasswordHash,
+        walletStateExists: !!walletState,
+        isCurrentlyUnlocked: walletState?.isWalletUnlocked || false,
+        walletId: wallet?.id || 'none',
+        encryptedSeedExists: !!wallet?.encryptedSeedPhrase,
+        passwordLength: password ? password.length : 0,
+        storedHashLength: storedPasswordHash ? storedPasswordHash.length : 0
+      };
+      
+      console.log('🔍 DIAGNOSIS RESULTS:', diagnosis);
+      
+      if (password && storedPasswordHash) {
+        // Test hash computation
+        const computedHash = await SecurityManager.hashPassword(password);
+        const hashesMatch = computedHash === storedPasswordHash;
+        
+        console.log('🔍 HASH COMPARISON:');
+        console.log('  - Computed hash length:', computedHash.length);
+        console.log('  - Stored hash length:', storedPasswordHash.length);
+        console.log('  - First 10 chars computed:', computedHash.substring(0, 10));
+        console.log('  - First 10 chars stored:', storedPasswordHash.substring(0, 10));
+        console.log('  - Hashes match:', hashesMatch);
+        
+        diagnosis.hashComparison = {
+          computedHashLength: computedHash.length,
+          storedHashLength: storedPasswordHash.length,
+          hashesMatch: hashesMatch,
+          computedPreview: computedHash.substring(0, 10),
+          storedPreview: storedPasswordHash.substring(0, 10)
+        };
+      }
+      
+      if (password && wallet?.encryptedSeedPhrase) {
+        // Test seed phrase decryption
+        try {
+          const decryptedSeed = await SecurityManager.decrypt(wallet.encryptedSeedPhrase, password);
+          const isValidSeed = decryptedSeed && decryptedSeed.length > 0;
+          const wordCount = isValidSeed ? decryptedSeed.trim().split(' ').length : 0;
+          
+          console.log('🔍 SEED DECRYPTION TEST:');
+          console.log('  - Decryption successful:', isValidSeed);
+          console.log('  - Seed phrase word count:', wordCount);
+          console.log('  - Valid word count:', wordCount >= 12 && wordCount <= 24);
+          
+          diagnosis.seedDecryption = {
+            successful: isValidSeed,
+            wordCount: wordCount,
+            validWordCount: wordCount >= 12 && wordCount <= 24
+          };
+        } catch (decryptError) {
+          console.log('🔍 SEED DECRYPTION FAILED:', decryptError.message);
+          diagnosis.seedDecryption = {
+            successful: false,
+            error: decryptError.message
+          };
+        }
+      }
+      
+      console.log('🔍 === COMPREHENSIVE PASSWORD DIAGNOSIS END ===');
+      
+      return { success: true, data: diagnosis };
+      
+    } catch (error) {
+      console.error('🔍 Password diagnosis failed:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  'FIX_PASSWORD_HASH': async (message) => {
+    const { password } = message;
+    if (!password) {
+      throw new Error('Password is required for hash recovery');
+    }
+    
+    try {
+      console.log('🔧 Starting password hash recovery...');
+      
+      const result = await storage.local.get(['wallet', 'passwordHash']);
+      const wallet = result.wallet;
+      const storedPasswordHash = result.passwordHash;
+      
+      if (!wallet) {
+        throw new Error('No wallet found');
+      }
+      
+      console.log('🔧 Wallet exists, checking password hash...');
+      
+      if (!storedPasswordHash) {
+        console.log('🔧 No password hash found, attempting to verify with seed phrase...');
+        
+        // Try to decrypt seed phrase to verify password is correct
+        try {
+          const decryptedSeed = await SecurityManager.decrypt(wallet.encryptedSeedPhrase, password);
+          if (decryptedSeed && decryptedSeed.length > 0) {
+            const words = decryptedSeed.trim().split(' ');
+            if (words.length >= 12 && words.length <= 24) {
+              // Password is correct, recreate the hash
+              const passwordHash = await SecurityManager.hashPassword(password);
+              await storage.local.set({ passwordHash });
+              console.log('🔧 Password hash recreated and stored successfully');
+              return { success: true, message: 'Password hash fixed successfully' };
+            } else {
+              throw new Error('Invalid seed phrase structure');
+            }
+          } else {
+            throw new Error('Seed phrase decryption returned empty result');
+          }
+        } catch (decryptError) {
+          console.log('🔧 Seed phrase decryption failed:', decryptError.message);
+          throw new Error('Password verification failed - incorrect password');
+        }
+      } else {
+        // Hash exists, test if it matches
+        const passwordHash = await SecurityManager.hashPassword(password);
+        const isValid = passwordHash === storedPasswordHash;
+        
+        if (isValid) {
+          return { success: true, message: 'Password hash is already correct' };
+        } else {
+          throw new Error('Password does not match stored hash');
+        }
+      }
+      
+    } catch (error) {
+      console.error('🔧 Password hash recovery failed:', error);
+      throw new Error(`Password hash recovery failed: ${error.message}`);
+    }
   },
 
   'SWITCH_NETWORK': async (message) => {
@@ -1051,13 +1301,10 @@ const messageHandlers = {
           break;
           
         case 'litecoin':
-          console.log('🔧 Generating Litecoin address with enhanced method...');
-          // FIXED: Proper Litecoin address generation
-          const ltcAddressBody = hash.slice(0, 25).map(b => base58Chars[b % base58Chars.length]).join('');
-          address = 'L' + ltcAddressBody;
-          console.log(`✅ Generated Litecoin address: ${address}`);
-          console.log(`🔍 Litecoin address length: ${address.length}`);
-          console.log(`🔍 Litecoin address body length: ${ltcAddressBody.length}`);
+          console.log('🚀 Using your working Litecoin address generation algorithm...');
+          // Use the proven working algorithm from generateLitecoinAddress
+          address = await WalletManager.generateLitecoinAddress(seedPhrase);
+          console.log(`✅ Generated Litecoin address using your algorithm: ${address}`);
           break;
           
         case 'solana':
@@ -1217,8 +1464,8 @@ const messageHandlers = {
           }
         });
         
-        // Launch the wallet popup for unlocking
-        await browserAPI.action.openPopup();
+        // DISABLED: Launch the wallet popup for unlocking
+        // await browserAPI.action.openPopup();
         
         // Return special response indicating wallet popup was launched
         return { 
@@ -1252,7 +1499,7 @@ const messageHandlers = {
       console.log(`🔒 DEBUG: Wallet locked for signing method, launching wallet popup`);
       
       try {
-        await browserAPI.action.openPopup();
+        // DISABLED: await browserAPI.action.openPopup();
         
         return { 
           success: false, 
@@ -1287,7 +1534,7 @@ const messageHandlers = {
           
           try {
             // Launch wallet popup for account selection
-            await browserAPI.action.openPopup();
+            // DISABLED: await browserAPI.action.openPopup();
             
             return { 
               success: false, 

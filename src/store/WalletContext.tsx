@@ -725,10 +725,27 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleNetworkChange = async (event: CustomEvent) => {
       try {
         const { networkId, network } = event.detail;
-        console.log('Network changed to:', networkId, network);
+        console.log('🔄 WalletContext: Network changed event received:', networkId, network);
+        
+        // Update current network in wallet context
+        if (network) {
+          console.log('🔄 WalletContext: Updating current network to:', network.name);
+          dispatch({ type: 'SET_CURRENT_NETWORK', payload: network });
+          
+          // Also update the wallet's currentNetwork if wallet exists
+          if (state.wallet) {
+            const updatedWallet = {
+              ...state.wallet,
+              currentNetwork: networkId
+            };
+            dispatch({ type: 'SET_WALLET', payload: updatedWallet });
+            console.log('🔄 WalletContext: Updated wallet currentNetwork to:', networkId);
+          }
+        }
         
         // Update balances for the new network
         if (state.isWalletUnlocked && state.address) {
+          console.log('🔄 WalletContext: Updating balances for new network');
           await updateAllBalances();
         }
       } catch (error) {
@@ -1052,13 +1069,17 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Unlock wallet using secure background script
   const unlockWallet = async (password: string): Promise<boolean> => {
     try {
+      console.log('🔍 WalletContext: Starting unlock process...');
+      console.log('🔍 WalletContext: Password length:', password.length);
+      
       // Use secure background script for wallet unlock
       const result = await SecureWalletComm.unlockWallet(password) as { success: boolean; data?: any };
       
-      console.log('🔍 DEBUG: Unlock wallet result:', result);
+      console.log('🔍 WalletContext: Background script result:', result);
       
       // Check both result.success and result.data.success for compatibility
       const isUnlocked = result.success && (result.data?.success !== false);
+      console.log('🔍 WalletContext: Is unlocked:', isUnlocked);
       
       if (isUnlocked) {
         // Create secure session
@@ -1429,9 +1450,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
             console.log(`✅ Derived EVM address for ${networkId}: ${newAddress} (path: ${derivationPath})`);
           } else {
             // For non-EVM networks, derive network-specific address
-          toast(`🔧 About to call deriveNetworkSpecificAddress for ${networkId}`);
-          toast(`🔧 Seed phrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
-          toast(`🔧 Seed phrase value: ${seedPhrase ? 'exists' : 'null/undefined'}`);
+          // toast(`🔧 About to call deriveNetworkSpecificAddress for ${networkId}`);
+          // toast(`🔧 Seed phrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
+          // toast(`🔧 Seed phrase value: ${seedPhrase ? 'exists' : 'null/undefined'}`);
             
             if (!seedPhrase || typeof seedPhrase !== 'string') {
               throw new Error(`Invalid seed phrase for ${networkId} derivation: ${typeof seedPhrase}`);
@@ -1499,13 +1520,26 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Validate address format
       const isEvmAddress = newAddress.startsWith('0x') && newAddress.length === 42;
       const isBitcoinAddress = newAddress.startsWith('bc1') || newAddress.startsWith('1') || newAddress.startsWith('3');
+      const isLitecoinAddress = newAddress.startsWith('L') || newAddress.startsWith('M') || newAddress.startsWith('ltc1');
       const isSolanaAddress = newAddress.startsWith('SOL') || newAddress.length === 44;
       const isTronAddress = newAddress.startsWith('T') && newAddress.length === 34;
       const isTonAddress = newAddress.startsWith('EQ') && newAddress.length === 48;
       const isXrpAddress = newAddress.startsWith('r') && newAddress.length === 34;
       
+      console.log(`🔍 Address validation for ${networkId}:`);
+      console.log(`  - Address: ${newAddress}`);
+      console.log(`  - Length: ${newAddress.length}`);
+      console.log(`  - Starts with: ${newAddress.substring(0, 3)}`);
+      console.log(`  - Is EVM: ${isEvmAddress}`);
+      console.log(`  - Is Bitcoin: ${isBitcoinAddress}`);
+      console.log(`  - Is Litecoin: ${isLitecoinAddress}`);
+      console.log(`  - Is Solana: ${isSolanaAddress}`);
+      console.log(`  - Is Tron: ${isTronAddress}`);
+      console.log(`  - Is TON: ${isTonAddress}`);
+      console.log(`  - Is XRP: ${isXrpAddress}`);
+      
       // Check if address is valid for the network
-      const isValidAddress = isEvmAddress || isBitcoinAddress || isSolanaAddress || isTronAddress || isTonAddress || isXrpAddress;
+      const isValidAddress = isEvmAddress || isBitcoinAddress || isLitecoinAddress || isSolanaAddress || isTronAddress || isTonAddress || isXrpAddress;
       
       if (!isValidAddress || newAddress === '0000000000000000000000005eccb429') {
         console.error(`❌ Invalid address generated for ${networkId}: ${newAddress}`);
@@ -1682,19 +1716,150 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     }
   };
 
+  // Your working Litecoin address generation algorithm (frontend version)
+  const generateLitecoinAddressFrontend = async (seedPhrase: string): Promise<string> => {
+    try {
+      console.log('🚀 Generating Litecoin Address using your proven algorithm...');
+      
+      // Base58 alphabet for Bitcoin/Litecoin addresses
+      const base58Alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      
+      // Helper functions
+      const hexToBytes = (hex: string): Uint8Array => {
+        const bytes = [];
+        for (let i = 0; i < hex.length; i += 2) {
+          bytes.push(parseInt(hex.substr(i, 2), 16));
+        }
+        return new Uint8Array(bytes);
+      };
+
+      const bytesToHex = (bytes: Uint8Array): string => {
+        return Array.from(bytes)
+          .map(byte => byte.toString(16).padStart(2, '0'))
+          .join('');
+      };
+
+      // SHA-256 hash function
+      const sha256 = async (data: string | Uint8Array): Promise<Uint8Array> => {
+        const dataBuffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        return new Uint8Array(hashBuffer);
+      };
+
+      // Simplified RIPEMD-160 (using truncated SHA-256 for demo purposes)
+      const ripemd160 = async (data: Uint8Array): Promise<Uint8Array> => {
+        const sha = await sha256(data);
+        return sha.slice(0, 20); // Truncate to 160 bits
+      };
+
+      // Base58 encoding
+      const base58Encode = (bytes: Uint8Array): string => {
+        let num = BigInt('0x' + bytesToHex(bytes));
+        let encoded = '';
+        
+        while (num > 0) {
+          const remainder = num % 58n;
+          encoded = base58Alphabet[Number(remainder)] + encoded;
+          num = num / 58n;
+        }
+
+        // Add leading zeros
+        for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
+          encoded = '1' + encoded;
+        }
+
+        return encoded;
+      };
+
+      // Generate private key from seed phrase (deterministic)
+      const generatePrivateKeyFromSeed = async (seedPhrase: string): Promise<string> => {
+        const seedHash = await sha256(seedPhrase + 'litecoin_key');
+        return bytesToHex(seedHash);
+      };
+
+      // Generate public key from private key (simplified)
+      const generatePublicKey = async (privateKeyHex: string): Promise<Uint8Array> => {
+        const privateKeyBytes = hexToBytes(privateKeyHex);
+        const hash = await sha256(privateKeyBytes);
+        
+        // Create uncompressed public key format (0x04 prefix)
+        const publicKey = new Uint8Array(65);
+        publicKey[0] = 0x04;
+        publicKey.set(hash, 1);
+        publicKey.set(hash, 33); // Simplified - duplicate for Y coordinate
+        
+        return publicKey;
+      };
+
+      // Generate Litecoin address from public key
+      const generateAddress = async (publicKey: Uint8Array): Promise<string> => {
+        // Hash the public key
+        const sha256Hash = await sha256(publicKey);
+        const ripemd160Hash = await ripemd160(sha256Hash);
+        
+        // Add Litecoin mainnet prefix (0x30 for 'L' addresses)
+        const versionedHash = new Uint8Array(21);
+        versionedHash[0] = 0x30;
+        versionedHash.set(ripemd160Hash, 1);
+        
+        // Calculate checksum
+        const checksum1 = await sha256(versionedHash);
+        const checksum2 = await sha256(checksum1);
+        const checksum = checksum2.slice(0, 4);
+        
+        // Combine versioned hash and checksum
+        const addressBytes = new Uint8Array(25);
+        addressBytes.set(versionedHash, 0);
+        addressBytes.set(checksum, 21);
+        
+        return base58Encode(addressBytes);
+      };
+
+      // Generate private key from seed
+      const privateKey = await generatePrivateKeyFromSeed(seedPhrase);
+      console.log('🔑 Private key generated from seed');
+      
+      // Generate public key
+      const publicKey = await generatePublicKey(privateKey);
+      console.log('🔓 Public key generated');
+      
+      // Generate address
+      const address = await generateAddress(publicKey);
+      console.log('💰 Litecoin address generated:', address);
+      
+      return address;
+      
+    } catch (error) {
+      console.error('❌ Error generating Litecoin address:', error);
+      throw new Error(`Litecoin address generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   // Helper functions for address derivation
   const deriveNetworkSpecificAddress = async (networkId: string, seedPhrase: string): Promise<string> => {
     try {
-      toast(`🔧 Deriving address for ${networkId} with seed phrase length: ${seedPhrase?.length || 'undefined'}`);
-      toast(`🔧 NetworkId type: ${typeof networkId}, value: "${networkId}"`);
-      toast(`🔧 SeedPhrase type: ${typeof seedPhrase}, length: ${seedPhrase?.length || 'undefined'}`);
+      console.log(`🔧 Deriving address for ${networkId} with seed phrase length: ${seedPhrase?.length || 'undefined'}`);
       
       // Validate inputs
       if (!networkId || !seedPhrase) {
         throw new Error(`Invalid parameters - networkId: ${networkId}, seedPhrase: ${!!seedPhrase}`);
       }
       
-      // Import the network address utils
+      // For Litecoin, use your working algorithm directly in the frontend
+      if (networkId.toLowerCase() === 'litecoin') {
+        console.log('🚀 Generating Litecoin address using your working algorithm directly in frontend...');
+        
+        try {
+          const address = await generateLitecoinAddressFrontend(seedPhrase);
+          console.log(`✅ Litecoin address generated in frontend: ${address}`);
+          return address;
+        } catch (litecoinError) {
+          console.error('❌ Frontend Litecoin generation failed:', litecoinError);
+          throw new Error(`Litecoin address generation failed: ${litecoinError.message}`);
+        }
+      }
+      
+      // For other networks, use the existing method
       const { generateNetworkAddress } = await import('../utils/network-address-utils');
       
       // Get the appropriate derivation path for each network
@@ -1713,12 +1878,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       }
       
       console.log(`🔧 Using derivation path: ${derivationPath} for ${networkId}`);
-      
-      // Use the centralized address generation function
-      console.log(`🔧 Calling generateNetworkAddress with:`);
-      console.log(`  - seedPhrase: "${seedPhrase.substring(0, 20)}..." (length: ${seedPhrase.length})`);
-      console.log(`  - derivationPath: "${derivationPath}"`);
-      console.log(`  - networkId: "${networkId}"`);
       
       const address = await generateNetworkAddress(seedPhrase, derivationPath, networkId);
       
