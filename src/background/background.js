@@ -929,6 +929,46 @@ const messageHandlers = {
     return { success: true, data: accounts };
   },
 
+  'SWITCH_NETWORK': async (message) => {
+    const { networkId } = message;
+    if (!networkId) {
+      throw new Error('Network ID is required');
+    }
+
+    try {
+      console.log(`🔧 Background: Switching to network ${networkId}`);
+      
+      // First, derive the address for the new network
+      const addressResponse = await messageHandlers['DERIVE_NETWORK_ADDRESS']({ networkId });
+      
+      if (!addressResponse.success) {
+        throw new Error('Failed to derive address for network');
+      }
+
+      const address = addressResponse.data.address;
+      console.log(`✅ Background: Network switch successful, address: ${address}`);
+
+      // Update current network in storage
+      await storage.local.set({ 
+        currentNetwork: networkId,
+        currentAddress: address
+      });
+
+      return { 
+        success: true, 
+        data: { 
+          networkId, 
+          address,
+          message: `Successfully switched to ${networkId}` 
+        } 
+      };
+      
+    } catch (error) {
+      console.error(`❌ Background: Network switch failed for ${networkId}:`, error);
+      throw new Error(`Network switch failed: ${error.message}`);
+    }
+  },
+
   'DERIVE_NETWORK_ADDRESS': async (message) => {
     const { networkId } = message;
     if (!networkId) {
@@ -950,6 +990,7 @@ const messageHandlers = {
 
       // Check if we already have an address for this network
       if (wallet.addresses && wallet.addresses[networkId]) {
+        console.log(`✅ Found existing ${networkId} address:`, wallet.addresses[networkId]);
         return { success: true, data: { address: wallet.addresses[networkId] } };
       }
 
@@ -979,7 +1020,14 @@ const messageHandlers = {
           address = await SecurityManager.generateBitcoinAddress(seedPhrase);
           break;
         case 'litecoin':
+          console.log('🔧 Generating Litecoin address...');
           address = await SecurityManager.generateLitecoinAddress(seedPhrase);
+          console.log(`✅ Generated Litecoin address: ${address}`);
+          
+          // Validate the generated address
+          if (!address.startsWith('L') || address.length < 26 || address.length > 35) {
+            throw new Error(`Invalid Litecoin address generated: ${address}`);
+          }
           break;
         case 'solana':
           address = await SecurityManager.generateSolanaAddress(seedPhrase);
@@ -992,7 +1040,7 @@ const messageHandlers = {
           break;
         case 'xrp':
           address = await SecurityManager.generateXrpAddress(seedPhrase);
-          break;
+                    break;
         default:
           // For unknown networks, assume EVM-compatible
           address = await SecurityManager.generateEthereumAddress(seedPhrase, networkId);
@@ -1003,9 +1051,13 @@ const messageHandlers = {
       const updatedWallet = { ...wallet, addresses: updatedAddresses };
       
       await storage.local.set({ wallet: updatedWallet });
+      
+      console.log(`💾 Stored ${networkId} address: ${address}`);
+      console.log(`📊 Total addresses stored: ${Object.keys(updatedAddresses).length}`);
 
       return { success: true, data: { address } };
     } catch (error) {
+      console.error(`❌ Address derivation failed for ${networkId}:`, error);
       throw new Error(`Failed to derive address for ${networkId}: ${error.message}`);
     }
   },
@@ -1115,7 +1167,7 @@ const messageHandlers = {
             account = accounts[0];
           }
         } else {
-          account = accounts[0]; // Use first account as default
+        account = accounts[0]; // Use first account as default
         }
       }
         } catch (error) {

@@ -282,9 +282,9 @@ export class WalletConnectManager {
         'Session approval timeout - please try connecting again'
       );
       console.log('Session approved:', session);
-      this.session = session;
+      this.session = session as any;
       
-      const formattedSession = this.formatSession(session);
+      const formattedSession = this.formatSession(session as any);
       console.log('Formatted session:', formattedSession);
       
       // Start session health monitoring
@@ -432,18 +432,6 @@ export class WalletConnectManager {
   }
 
   // Clean up resources
-  // Check wallet unlock status
-  private async checkWalletStatus(): Promise<{isUnlocked: boolean}> {
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'PAYCIO_CHECK_WALLET_STATUS'
-      });
-      return { isUnlocked: response?.data?.isUnlocked || false };
-    } catch (error) {
-      console.error('Failed to check wallet status:', error);
-      return { isUnlocked: false };
-    }
-  }
 
   // Prompt user to unlock wallet
   private async promptWalletUnlock(): Promise<void> {
@@ -456,7 +444,7 @@ export class WalletConnectManager {
         const checkInterval = setInterval(async () => {
           try {
             const status = await this.checkWalletStatus();
-            if (status.isUnlocked) {
+            if (status.isUnlocked && status.accounts.length > 0) {
               clearInterval(checkInterval);
               resolve();
             }
@@ -747,16 +735,21 @@ export class WalletConnectManager {
   }
 
   // Format session data
-  private formatSession(session: WalletConnectSession): WalletConnectSession {
-    const accounts = Object.values(session.namespaces.eip155?.accounts || []) as string[];
+  private formatSession(session: any): WalletConnectSession {
+    const accounts = Object.values(session.namespaces?.eip155?.accounts || []) as string[];
     
     return {
-      topic: session.topic,
+      topic: session.topic || '',
       chainId: parseInt(accounts[0]?.split(':')[1] || '1'),
       accounts: accounts.map(acc => acc.split(':')[2]),
       connected: true,
-      namespaces: session.namespaces,
-      clientMeta: session.clientMeta
+      namespaces: session.namespaces || {},
+      clientMeta: session.peer?.metadata || session.clientMeta || {
+        name: 'Unknown DApp',
+        description: '',
+        url: '',
+        icons: []
+      }
     };
   }
 

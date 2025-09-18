@@ -6,6 +6,12 @@ import { PortfolioManager } from '../core/portfolio-manager';
 import { getRealBalance, getMultipleTokenPrices } from '../utils/web3-utils';
 import type { PortfolioValue, PortfolioState, PortfolioContextType } from '../types';
 import { storage } from '../utils/storage-utils';
+import { 
+  getDashboardTokensForAllNetworks, 
+  getDashboardTokensForCurrentNetwork,
+  convertToPortfolioAssets,
+  type DashboardTokenData 
+} from '../utils/dashboard-token-integration';
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
 
@@ -93,7 +99,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
     }
   };
 
-  // Update portfolio with real data
+  // Update portfolio with real data (Enhanced with multi-chain custom tokens)
   const updatePortfolio = async () => {
     setPortfolioState(prev => ({
       ...prev,
@@ -110,10 +116,56 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
       }
 
       const address = walletData.address;
-      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism', 'base', 'fantom', 'zksync', 'linea', 'mantle', 'scroll', 'polygon-zkevm', 'arbitrum-nova'];
+      
+      // Use enhanced dashboard token integration
+      const dashboardData = await getDashboardTokensForAllNetworks(address);
+      
+      // Convert to portfolio asset format
+      const assets = convertToPortfolioAssets(dashboardData.assets);
+      
+      console.log(`✅ Portfolio updated with ${assets.length} assets across ${Object.keys(dashboardData.networkBreakdown).length} networks`);
+      console.log('💰 Total USD value:', dashboardData.totalUSD);
+
+      // Update portfolio state with enhanced data
+      setPortfolioState(prev => ({
+        ...prev,
+        isLoading: false,
+        portfolioValue: {
+          assets: assets,
+          totalUSD: dashboardData.totalUSD,
+          totalChangePercent: dashboardData.totalChangePercent,
+          totalChange24h: 0, // Would need historical data
+          rates: {}, // Currency conversion rates
+          lastUpdated: Date.now(),
+          networkBreakdown: dashboardData.networkBreakdown,
+          chainTypeBreakdown: dashboardData.chainTypeBreakdown
+        },
+        error: null
+      }));
+
+      console.log('🎯 Portfolio context updated with multi-chain tokens');
+
+    } catch (error) {
+      console.error('Portfolio update failed:', error);
+      setPortfolioState(prev => ({
+        ...prev,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to update portfolio'
+      }));
+    }
+  };
+
+  // Legacy function for backward compatibility
+  const updatePortfolioLegacy = async () => {
+    try {
+      const walletData = await getWalletData();
+      if (!walletData?.address) return;
+
+      const address = walletData.address;
+      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism', 'base', 'fantom'];
       const assets = [];
 
-      // Fetch balances for all networks
+      // Fetch native token balances for EVM networks
       for (const network of networks) {
         try {
           const balance = await getRealBalance(address, network);
@@ -124,7 +176,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
               network,
               symbol: NETWORKS[network]?.symbol || network.toUpperCase(),
               balance: balance,
-              usdValue: 0, // Will be calculated after getting prices
+              usdValue: 0,
               change24h: 0,
               changePercent: 0
             });
@@ -147,7 +199,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
         totalUSD += asset.usdValue;
       }
 
-      // Get 24h price changes
+      // Get 24h price changes (legacy implementation)
       const priceChanges = await Promise.all(
         tokenIds.map(async (tokenId) => {
           try {

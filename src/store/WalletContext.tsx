@@ -1288,16 +1288,16 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         } else {
           // For the secure implementation, we should derive addresses through the background script
           // instead of requiring the password in the frontend
-          console.log(`🔧 No password available, attempting to derive address through background script`);
+          console.log(`🔧 No password available, attempting network switch through background script`);
           try {
-            // Try to derive the address through the background script
-            const response = await SecureWalletComm.sendMessage('DERIVE_NETWORK_ADDRESS', {
+            // Try to switch network through the background script
+            const response = await SecureWalletComm.sendMessage('SWITCH_NETWORK', {
               networkId: networkId
             });
             
-            if (response && response.address) {
-              newAddress = response.address;
-              console.log(`✅ Derived ${networkId} address through background script: ${newAddress}`);
+            if ((response as any)?.success && (response as any)?.data?.address) {
+              newAddress = (response as any).data.address;
+              console.log(`✅ Network switch successful for ${networkId}, address: ${newAddress}`);
               
               // Update wallet with new address and continue
               const updatedWallet = { ...state.wallet, address: newAddress };
@@ -1307,15 +1307,19 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
               // Dispatch network changed event
               if (typeof window !== 'undefined') {
                 const event = new CustomEvent('networkChanged', {
-                  detail: { networkId, address: newAddress }
+                  detail: { networkId, address: newAddress, network }
                 });
                 window.dispatchEvent(event);
               }
               
-              return; // Exit early since we've successfully derived the address
+              toast.success(`🌐 Switched to ${network.name} successfully`);
+              return; // Exit early since we've successfully switched
+            } else {
+              throw new Error((response as any)?.error || 'Network switch failed');
             }
           } catch (backgroundError) {
-            console.log(`🔧 Background address derivation failed: ${backgroundError.message}`);
+            console.log(`🔧 Background network switch failed: ${backgroundError.message}`);
+            toast.error(`Failed to switch to ${network.name}: ${backgroundError.message}`);
             // Fall through to password modal
           }
           // Show password modal for network switching

@@ -197,7 +197,7 @@ const App: React.FC = () => {
         // Update navigation state if needed
         if (result.screen !== currentScreen) {
           setCurrentScreen(result.screen as ScreenId);
-          setNavigationHistory(result.history);
+          setNavigationHistory(result.history as ScreenId[]);
         }
       }).catch(error => {
         console.error('Network navigation handling failed:', error);

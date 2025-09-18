@@ -6,9 +6,36 @@ import { useSend } from '../../store/SendContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { detectTokensWithBalances, getAllPopularTokens, getNetworkRPCUrl, type TokenBalance } from '../../utils/token-balance-utils';
+import { 
+  detectMultiChainTokensWithBalances, 
+  getMultiChainTokenBalance, 
+  getMultiChainTokenPrice,
+  type MultiChainTokenBalance 
+} from '../../utils/multi-chain-balance-utils';
+import {
+  saveCustomToken,
+  loadCustomTokens,
+  removeCustomTokenPermanently,
+  setTokenEnabled,
+  initializeTokenPersistence,
+  type PersistedToken
+} from '../../utils/token-persistence-utils';
 import { storage } from '../../utils/storage-utils';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
-import { searchTokens, getTokenDetails, validateTokenContract, autoCompleteTokenSearch, getPopularTokens, type TokenSearchSuggestion } from '../../utils/token-search-utils';
+import { 
+  searchTokens, 
+  getTokenDetails, 
+  validateTokenContract, 
+  autoCompleteTokenSearch, 
+  getPopularTokens, 
+  addCustomToken,
+  isValidAddressForNetwork,
+  getChainTypeForNetwork,
+  enhancedSearchTokens,
+  type TokenSearchSuggestion,
+  type CustomTokenInput 
+} from '../../utils/token-search-utils';
+import { nonEVMTokenUtils, type NonEVMToken } from '../../utils/non-evm-tokens';
 
 interface Token {
   id: string;
@@ -58,21 +85,28 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Available networks
+  // Available networks (EVM + Non-EVM with token support)
   const availableNetworks = [
-    { id: 'ethereum', name: 'Ethereum', symbol: 'ETH' },
-    { id: 'polygon', name: 'Polygon', symbol: 'MATIC' },
-    { id: 'bsc', name: 'BSC', symbol: 'BNB' },
-    { id: 'arbitrum', name: 'Arbitrum', symbol: 'ETH' },
-    { id: 'optimism', name: 'Optimism', symbol: 'ETH' },
-    { id: 'avalanche', name: 'Avalanche', symbol: 'AVAX' },
-    { id: 'base', name: 'Base', symbol: 'ETH' },
-    { id: 'fantom', name: 'Fantom', symbol: 'FTM' }
+    // EVM Networks
+    { id: 'ethereum', name: 'Ethereum', symbol: 'ETH', type: 'evm', tokenStandard: 'ERC-20' },
+    { id: 'polygon', name: 'Polygon', symbol: 'MATIC', type: 'evm', tokenStandard: 'ERC-20' },
+    { id: 'bsc', name: 'BSC', symbol: 'BNB', type: 'evm', tokenStandard: 'BEP-20' },
+    { id: 'arbitrum', name: 'Arbitrum', symbol: 'ETH', type: 'evm', tokenStandard: 'ERC-20' },
+    { id: 'optimism', name: 'Optimism', symbol: 'ETH', type: 'evm', tokenStandard: 'ERC-20' },
+    { id: 'avalanche', name: 'Avalanche', symbol: 'AVAX', type: 'evm', tokenStandard: 'ERC-20' },
+    { id: 'base', name: 'Base', symbol: 'ETH', type: 'evm', tokenStandard: 'ERC-20' },
+    { id: 'fantom', name: 'Fantom', symbol: 'FTM', type: 'evm', tokenStandard: 'ERC-20' },
+    // Non-EVM Networks with Token Support
+    { id: 'bitcoin', name: 'Bitcoin', symbol: 'BTC', type: 'non-evm', tokenStandard: 'Omni Layer' },
+    { id: 'solana', name: 'Solana', symbol: 'SOL', type: 'non-evm', tokenStandard: 'SPL' },
+    { id: 'tron', name: 'TRON', symbol: 'TRX', type: 'non-evm', tokenStandard: 'TRC-20' },
+    { id: 'ton', name: 'TON', symbol: 'TON', type: 'non-evm', tokenStandard: 'Jetton' },
+    { id: 'xrp', name: 'XRP', symbol: 'XRP', type: 'non-evm', tokenStandard: 'XRP Ledger IOU' }
   ];
 
-  // Get default tokens (real tokens like USDT, USDC, etc.)
+  // Get default tokens including non-EVM tokens (real tokens like USDT, USDC, etc.)
   const getDefaultTokens = async (): Promise<Token[]> => {
-    return [
+    const evmTokens = [
       {
         id: 'usdt-ethereum',
         symbol: 'USDT',
@@ -152,6 +186,95 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         network: 'polygon'
       }
     ];
+
+    // Add non-EVM tokens
+    const nonEVMTokens: Token[] = [
+      // Bitcoin tokens (Omni Layer)
+      {
+        id: 'usdt-bitcoin',
+        symbol: 'USDT',
+        name: 'Tether USD (Omni)',
+        address: '31', // Omni Layer property ID
+        balance: '0',
+        decimals: 8,
+        price: 0,
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'bitcoin'
+      },
+      // Solana tokens (SPL)
+      {
+        id: 'usdt-solana',
+        symbol: 'USDT',
+        name: 'Tether USD (SPL)',
+        address: 'Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB',
+        balance: '0',
+        decimals: 6,
+        price: 0,
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'solana'
+      },
+      {
+        id: 'usdc-solana',
+        symbol: 'USDC',
+        name: 'USD Coin (SPL)',
+        address: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+        balance: '0',
+        decimals: 6,
+        price: 0,
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'solana'
+      },
+      // TRON tokens (TRC-20)
+      {
+        id: 'usdt-tron',
+        symbol: 'USDT',
+        name: 'Tether USD (TRC-20)',
+        address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+        balance: '0',
+        decimals: 6,
+        price: 0,
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'tron'
+      },
+      {
+        id: 'usdc-tron',
+        symbol: 'USDC',
+        name: 'USD Coin (TRC-20)',
+        address: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8',
+        balance: '0',
+        decimals: 6,
+        price: 0,
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'tron'
+      },
+      // TON tokens (Jettons)
+      {
+        id: 'usdt-ton',
+        symbol: 'jUSDT',
+        name: 'Tether USD (Jetton)',
+        address: 'EQCxE6mUtQJKFnGfaROTKOt1lZbDiiX1kCixRv7Nw2Id_sDs',
+        balance: '0',
+        decimals: 6,
+        price: 0,
+        change24h: 0,
+        isCustom: false,
+        isEnabled: true,
+        network: 'ton'
+      }
+    ];
+
+    // Combine EVM and non-EVM tokens
+    return [...evmTokens, ...nonEVMTokens];
   };
 
   // Load tokens on component mount
@@ -195,25 +318,31 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       }
     };
 
+    // Initialize token persistence system
+    initializeTokenPersistence();
+    
     loadTokens();
   }, [wallet?.address, currentNetwork?.id]);
 
-  // Load real token balances and auto-discover new tokens
+  // Load real token balances and auto-discover new tokens (Multi-chain support)
   const loadRealTokenBalances = async (existingTokens: Token[]) => {
     if (!wallet?.address || !currentNetwork?.id) return;
     
     try {
       console.log('🔄 Loading real token balances for address:', wallet.address, 'on network:', currentNetwork.id);
       
-      // Get network RPC URL
-      const rpcUrl = getNetworkRPCUrl(currentNetwork.id);
-      if (!rpcUrl) {
-        console.warn('No RPC URL found for network:', currentNetwork.id);
+      const chainType = getChainTypeForNetwork(currentNetwork.id);
+      if (!chainType) {
+        console.warn('Unsupported network for balance fetching:', currentNetwork.id);
         return;
       }
-      
-      // Auto-discover tokens with balances > 0
-      const discoveredTokens = await detectTokensWithBalances(wallet.address, rpcUrl);
+
+      // Auto-discover tokens with balances > 0 using multi-chain detection
+      const discoveredTokens = await detectMultiChainTokensWithBalances(
+        wallet.address, 
+        currentNetwork.id,
+        existingTokens.map(t => t.address)
+      );
       console.log('🔍 Auto-discovered tokens:', discoveredTokens);
       
       // Update existing tokens with real balances
@@ -235,8 +364,21 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
             };
           }
           
+          // If not found in auto-discovery, try direct balance fetch
+          const directBalance = await getMultiChainTokenBalance(token.address, wallet.address, currentNetwork.id);
+          if (directBalance) {
+            const price = await getMultiChainTokenPrice(token.address, currentNetwork.id, chainType);
+            return {
+              ...token,
+              balance: directBalance.balance,
+              price: price || token.price,
+              name: directBalance.name || token.name,
+              decimals: directBalance.decimals || token.decimals
+            };
+          }
+          
           return token;
-    } catch (error) {
+        } catch (error) {
           console.warn(`Failed to load balance for token ${token.symbol}:`, error);
           return token;
         }
@@ -263,10 +405,10 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           decimals: discovered.decimals,
           price: discovered.price || 0,
           change24h: 0,
-                isCustom: false,
-                isAutoDetected: true,
+          isCustom: false,
+          isAutoDetected: true,
           isEnabled: true,
-          network: currentNetwork.id
+          network: discovered.network || currentNetwork.id
         }));
       
       // Combine existing and new tokens
@@ -495,9 +637,10 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       return;
     }
 
-    // Enhanced validation
-    if (!newToken.address.startsWith('0x') || newToken.address.length !== 42) {
-      toast.error('Please enter a valid contract address (0x...)');
+    // Multi-chain address validation
+    if (!isValidAddressForNetwork(newToken.address, newToken.network)) {
+      const chainType = getChainTypeForNetwork(newToken.network);
+      toast.error(`Invalid address format for ${newToken.network} network (${chainType})`);
       return;
     }
 
@@ -511,8 +654,8 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       return;
     }
 
-    if (newToken.decimals < 0 || newToken.decimals > 18) {
-      toast.error('Token decimals must be between 0-18');
+    if (newToken.decimals < 0 || newToken.decimals > 24) {
+      toast.error('Token decimals must be between 0-24');
       return;
     }
 
@@ -528,14 +671,56 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     }
 
     try {
-      // Validate token contract exists on blockchain
+      // Validate token contract exists on blockchain (EVM and non-EVM)
       toast.loading('Validating token contract...');
       
-      const isValidContract = await validateTokenContract(newToken.address, newToken.network);
+      const currentNetworkInfo = availableNetworks.find(n => n.id === newToken.network);
+      let isValidContract = false;
+      
+      if (currentNetworkInfo?.type === 'non-evm') {
+        // Validate non-EVM token
+        const validation = await nonEVMTokenUtils.validateToken(newToken.address, newToken.network);
+        isValidContract = validation.isValid;
+        
+        if (validation.tokenInfo && validation.isValid) {
+          // Auto-fill token details from validation
+          setNewToken(prev => ({
+            ...prev,
+            symbol: validation.tokenInfo!.symbol,
+            name: validation.tokenInfo!.name,
+            decimals: validation.tokenInfo!.decimals
+          }));
+        }
+      } else {
+        // Validate EVM token
+        isValidContract = await validateTokenContract(newToken.address, newToken.network);
+      }
+      
       if (!isValidContract) {
         toast.dismiss();
-        toast.error('Invalid token contract address or network');
+        const standard = currentNetworkInfo?.tokenStandard || 'token';
+        toast.error(`Invalid ${standard} contract address on ${newToken.network} network`);
         return;
+      }
+
+      // Fetch real balance for the custom token
+      let tokenBalance = '0';
+      let tokenPrice = 0;
+      
+      if (wallet?.address) {
+        try {
+          const chainType = getChainTypeForNetwork(newToken.network);
+          const balanceResult = await getMultiChainTokenBalance(newToken.address, wallet.address, newToken.network);
+          if (balanceResult) {
+            tokenBalance = balanceResult.balance;
+            const price = await getMultiChainTokenPrice(newToken.address, newToken.network, chainType || 'other');
+            if (price) {
+              tokenPrice = price;
+            }
+          }
+        } catch (error) {
+          console.warn('Failed to fetch balance for custom token:', error);
+        }
       }
 
       const customToken: Token = {
@@ -543,33 +728,31 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         symbol: newToken.symbol.toUpperCase(),
         name: newToken.name,
         address: newToken.address.toLowerCase(),
-        balance: '0',
+        balance: tokenBalance,
         decimals: newToken.decimals,
-        price: 0,
+        price: tokenPrice,
         change24h: 0,
         isCustom: true,
         isEnabled: true,
         network: newToken.network
       };
 
-      const result = await storage.get(['customTokens']);
-      const savedCustomTokens = result.customTokens || [];
+      // Save using enhanced persistence system
+      const persistedToken: PersistedToken = {
+        id: customToken.id,
+        symbol: customToken.symbol,
+        name: customToken.name,
+        address: customToken.address,
+        network: customToken.network,
+        decimals: customToken.decimals,
+        logo: customToken.logo,
+        isCustom: true,
+        isEnabled: true,
+        chainType: getChainTypeForNetwork(customToken.network),
+        addedAt: Date.now()
+      };
       
-      // Check for duplicates in storage
-      const duplicateInStorage = savedCustomTokens.find((token: Token) => 
-        token.address.toLowerCase() === customToken.address && 
-        token.network === customToken.network
-      );
-      
-      if (duplicateInStorage) {
-        toast.dismiss();
-        toast.error('This token is already saved in your custom tokens');
-        return;
-      }
-      
-      const updatedCustomTokens = [...savedCustomTokens, customToken];
-      
-      await storage.set({ customTokens: updatedCustomTokens });
+      await saveCustomToken(persistedToken);
       
       setTokens(prev => [...prev, customToken]);
       setNewToken({ address: '', symbol: '', name: '', decimals: 18, network: 'ethereum' });
@@ -602,11 +785,36 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     }
   };
 
-  // Enhanced token search with auto-complete
+  // Enhanced token search with auto-complete (EVM + Non-EVM)
   const handleTokenSearch = async (query: string) => {
     setIsSearching(true);
     try {
-      const suggestions = await autoCompleteTokenSearch(query, newToken.network);
+      let suggestions: TokenSearchSuggestion[] = [];
+      
+      // Check if current network is EVM or non-EVM
+      const currentNetworkInfo = availableNetworks.find(n => n.id === newToken.network);
+      
+      if (currentNetworkInfo?.type === 'non-evm') {
+        // Search non-EVM tokens using nonEVMTokenUtils
+        const nonEVMResults = nonEVMTokenUtils.searchTokens(query, newToken.network);
+        suggestions = nonEVMResults.map(token => ({
+          symbol: token.symbol,
+          name: token.name,
+          address: token.contractAddress || '',
+          network: token.network,
+          isPopular: token.isPopular,
+          chainType: currentNetworkInfo.type === 'non-evm' ? getChainTypeForNetwork(newToken.network) : 'evm',
+          verified: true
+        }));
+      } else {
+        // Search EVM tokens using enhanced searchTokens function
+        suggestions = await enhancedSearchTokens(query, newToken.network, {
+          limit: 5,
+          includeUnverified: false,
+          includePriceData: true
+        });
+      }
+      
       setSearchSuggestions(suggestions);
       setShowSuggestions(suggestions.length > 0);
     } catch (error) {
@@ -1071,6 +1279,13 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                                 network.id === 'avalanche' ? 'bg-red-600' :
                                 network.id === 'base' ? 'bg-blue-400' :
                                 network.id === 'fantom' ? 'bg-blue-300' :
+                                network.id === 'solana' ? 'bg-gradient-to-r from-purple-400 to-pink-400' :
+                                network.id === 'bitcoin' ? 'bg-orange-500' :
+                                network.id === 'tron' ? 'bg-red-400' :
+                                network.id === 'near' ? 'bg-black' :
+                                network.id === 'cosmos' ? 'bg-indigo-600' :
+                                network.id === 'aptos' ? 'bg-teal-500' :
+                                network.id === 'sui' ? 'bg-blue-800' :
                                 'bg-gray-500'
                               }`}>
                                 <span className="text-white text-xs font-bold">{network.symbol.charAt(0)}</span>
@@ -1200,6 +1415,13 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                                 network.id === 'avalanche' ? 'bg-red-600' :
                                 network.id === 'base' ? 'bg-blue-400' :
                                 network.id === 'fantom' ? 'bg-blue-300' :
+                                network.id === 'solana' ? 'bg-gradient-to-r from-purple-400 to-pink-400' :
+                                network.id === 'bitcoin' ? 'bg-orange-500' :
+                                network.id === 'tron' ? 'bg-red-400' :
+                                network.id === 'near' ? 'bg-black' :
+                                network.id === 'cosmos' ? 'bg-indigo-600' :
+                                network.id === 'aptos' ? 'bg-teal-500' :
+                                network.id === 'sui' ? 'bg-blue-800' :
                                 'bg-gray-500'
                               }`}>
                                 <span className="text-white text-xs font-bold">{network.symbol.charAt(0)}</span>
