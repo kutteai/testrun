@@ -28,9 +28,15 @@ Object.defineProperty(window, 'paycioWalletContentScript', {
 console.log('✅ Content: Content script indicator set:', (window as any).paycioWalletContentScript);
 
 // Enhanced extension context exposure for DApps
+console.log('🔍 Content: Setting up extension context exposure');
+
 if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
+  console.log('✅ Content: Chrome runtime available, exposing to page');
+  console.log('🔍 Content: Extension ID:', chrome.runtime.id);
+  
   (window as any).paycioExtensionId = chrome.runtime.id;
   
+  // Ensure chrome object exists on window
   if (!(window as any).chrome) {
     (window as any).chrome = {};
   }
@@ -40,44 +46,55 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.id) {
   
   (window as any).chrome.runtime.id = chrome.runtime.id;
   
-  // Enhanced sendMessage function
-  (window as any).chrome.runtime.sendMessage = function(message: any, callback: (response: any) => void) {
-    const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+  // CRITICAL: Direct sendMessage function that actually works
+  (window as any).chrome.runtime.sendMessage = function(extensionIdOrMessage: any, messageOrCallback?: any, callbackOrOptions?: any) {
+    // Handle both calling patterns:
+    // chrome.runtime.sendMessage(message, callback) - old pattern
+    // chrome.runtime.sendMessage(extensionId, message, callback) - required from webpage
     
-    window.postMessage({
-      type: 'PAYCIO_EXTENSION_MESSAGE',
-      id: messageId,
-      payload: message
-    }, '*');
+    let message: any;
+    let callback: any;
     
-    let responseReceived = false;
-    const responseHandler = function(event: MessageEvent) {
-      if (event.data && 
-          event.data.type === 'PAYCIO_EXTENSION_RESPONSE' && 
-          event.data.id === messageId && 
-          !responseReceived) {
+    if (typeof extensionIdOrMessage === 'string') {
+      // New pattern: sendMessage(extensionId, message, callback)
+      message = messageOrCallback;
+      callback = callbackOrOptions;
+      console.log('🔍 Content: Direct sendMessage called with extension ID:', extensionIdOrMessage);
+    } else {
+      // Old pattern: sendMessage(message, callback)
+      message = extensionIdOrMessage;
+      callback = messageOrCallback;
+      console.log('🔍 Content: Direct sendMessage called (legacy pattern):', message);
+    }
+    
+    // Send directly to background script using the real chrome.runtime
+    try {
+      browserAPI.runtime.sendMessage(message, (response: any) => {
+        console.log('🔍 Content: Direct response received:', response);
         
-        responseReceived = true;
-        window.removeEventListener('message', responseHandler);
+        if (browserAPI.runtime.lastError) {
+          console.error('❌ Content: Runtime error:', browserAPI.runtime.lastError);
+          if (callback) {
+            callback({ success: false, error: browserAPI.runtime.lastError.message });
+          }
+          return;
+        }
         
         if (callback) {
-          callback(event.data.response);
+          callback(response);
         }
+      });
+    } catch (error) {
+      console.error('❌ Content: Direct sendMessage failed:', error);
+      if (callback) {
+        callback({ success: false, error: (error as Error).message });
       }
-    };
-    
-    window.addEventListener('message', responseHandler);
-    
-    setTimeout(() => {
-      if (!responseReceived) {
-        responseReceived = true;
-        window.removeEventListener('message', responseHandler);
-        if (callback) {
-          callback({ success: false, error: 'Request timeout' });
-        }
-      }
-    }, 30000);
+    }
   };
+  
+  console.log('✅ Content: Extension context exposed to page');
+} else {
+  console.warn('⚠️ Content: Chrome runtime not available');
 }
 
 // Rate limiting

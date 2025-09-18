@@ -432,6 +432,51 @@ export class WalletConnectManager {
   }
 
   // Clean up resources
+  // Check wallet unlock status
+  private async checkWalletStatus(): Promise<{isUnlocked: boolean}> {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'PAYCIO_CHECK_WALLET_STATUS'
+      });
+      return { isUnlocked: response?.data?.isUnlocked || false };
+    } catch (error) {
+      console.error('Failed to check wallet status:', error);
+      return { isUnlocked: false };
+    }
+  }
+
+  // Prompt user to unlock wallet
+  private async promptWalletUnlock(): Promise<void> {
+    try {
+      // Open wallet popup to prompt unlock
+      await chrome.action.openPopup();
+      
+      // Wait for user to unlock (poll for status change)
+      return new Promise((resolve, reject) => {
+        const checkInterval = setInterval(async () => {
+          try {
+            const status = await this.checkWalletStatus();
+            if (status.isUnlocked) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          } catch (error) {
+            clearInterval(checkInterval);
+            reject(error);
+          }
+        }, 1000);
+        
+        // Timeout after 60 seconds
+        setTimeout(() => {
+          clearInterval(checkInterval);
+          reject(new Error('Wallet unlock timeout'));
+        }, 60000);
+      });
+    } catch (error) {
+      throw new Error(`Failed to prompt wallet unlock: ${error.message}`);
+    }
+  }
+
   private cleanup(): void {
     this.stopSessionHealthCheck();
     this.cleanupTimeouts.forEach(timeout => clearTimeout(timeout));
@@ -563,15 +608,42 @@ export class WalletConnectManager {
           };
 
         case 'wallet_unlock':
-          // WalletConnect doesn't support unlock method - wallets should be pre-unlocked
-          return {
-            id: request.id,
-            jsonrpc: '2.0',
-            error: {
-              code: -32601,
-              message: 'wallet_unlock method not supported. Please unlock your wallet manually.'
+          // Handle wallet unlock request by prompting user to unlock wallet
+          try {
+            // Check if wallet is already unlocked
+            const walletStatus = await this.checkWalletStatus();
+            if (walletStatus.isUnlocked) {
+              return {
+                id: request.id,
+                jsonrpc: '2.0',
+                result: { unlocked: true }
+              };
             }
-          };
+            
+            // Prompt user to unlock wallet via popup
+            await this.promptWalletUnlock();
+            
+            // Check status again after unlock attempt
+            const newStatus = await this.checkWalletStatus();
+            if (newStatus.isUnlocked) {
+              return {
+                id: request.id,
+                jsonrpc: '2.0',
+                result: { unlocked: true }
+              };
+            } else {
+              throw new Error('Wallet unlock failed or was cancelled by user');
+            }
+          } catch (error) {
+            return {
+              id: request.id,
+              jsonrpc: '2.0',
+              error: {
+                code: -32002,
+                message: `Wallet unlock failed: ${error.message}`
+              }
+            };
+          }
 
         case 'wallet_requestPermissions':
           // Handle permission requests

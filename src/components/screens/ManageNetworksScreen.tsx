@@ -76,7 +76,7 @@ const ManageNetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onNavigate('options')}
+            onClick={() => onGoBack ? onGoBack() : onNavigate('dashboard')}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

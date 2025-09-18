@@ -89,11 +89,75 @@
     }
     
     async sendMessage(type: string, payload: any, timeout = 30000): Promise<any> {
+      // Try direct communication with background script first
+      if ((window as any).chrome?.runtime?.sendMessage) {
+        console.log(`📤 PayCio Injected: Sending ${type} directly to background`);
+        
+        return new Promise((resolve, reject) => {
+          const timeoutId = setTimeout(() => {
+            reject(new Error(`Direct message timeout for ${type}`));
+          }, timeout);
+          
+          try {
+            // Convert PayCio message types to background script types
+            let backgroundType = type;
+            if (type === 'PAYCIO_CHECK_WALLET_STATUS') {
+              backgroundType = 'GET_WALLET_STATUS';
+            } else if (type === 'PAYCIO_UNLOCK_WALLET') {
+              backgroundType = 'UNLOCK_WALLET';
+            } else if (type === 'PAYCIO_DAPP_REQUEST') {
+              backgroundType = 'DAPP_REQUEST';
+            }
+            
+            // Get extension ID from the exposed context
+            const extensionId = (window as any).paycioExtensionId || (window as any).chrome?.runtime?.id;
+            
+            if (!extensionId) {
+              reject(new Error('PayCio extension ID not available'));
+              return;
+            }
+            
+            (window as any).chrome.runtime.sendMessage(extensionId, {
+              type: backgroundType,
+              ...payload
+            }, (response: any) => {
+              clearTimeout(timeoutId);
+              
+              if ((window as any).chrome.runtime.lastError) {
+                reject(new Error((window as any).chrome.runtime.lastError.message));
+                return;
+              }
+              
+              // Transform response to match expected format
+              const transformedResponse = {
+                success: response?.success !== false,
+                result: response?.data || response?.result,
+                error: response?.error,
+                requiresUnlock: response?.requiresUnlock,
+                hasWallet: response?.hasWallet,
+                popupLaunched: response?.popupLaunched,
+                message: response?.message
+              };
+              
+              console.log(`📥 PayCio Injected: Direct response for ${type}:`, transformedResponse);
+              resolve(transformedResponse);
+            });
+            
+          } catch (error) {
+            clearTimeout(timeoutId);
+            reject(error);
+          }
+        });
+      }
+      
+      // Fallback: Use content script communication
+      console.log(`📤 PayCio Injected: Falling back to content script for ${type}`);
+      
       // Wait for content script to be ready
       await this.waitForContentScript();
       
       if (!this.isContentScriptReady) {
-        throw new Error('Content script not ready after timeout');
+        throw new Error('Content script not ready and direct communication failed');
       }
       
       return new Promise((resolve, reject) => {
@@ -471,6 +535,47 @@
         }, 10000);
       });
     }
+
+    static async showAccountSelectionNotification(message: string, accountCount: number): Promise<void> {
+      return new Promise((resolve) => {
+        const modal = UIManager.createModal(`
+          <div style="text-align: center;">
+            <div style="width: 64px; height: 64px; margin: 0 auto 20px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+            </div>
+            <h3 style="margin: 0 0 8px 0; color: #111827; font-size: 20px; font-weight: 600;">Account Selection Required</h3>
+            <p style="margin: 0 0 24px 0; color: #6b7280; font-size: 14px; line-height: 1.5;">
+              You have ${accountCount} accounts available. ${message}
+            </p>
+            <div style="margin: 20px 0; padding: 16px; background: #f3f4f6; border-radius: 12px; border-left: 4px solid #4f46e5;">
+              <p style="margin: 0; font-size: 13px; color: #4b5563;">
+                👥 <strong>Multiple Accounts:</strong> Choose which account you'd like to connect to this website in the PayCio wallet popup.
+              </p>
+            </div>
+            <button class="paycio-button paycio-button-primary" style="width: 100%;" onclick="this.closest('.paycio-modal').remove(); window.paycioResolveNotification();">
+              I understand, selecting account...
+            </button>
+          </div>
+        `);
+        
+        document.body.appendChild(modal);
+        
+        // Set up resolve function
+        (window as any).paycioResolveNotification = () => {
+          resolve();
+        };
+        
+        // Auto-remove after 15 seconds
+        setTimeout(() => {
+          if (modal.parentNode) {
+            modal.remove();
+          }
+          resolve();
+        }, 15000);
+      });
+    }
   }
   
   // Enhanced Ethereum provider
@@ -589,6 +694,43 @@
             
           } else {
             throw new Error(response.message || 'Wallet is locked. Please open the PayCio extension and unlock your wallet.');
+          }
+        
+        // Handle account selection requirement
+        } else if (!response.success && response.error === 'ACCOUNT_SELECTION_REQUIRED') {
+          console.log('👥 Multiple accounts found, wallet popup launched for selection');
+          
+          if (response.popupLaunched) {
+            // Show user-friendly message about account selection
+            await UIManager.showAccountSelectionNotification(response.message, response.accountCount);
+            
+            // Wait for account selection and retry
+            console.log('⏳ Waiting for account selection...');
+            
+            // Poll for account selection completion
+            let attempts = 0;
+            const maxAttempts = 30; // 30 seconds max wait
+            
+            while (attempts < maxAttempts) {
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+              
+              const retryResponse = await messageHandler.sendMessage('PAYCIO_DAPP_REQUEST', {
+                method: 'eth_accounts'
+              });
+              
+              if (retryResponse.success && retryResponse.result?.length > 0) {
+                console.log('✅ Account selected and retrieved');
+                walletState.setConnected(retryResponse.result[0]);
+                return retryResponse.result;
+              }
+              
+              attempts++;
+            }
+            
+            throw new Error('Account selection timeout. Please try again.');
+            
+          } else {
+            throw new Error(response.message || 'Multiple accounts found. Please open the PayCio extension to select an account.');
           }
         } 
         

@@ -298,19 +298,8 @@ class UCPService {
         };
       }
 
-      // For non-ENS domains, we can register them locally with global-like features
-      // This simulates a global registration for demonstration
-      const mockTransactionHash = `0x${Date.now().toString(16)}`;
-      const currentBlockNumber = 0; // Real block number would come from actual blockchain API
-
-      return {
-        success: true,
-        isGlobal: true,
-        isLocal: true, // Also store locally
-        transactionHash: mockTransactionHash,
-        blockNumber: currentBlockNumber,
-        globalRegistryId: `global_${ucpiData.id}_${Date.now()}`
-      };
+      // Real UCPI global registration requires actual blockchain transaction
+      throw new Error('UCPI global registration requires real blockchain integration with ENS or similar registry. No mock data provided.');
 
     } catch (error) {
       console.warn('Global UCPI registration failed, falling back to local:', error);
@@ -438,17 +427,8 @@ class UCPService {
         };
       }
 
-      // Generate mock transaction data for local registration
-      const mockTransactionHash = `0x${Date.now().toString(16)}`;
-      const currentBlockNumber = 0; // Real block number would come from actual blockchain API
-
-      return {
-        success: true,
-        isGlobal: false,
-        isLocal: true,
-        transactionHash: mockTransactionHash,
-        blockNumber: currentBlockNumber
-      };
+      // Real UCPI local registration requires actual blockchain transaction
+      throw new Error('UCPI local registration requires real blockchain integration. No mock data provided.');
 
     } catch (error) {
       return {

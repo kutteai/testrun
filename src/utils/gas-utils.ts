@@ -20,32 +20,49 @@ export const DEFAULT_GAS_SETTINGS: GasSettings = {
   priority: 'medium'
 };
 
-// Gas priority presets
+// Gas priority presets - realistic current market values
 export const GAS_PRESETS = {
   low: {
-    maxFeePerGas: '15000000000', // 15 gwei
-    maxPriorityFeePerGas: '1000000000', // 1 gwei
-    description: 'Slow but cheap'
+    maxFeePerGas: '500000000', // 0.5 gwei (realistic low)
+    maxPriorityFeePerGas: '100000000', // 0.1 gwei (realistic tip)
+    description: 'Slow but cheap (~30 sec)'
   },
   medium: {
-    maxFeePerGas: '25000000000', // 25 gwei
-    maxPriorityFeePerGas: '2000000000', // 2 gwei
-    description: 'Balanced speed and cost'
+    maxFeePerGas: '1000000000', // 1 gwei (realistic standard)
+    maxPriorityFeePerGas: '200000000', // 0.2 gwei (realistic tip)
+    description: 'Balanced speed and cost (~15 sec)'
   },
   high: {
-    maxFeePerGas: '50000000000', // 50 gwei
-    maxPriorityFeePerGas: '5000000000', // 5 gwei
-    description: 'Fast but expensive'
+    maxFeePerGas: '2000000000', // 2 gwei (realistic fast)
+    maxPriorityFeePerGas: '500000000', // 0.5 gwei (realistic tip)
+    description: 'Fast but expensive (~5 sec)'
   }
 };
 
-// Get current gas prices from network
-export async function getCurrentGasPrices(rpcUrl: string): Promise<{
+// Get current gas prices from network using real-time service
+export async function getCurrentGasPrices(rpcUrl: string, network?: string): Promise<{
   maxFeePerGas: string;
   maxPriorityFeePerGas: string;
   gasPrice: string;
 }> {
   try {
+    // Method 1: Try real-time gas service if network is provided
+    if (network) {
+      try {
+        const { realTimeGasService } = await import('./real-time-gas-prices');
+        const gasData = await realTimeGasService.getGasPrices(network);
+        
+        return {
+          maxFeePerGas: ethers.parseUnits(gasData.maxFeePerGas?.toString() || gasData.gasPrice.toString(), 'gwei').toString(),
+          maxPriorityFeePerGas: ethers.parseUnits(gasData.maxPriorityFeePerGas?.toString() || '2', 'gwei').toString(),
+          gasPrice: ethers.parseUnits(gasData.gasPrice.toString(), 'gwei').toString()
+        };
+      } catch (realTimeError) {
+        console.warn('Real-time gas service failed, falling back to RPC:', realTimeError);
+      }
+    }
+    
+    // Method 2: Fallback to RPC call
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     const feeData = await provider.getFeeData();
     
@@ -56,8 +73,8 @@ export async function getCurrentGasPrices(rpcUrl: string): Promise<{
     };
   } catch (error) {
     console.error('Error fetching gas prices:', error);
-    // Throw error instead of returning fallback values
-    throw new Error(`Failed to fetch gas prices: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    // Throw error instead of returning fallback values - no mock data
+    throw new Error(`Failed to fetch gas prices: ${error instanceof Error ? error.message : 'Unknown error'}. Real gas price API integration required.`);
   }
 }
 

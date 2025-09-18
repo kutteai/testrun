@@ -175,15 +175,73 @@ const App: React.FC = () => {
     }
   }, [hasWallet, isWalletUnlocked, isAppInitialized, isInitializing, currentScreen]);
 
-  // Go back to previous screen
+  // Handle network changes to preserve navigation
+  useEffect(() => {
+    const handleNetworkChange = (event: CustomEvent) => {
+      console.log('🌐 Network changed, preserving navigation:', event.detail);
+      
+      // Import navigation utilities and handle network switch
+      import('./utils/network-navigation-fix').then(({ networkNavigationUtils }) => {
+        const result = networkNavigationUtils.handleNetworkSwitch(
+          currentScreen,
+          navigationHistory,
+          event.detail.oldNetwork || 'ethereum',
+          event.detail.networkId,
+          {
+            preserveHistory: true,
+            allowNetworkSpecificScreens: false,
+            fallbackScreen: 'dashboard'
+          }
+        );
+        
+        // Update navigation state if needed
+        if (result.screen !== currentScreen) {
+          setCurrentScreen(result.screen as ScreenId);
+          setNavigationHistory(result.history);
+        }
+      }).catch(error => {
+        console.error('Network navigation handling failed:', error);
+      });
+    };
+
+    // Listen for network change events
+    window.addEventListener('networkChanged', handleNetworkChange as EventListener);
+    
+    return () => {
+      window.removeEventListener('networkChanged', handleNetworkChange as EventListener);
+    };
+  }, [currentScreen, navigationHistory]);
+
+  // Go back to previous screen with network-aware navigation
   const handleGoBack = () => {
-    if (navigationHistory.length > 1) {
-      const newHistory = [...navigationHistory];
-      newHistory.pop(); // Remove current screen
-      const previousScreen = newHistory[newHistory.length - 1];
-      setNavigationHistory(newHistory);
-      setCurrentScreen(previousScreen);
-    }
+    // Import navigation utilities
+    import('./utils/network-navigation-fix').then(({ networkNavigationUtils }) => {
+      const canGoBack = networkNavigationUtils.canGoBack(currentScreen, navigationHistory);
+      
+      if (canGoBack) {
+        const backTarget = networkNavigationUtils.getBackTarget(currentScreen, navigationHistory);
+        const newHistory = [...navigationHistory];
+        newHistory.pop(); // Remove current screen
+        setNavigationHistory(newHistory);
+        setCurrentScreen(backTarget as ScreenId);
+      } else {
+        // Fallback to dashboard if can't go back
+        setCurrentScreen('dashboard');
+        setNavigationHistory(['dashboard']);
+      }
+    }).catch(error => {
+      console.error('Navigation utils import failed:', error);
+      // Fallback to original logic
+      if (navigationHistory.length > 1) {
+        const newHistory = [...navigationHistory];
+        newHistory.pop();
+        const previousScreen = newHistory[newHistory.length - 1];
+        setNavigationHistory(newHistory);
+        setCurrentScreen(previousScreen);
+      } else {
+        setCurrentScreen('dashboard');
+      }
+    });
   };
 
   // Handle navigation

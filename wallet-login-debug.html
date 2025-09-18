@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayCio Wallet Login Debug</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .debug-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 15px;
+            background: #f8f9fa;
+        }
+        .debug-section h3 {
+            margin-top: 0;
+            color: #495057;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            background: white;
+            border-left: 4px solid #007bff;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .error {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+        .success {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .warning {
+            border-left-color: #ffc107;
+            background: #fff3cd;
+        }
+        .password-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 PayCio Wallet Login Debug</h1>
+        
+        <div class="debug-section">
+            <h3>1. Check Wallet Storage</h3>
+            <p>Verify if wallet data exists in browser storage</p>
+            <button onclick="checkWalletStorage()">Check Storage</button>
+            <div id="storage-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="debug-section">
+            <h3>2. Test Password Verification</h3>
+            <p>Test different password verification methods</p>
+            <input type="password" class="password-input" id="test-password" placeholder="Enter your wallet password">
+            <button onclick="testPasswordMethods()">Test Password</button>
+            <div id="password-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="debug-section">
+            <h3>3. Direct Background Communication</h3>
+            <p>Test direct communication with background script</p>
+            <button onclick="testBackgroundComm()">Test Background</button>
+            <button onclick="testUnlockDirect()">Test Direct Unlock</button>
+            <div id="background-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="debug-section">
+            <h3>4. Extension Health Check</h3>
+            <p>Verify PayCio extension is working properly</p>
+            <button onclick="checkExtensionHealth()">Health Check</button>
+            <button onclick="resetWalletState()">Reset Wallet State</button>
+            <div id="health-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="debug-section">
+            <h3>5. Encryption Test</h3>
+            <p>Test encryption/decryption functionality</p>
+            <button onclick="testEncryption()">Test Encryption</button>
+            <div id="encryption-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        console.log('🧪 PayCio Wallet Login Debug Tool Loaded');
+
+        function showResult(elementId, content, type = 'info') {
+            const element = document.getElementById(elementId);
+            element.style.display = 'block';
+            element.className = `result ${type}`;
+            element.textContent = content;
+        }
+
+        async function checkWalletStorage() {
+            try {
+                let result = 'Wallet Storage Analysis:\n\n';
+
+                // Check if extension context is available
+                if (!chrome?.runtime?.id) {
+                    result += '❌ No extension context available\n';
+                    result += 'Extension may not be loaded or enabled\n';
+                    showResult('storage-result', result, 'error');
+                    return;
+                }
+
+                result += `✅ Extension ID: ${chrome.runtime.id}\n\n`;
+
+                // Get all storage data
+                chrome.storage.local.get(null, (data) => {
+                    if (chrome.runtime.lastError) {
+                        result += `❌ Storage error: ${chrome.runtime.lastError.message}\n`;
+                        showResult('storage-result', result, 'error');
+                        return;
+                    }
+
+                    result += 'Storage Keys Found:\n';
+                    const keys = Object.keys(data);
+                    keys.forEach(key => {
+                        result += `  • ${key}\n`;
+                    });
+
+                    result += '\nWallet Analysis:\n';
+                    if (data.wallet) {
+                        result += `  ✅ Wallet exists\n`;
+                        result += `  • ID: ${data.wallet.id || 'N/A'}\n`;
+                        result += `  • Name: ${data.wallet.name || 'N/A'}\n`;
+                        result += `  • Has encrypted seed: ${!!data.wallet.encryptedSeedPhrase}\n`;
+                        result += `  • Created: ${data.wallet.createdAt ? new Date(data.wallet.createdAt).toISOString() : 'N/A'}\n`;
+                    } else {
+                        result += `  ❌ No wallet found\n`;
+                    }
+
+                    result += '\nPassword Hash:\n';
+                    if (data.passwordHash) {
+                        result += `  ✅ Password hash exists (${data.passwordHash.length} chars)\n`;
+                    } else {
+                        result += `  ❌ No password hash found\n`;
+                    }
+
+                    result += '\nWallet State:\n';
+                    if (data.walletState) {
+                        result += `  • Unlocked: ${data.walletState.isWalletUnlocked || false}\n`;
+                        result += `  • Last unlock: ${data.walletState.lastUnlockTime ? new Date(data.walletState.lastUnlockTime).toISOString() : 'Never'}\n`;
+                        result += `  • Has temp password: ${!!data.walletState.tempPassword}\n`;
+                    } else {
+                        result += `  ❌ No wallet state found\n`;
+                    }
+
+                    showResult('storage-result', result, keys.length > 0 ? 'success' : 'warning');
+                });
+
+            } catch (error) {
+                showResult('storage-result', `Error checking storage: ${error.message}`, 'error');
+            }
+        }
+
+        async function testPasswordMethods() {
+            const password = document.getElementById('test-password').value;
+            
+            if (!password) {
+                showResult('password-result', 'Please enter a password to test', 'error');
+                return;
+            }
+
+            try {
+                let result = 'Password Testing Results:\n\n';
+
+                // Test 1: Direct background script communication
+                result += '1. Testing direct background communication...\n';
+                
+                if (chrome?.runtime?.sendMessage) {
+                    chrome.runtime.sendMessage({
+                        type: 'UNLOCK_WALLET',
+                        password: password
+                    }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            result += `❌ Runtime error: ${chrome.runtime.lastError.message}\n`;
+                        } else {
+                            result += `📥 Background response: ${JSON.stringify(response, null, 2)}\n`;
+                            
+                            if (response?.success) {
+                                result += '✅ Password verification successful!\n';
+                                showResult('password-result', result, 'success');
+                            } else {
+                                result += `❌ Password verification failed: ${response?.error || 'Unknown error'}\n`;
+                                showResult('password-result', result, 'error');
+                            }
+                        }
+                    });
+                } else {
+                    result += '❌ No chrome.runtime.sendMessage available\n';
+                    showResult('password-result', result, 'error');
+                }
+
+            } catch (error) {
+                showResult('password-result', `Password test error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testBackgroundComm() {
+            try {
+                let result = 'Background Communication Test:\n\n';
+
+                if (!chrome?.runtime?.sendMessage) {
+                    result += '❌ No chrome.runtime.sendMessage available\n';
+                    result += 'Extension context not properly exposed\n';
+                    showResult('background-result', result, 'error');
+                    return;
+                }
+
+                // Test health check
+                result += 'Testing HEALTH_CHECK...\n';
+                chrome.runtime.sendMessage({
+                    type: 'HEALTH_CHECK'
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        result += `❌ Health check failed: ${chrome.runtime.lastError.message}\n`;
+                        showResult('background-result', result, 'error');
+                    } else {
+                        result += `✅ Health check response: ${JSON.stringify(response)}\n\n`;
+                        
+                        // Test wallet status
+                        result += 'Testing GET_WALLET_STATUS...\n';
+                        chrome.runtime.sendMessage({
+                            type: 'GET_WALLET_STATUS'
+                        }, (statusResponse) => {
+                            if (chrome.runtime.lastError) {
+                                result += `❌ Wallet status failed: ${chrome.runtime.lastError.message}\n`;
+                            } else {
+                                result += `✅ Wallet status: ${JSON.stringify(statusResponse, null, 2)}\n`;
+                            }
+                            showResult('background-result', result, 'success');
+                        });
+                    }
+                });
+
+            } catch (error) {
+                showResult('background-result', `Background test error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testUnlockDirect() {
+            const password = document.getElementById('test-password').value;
+            
+            if (!password) {
+                showResult('background-result', 'Please enter a password first', 'error');
+                return;
+            }
+
+            try {
+                let result = 'Direct Unlock Test:\n\n';
+                result += `Testing password: ${password.length} characters\n\n`;
+
+                chrome.runtime.sendMessage({
+                    type: 'UNLOCK_WALLET',
+                    password: password
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        result += `❌ Unlock failed: ${chrome.runtime.lastError.message}\n`;
+                        showResult('background-result', result, 'error');
+                    } else {
+                        result += `📥 Unlock response: ${JSON.stringify(response, null, 2)}\n`;
+                        
+                        if (response?.success) {
+                            result += '\n✅ Wallet unlocked successfully!\n';
+                            result += 'Try using the wallet now.\n';
+                            showResult('background-result', result, 'success');
+                        } else {
+                            result += `\n❌ Unlock failed: ${response?.error || 'Unknown error'}\n`;
+                            result += '\nPossible issues:\n';
+                            result += '• Wrong password\n';
+                            result += '• Corrupted wallet data\n';
+                            result += '• Encryption/decryption error\n';
+                            showResult('background-result', result, 'error');
+                        }
+                    }
+                });
+
+            } catch (error) {
+                showResult('background-result', `Direct unlock error: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkExtensionHealth() {
+            try {
+                let result = 'Extension Health Check:\n\n';
+
+                // Check extension context
+                result += 'Extension Context:\n';
+                result += `• chrome.runtime: ${!!chrome?.runtime}\n`;
+                result += `• chrome.runtime.id: ${chrome?.runtime?.id || 'N/A'}\n`;
+                result += `• sendMessage: ${typeof chrome?.runtime?.sendMessage}\n\n`;
+
+                // Check PayCio provider
+                result += 'PayCio Provider:\n';
+                result += `• window.ethereum.isPayCio: ${window.ethereum?.isPayCio || false}\n`;
+                result += `• window.paycioWallet: ${!!window.paycioWallet}\n`;
+                result += `• paycioWalletContentScript: ${!!window.paycioWalletContentScript}\n\n`;
+
+                // Check storage permissions
+                result += 'Testing storage access...\n';
+                chrome.storage.local.get(['wallet'], (data) => {
+                    if (chrome.runtime.lastError) {
+                        result += `❌ Storage access failed: ${chrome.runtime.lastError.message}\n`;
+                    } else {
+                        result += `✅ Storage access working\n`;
+                        result += `• Wallet exists: ${!!data.wallet}\n`;
+                    }
+                    
+                    showResult('health-result', result, 'info');
+                });
+
+            } catch (error) {
+                showResult('health-result', `Health check error: ${error.message}`, 'error');
+            }
+        }
+
+        async function resetWalletState() {
+            try {
+                let result = 'Resetting Wallet State...\n\n';
+
+                chrome.runtime.sendMessage({
+                    type: 'LOCK_WALLET'
+                }, (response) => {
+                    if (chrome.runtime.lastError) {
+                        result += `❌ Reset failed: ${chrome.runtime.lastError.message}\n`;
+                        showResult('health-result', result, 'error');
+                    } else {
+                        result += `✅ Wallet state reset\n`;
+                        result += 'Wallet is now locked. Try unlocking again.\n';
+                        showResult('health-result', result, 'success');
+                    }
+                });
+
+            } catch (error) {
+                showResult('health-result', `Reset error: ${error.message}`, 'error');
+            }
+        }
+
+        async function testEncryption() {
+            const password = document.getElementById('test-password').value;
+            
+            if (!password) {
+                showResult('encryption-result', 'Please enter a password to test encryption', 'error');
+                return;
+            }
+
+            try {
+                let result = 'Encryption Test:\n\n';
+
+                // Test with sample data
+                const testData = 'test seed phrase for encryption verification';
+                result += `Testing encryption with: "${testData}"\n`;
+                result += `Password length: ${password.length}\n\n`;
+
+                // This would test the encryption/decryption cycle
+                result += 'Note: Full encryption test requires background script integration\n';
+                result += 'Use the "Test Password" button above for actual verification\n\n';
+
+                result += 'Manual encryption test steps:\n';
+                result += '1. Check if wallet has encryptedSeedPhrase\n';
+                result += '2. Try to decrypt with your password\n';
+                result += '3. Verify decrypted seed phrase is valid BIP39\n';
+                result += '4. Check if decryption produces 12-24 words\n';
+
+                showResult('encryption-result', result, 'info');
+
+            } catch (error) {
+                showResult('encryption-result', `Encryption test error: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-run basic checks on page load
+        window.addEventListener('load', () => {
+            console.log('🧪 Wallet login debug tool ready');
+            
+            // Auto-check storage
+            setTimeout(() => {
+                checkWalletStorage();
+            }, 1000);
+        });
+
+        // Export functions for console use
+        window.checkWalletStorage = checkWalletStorage;
+        window.testPasswordMethods = testPasswordMethods;
+        window.testBackgroundComm = testBackgroundComm;
+        window.checkExtensionHealth = checkExtensionHealth;
+
+        // Quick debug function
+        window.quickDebug = async () => {
+            console.log('🔍 Quick Debug Results:');
+            
+            // Check extension
+            console.log('Extension:', {
+                hasRuntime: !!chrome?.runtime,
+                extensionId: chrome?.runtime?.id,
+                canSendMessage: typeof chrome?.runtime?.sendMessage
+            });
+
+            // Check PayCio
+            console.log('PayCio:', {
+                hasEthereum: !!window.ethereum,
+                isPayCio: window.ethereum?.isPayCio,
+                hasPayCioWallet: !!window.paycioWallet,
+                hasContentScript: !!window.paycioWalletContentScript
+            });
+
+            // Test background communication
+            if (chrome?.runtime?.sendMessage) {
+                chrome.runtime.sendMessage({ type: 'HEALTH_CHECK' }, (response) => {
+                    console.log('Background health:', response);
+                });
+
+                chrome.runtime.sendMessage({ type: 'GET_WALLET_STATUS' }, (response) => {
+                    console.log('Wallet status:', response);
+                });
+            }
+        };
+
+        console.log('Available functions:');
+        console.log('- quickDebug() - Run all basic checks');
+        console.log('- checkWalletStorage() - Check storage data');
+        console.log('- testPasswordMethods() - Test password verification');
+    </script>
+</body>
+</html>

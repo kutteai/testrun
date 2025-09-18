@@ -162,27 +162,83 @@ export class WalletManager {
   private async deriveAccounts(seedPhrase: string, network: string, count: number): Promise<WalletAccount[]> {
     const accounts: WalletAccount[] = [];
     
+    // Define all supported networks for multi-chain account generation
+    const supportedNetworks = [
+      'ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche', 
+      'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
+    ];
+    
     for (let i = 0; i < count; i++) {
       try {
         const derivationPath = `m/44'/60'/0'/0/${i}`; // BIP44 path for Ethereum
         const walletData = await deriveWalletFromSeed(seedPhrase, derivationPath);
         
+        // Generate addresses for all supported networks
+        const addresses: Record<string, string> = {};
+        const balances: Record<string, string> = {};
+        const nonces: Record<string, number> = {};
+        
+        // Start with the primary network
+        addresses[network] = walletData.address;
+        balances[network] = '0';
+        nonces[network] = 0;
+        
+        // Generate addresses for other networks
+        const { generateNetworkAddress } = await import('../utils/network-address-utils');
+        
+        for (const networkId of supportedNetworks) {
+          if (networkId !== network) {
+            try {
+              // Use network-specific derivation paths
+              let networkDerivationPath = derivationPath;
+              
+              // Use proper BIP44 coin types for different networks
+              switch (networkId) {
+                case 'bitcoin':
+                  networkDerivationPath = `m/44'/0'/0'/0/${i}`;
+                  break;
+                case 'litecoin':
+                  networkDerivationPath = `m/44'/2'/0'/0/${i}`;
+                  break;
+                case 'solana':
+                  networkDerivationPath = `m/44'/501'/0'/0/${i}`;
+                  break;
+                case 'tron':
+                  networkDerivationPath = `m/44'/195'/0'/0/${i}`;
+                  break;
+                case 'xrp':
+                  networkDerivationPath = `m/44'/144'/0'/0/${i}`;
+                  break;
+                case 'ton':
+                  networkDerivationPath = `m/44'/607'/0'/0/${i}`;
+                  break;
+                default:
+                  // EVM networks use Ethereum derivation path
+                  networkDerivationPath = `m/44'/60'/0'/0/${i}`;
+              }
+              
+              const networkAddress = await generateNetworkAddress(seedPhrase, networkDerivationPath, networkId);
+              addresses[networkId] = networkAddress;
+              balances[networkId] = '0';
+              nonces[networkId] = 0;
+              
+            } catch (networkError) {
+              console.warn(`Failed to generate ${networkId} address for account ${i}:`, networkError);
+              // Continue with other networks - don't fail the entire account creation
+            }
+          }
+        }
+        
         const account: WalletAccount = {
           id: `${Date.now()}-${i}`,
           name: `Account ${i + 1}`,
-          addresses: {
-            [network]: walletData.address
-          },
+          addresses,
           privateKey: walletData.privateKey,
           publicKey: walletData.publicKey,
           derivationPath: derivationPath,
-          networks: [network],
-          balances: {
-            [network]: '0'
-          },
-          nonces: {
-            [network]: 0
-          },
+          networks: supportedNetworks, // Account supports all networks
+          balances,
+          nonces,
           createdAt: Date.now(),
           encryptedSeedPhrase: '', // Will be set by the wallet's encrypted seed phrase
           isActive: i === 0 // First account is active
@@ -1165,22 +1221,73 @@ export class WalletManager {
       // Encrypt the seed phrase for this account
       const encryptedSeedPhrase = await encryptData(seedPhrase, password);
       
+      // Generate addresses for all supported networks
+      const supportedNetworks = [
+        'ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche', 
+        'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
+      ];
+      
+      const addresses: Record<string, string> = {};
+      const balances: Record<string, string> = {};
+      const nonces: Record<string, number> = {};
+      
+      // Start with the current network
+      addresses[currentNetwork] = address;
+      balances[currentNetwork] = '0';
+      nonces[currentNetwork] = 0;
+      
+      // Generate addresses for other networks
+      for (const networkId of supportedNetworks) {
+        if (networkId !== currentNetwork) {
+          try {
+            // Use network-specific derivation paths
+            let networkDerivationPath = derivationPath;
+            
+            switch (networkId) {
+              case 'bitcoin':
+                networkDerivationPath = `m/44'/0'/0'/0/${wallet.accounts.length}`;
+                break;
+              case 'litecoin':
+                networkDerivationPath = `m/44'/2'/0'/0/${wallet.accounts.length}`;
+                break;
+              case 'solana':
+                networkDerivationPath = `m/44'/501'/0'/0/${wallet.accounts.length}`;
+                break;
+              case 'tron':
+                networkDerivationPath = `m/44'/195'/0'/0/${wallet.accounts.length}`;
+                break;
+              case 'xrp':
+                networkDerivationPath = `m/44'/144'/0'/0/${wallet.accounts.length}`;
+                break;
+              case 'ton':
+                networkDerivationPath = `m/44'/607'/0'/0/${wallet.accounts.length}`;
+                break;
+              default:
+                // EVM networks use Ethereum derivation path
+                networkDerivationPath = `m/44'/60'/0'/0/${wallet.accounts.length}`;
+            }
+            
+            const networkAddress = await generateNetworkAddress(seedPhrase, networkDerivationPath, networkId);
+            addresses[networkId] = networkAddress;
+            balances[networkId] = '0';
+            nonces[networkId] = 0;
+            
+          } catch (networkError) {
+            console.warn(`Failed to generate ${networkId} address for new account:`, networkError);
+          }
+        }
+      }
+
       const newAccount: WalletAccount = {
         id: `${Date.now()}-${wallet.accounts.length}`,
         name: accountName || `Account ${wallet.accounts.length + 1}`,
-        addresses: {
-          [currentNetwork]: address
-        },
+        addresses,
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
         derivationPath: derivationPath,
-        networks: [currentNetwork],
-        balances: {
-          [currentNetwork]: '0'
-        },
-        nonces: {
-          [currentNetwork]: 0
-        },
+        networks: supportedNetworks, // Account supports all networks
+        balances,
+        nonces,
         createdAt: Date.now(),
         encryptedSeedPhrase: encryptedSeedPhrase,
         isActive: false

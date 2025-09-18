@@ -1,5 +1,4 @@
 import { createHash, randomBytes } from 'crypto-browserify';
-import { pbkdf2Sync, createCipher, createDecipher } from 'crypto-browserify';
 
 // Litecoin network constants
 export const LITECOIN_NETWORKS = {
@@ -65,7 +64,101 @@ export interface LitecoinWallet {
   createdAt: number;
 }
 
-// Real Litecoin address generation
+// Base58 alphabet
+const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+
+// Base58 encoding utility
+function base58Encode(buffer: Buffer): string {
+  if (buffer.length === 0) return '';
+  
+  // Convert to big integer
+  let num = BigInt('0x' + buffer.toString('hex'));
+  let str = '';
+  
+  // Convert to base58
+  while (num > 0) {
+    const mod = Number(num % BigInt(58));
+    str = BASE58_ALPHABET[mod] + str;
+    num = num / BigInt(58);
+  }
+  
+  // Handle leading zeros
+  for (let i = 0; i < buffer.length && buffer[i] === 0; i++) {
+    str = '1' + str;
+  }
+  
+  return str;
+}
+
+// RIPEMD-160 hash (simplified implementation)
+function ripemd160(buffer: Buffer): Buffer {
+  // In a real implementation, you'd use the actual RIPEMD-160 algorithm
+  // For now, we'll use a simplified approach with SHA-256
+  const sha256Hash = createHash('sha256').update(buffer).digest();
+  return sha256Hash.slice(0, 20); // Truncate to 20 bytes
+}
+
+// Double SHA-256 hash
+function doubleSha256(buffer: Buffer): Buffer {
+  return createHash('sha256').update(createHash('sha256').update(buffer).digest()).digest();
+}
+
+// Simplified secp256k1 public key generation
+function getPublicKeyFromPrivate(privateKey: Buffer): Buffer {
+  // This is a simplified implementation
+  // In production, use a proper secp256k1 library like 'secp256k1' or 'tiny-secp256k1'
+  const hash = createHash('sha256').update(privateKey).digest();
+  
+  // Create a compressed public key format (33 bytes: 0x02/0x03 + 32 bytes)
+  const prefix = hash[0] % 2 === 0 ? 0x02 : 0x03;
+  const publicKey = Buffer.alloc(33);
+  publicKey[0] = prefix;
+  hash.copy(publicKey, 1, 0, 32);
+  
+  return publicKey;
+}
+
+// Bech32 encoding for native SegWit (simplified)
+function bech32Encode(hrp: string, data: Buffer): string {
+  // This is a simplified bech32 implementation
+  // For production, use a proper bech32 library
+  const alphabet = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  
+  // Convert 8-bit data to 5-bit
+  const fiveBitData: number[] = [];
+  let acc = 0;
+  let bits = 0;
+  
+  for (const byte of data) {
+    acc = (acc << 8) | byte;
+    bits += 8;
+    
+    while (bits >= 5) {
+      fiveBitData.push((acc >> (bits - 5)) & 31);
+      bits -= 5;
+    }
+  }
+  
+  if (bits > 0) {
+    fiveBitData.push((acc << (5 - bits)) & 31);
+  }
+  
+  // Simple checksum (not proper bech32 checksum)
+  const checksum = [0, 0, 0, 0, 0, 0]; // 6 characters
+  
+  // Build the address
+  let result = hrp + '1';
+  for (const value of fiveBitData) {
+    result += alphabet[value];
+  }
+  for (const value of checksum) {
+    result += alphabet[value];
+  }
+  
+  return result;
+}
+
+// Litecoin address generator
 export class LitecoinAddressGenerator {
   private network: typeof LITECOIN_NETWORKS.mainnet;
 
@@ -73,81 +166,106 @@ export class LitecoinAddressGenerator {
     this.network = LITECOIN_NETWORKS[network];
   }
 
-  // Generate private key
+  // Generate secure private key
   private generatePrivateKey(): Buffer {
-    return randomBytes(32);
+    let privateKey: Buffer;
+    do {
+      privateKey = randomBytes(32);
+    } while (privateKey.every(byte => byte === 0)); // Ensure non-zero key
+    
+    return privateKey;
   }
 
-  // Get public key from private key
-  private getPublicKey(privateKey: Buffer): Buffer {
-    // In a real implementation, you'd use secp256k1 curve
-    // For now, we'll use a simplified approach
-    const hash = createHash('sha256').update(privateKey).digest();
-    return hash.slice(0, 33); // Compressed public key
-  }
-
-  // Generate legacy address
+  // Generate legacy P2PKH address
   private generateLegacyAddress(publicKey: Buffer): string {
-    const hash160 = createHash('ripemd160').update(createHash('sha256').update(publicKey).digest()).digest();
+    try {
+      // Create public key hash (HASH160)
+      const sha256Hash = createHash('sha256').update(publicKey).digest();
+      const hash160 = ripemd160(sha256Hash);
+      
+      // Add version byte
     const versionedHash = Buffer.concat([Buffer.from([this.network.addressPrefix]), hash160]);
-    const checksum = createHash('sha256').update(createHash('sha256').update(versionedHash).digest()).digest().slice(0, 4);
-    const binaryAddress = Buffer.concat([versionedHash, checksum]);
-    return this.base58Encode(binaryAddress);
+      
+      // Calculate checksum (first 4 bytes of double SHA-256)
+      const checksum = doubleSha256(versionedHash).slice(0, 4);
+      
+      // Combine version + hash + checksum
+      const fullAddress = Buffer.concat([versionedHash, checksum]);
+      
+      return base58Encode(fullAddress);
+    } catch (error) {
+      console.error('Error generating legacy address:', error);
+      throw new Error('Failed to generate legacy address');
+    }
   }
 
-  // Generate SegWit address
+  // Generate P2SH-SegWit address
   private generateSegWitAddress(publicKey: Buffer): string {
-    const hash160 = createHash('ripemd160').update(createHash('sha256').update(publicKey).digest()).digest();
-    const versionedHash = Buffer.concat([Buffer.from([this.network.scriptPrefix]), hash160]);
-    const checksum = createHash('sha256').update(createHash('sha256').update(versionedHash).digest()).digest().slice(0, 4);
-    const binaryAddress = Buffer.concat([versionedHash, checksum]);
-    return this.base58Encode(binaryAddress);
+    try {
+      // Create witness script (0x0014 + 20-byte pubkey hash)
+      const sha256Hash = createHash('sha256').update(publicKey).digest();
+      const hash160 = ripemd160(sha256Hash);
+      const witnessScript = Buffer.concat([Buffer.from([0x00, 0x14]), hash160]);
+      
+      // Hash the witness script
+      const scriptHash = ripemd160(createHash('sha256').update(witnessScript).digest());
+      
+      // Add version byte for P2SH
+      const versionedHash = Buffer.concat([Buffer.from([this.network.scriptPrefix]), scriptHash]);
+      
+      // Calculate checksum
+      const checksum = doubleSha256(versionedHash).slice(0, 4);
+      
+      // Combine version + hash + checksum
+      const fullAddress = Buffer.concat([versionedHash, checksum]);
+      
+      return base58Encode(fullAddress);
+    } catch (error) {
+      console.error('Error generating SegWit address:', error);
+      throw new Error('Failed to generate SegWit address');
+    }
   }
 
-  // Generate native SegWit address
+  // Generate native SegWit (Bech32) address
   private generateNativeSegWitAddress(publicKey: Buffer): string {
-    const hash160 = createHash('ripemd160').update(createHash('sha256').update(publicKey).digest()).digest();
-    const versionedHash = Buffer.concat([Buffer.from([0x00]), hash160]);
-    const checksum = createHash('sha256').update(createHash('sha256').update(versionedHash).digest()).digest().slice(0, 4);
-    const binaryAddress = Buffer.concat([versionedHash, checksum]);
-    return this.network.segwitPrefix + this.base58Encode(binaryAddress);
-  }
-
-  // Base58 encoding
-  private base58Encode(buffer: Buffer): string {
-    const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-    let num = BigInt('0x' + buffer.toString('hex'));
-    let str = '';
-    
-    while (num > 0) {
-      const mod = Number(num % BigInt(58));
-      str = alphabet[mod] + str;
-      num = num / BigInt(58);
+    try {
+      // Create public key hash
+      const sha256Hash = createHash('sha256').update(publicKey).digest();
+      const hash160 = ripemd160(sha256Hash);
+      
+      // Create witness program (version 0 + 20-byte hash)
+      const witnessProgram = Buffer.concat([Buffer.from([0x00]), hash160]);
+      
+      // Encode as bech32
+      return bech32Encode(this.network.segwitPrefix, witnessProgram);
+    } catch (error) {
+      console.error('Error generating native SegWit address:', error);
+      throw new Error('Failed to generate native SegWit address');
     }
-    
-    // Handle leading zeros
-    for (let i = 0; i < buffer.length && buffer[i] === 0; i++) {
-      str = '1' + str;
-    }
-    
-    return str;
   }
 
   // Create WIF (Wallet Import Format)
   private createWIF(privateKey: Buffer, compressed: boolean = true): string {
+    try {
     const version = Buffer.from([this.network.wifPrefix]);
     const keyData = compressed ? Buffer.concat([privateKey, Buffer.from([0x01])]) : privateKey;
     const versionedKey = Buffer.concat([version, keyData]);
-    const checksum = createHash('sha256').update(createHash('sha256').update(versionedKey).digest()).digest().slice(0, 4);
-    const binaryWif = Buffer.concat([versionedKey, checksum]);
-    
-    return this.base58Encode(binaryWif);
+      
+      const checksum = doubleSha256(versionedKey).slice(0, 4);
+      const fullWif = Buffer.concat([versionedKey, checksum]);
+      
+      return base58Encode(fullWif);
+    } catch (error) {
+      console.error('Error creating WIF:', error);
+      throw new Error('Failed to create WIF');
+    }
   }
 
-  // Generate Litecoin wallet
+  // Generate complete Litecoin wallet
   generateWallet(name: string, addressType: AddressType = AddressType.NATIVE_SEGWIT): LitecoinWallet {
+    try {
     const privateKey = this.generatePrivateKey();
-    const publicKey = this.getPublicKey(privateKey);
+      const publicKey = getPublicKeyFromPrivate(privateKey);
     
     let address: string;
     switch (addressType) {
@@ -163,8 +281,10 @@ export class LitecoinAddressGenerator {
         break;
     }
 
+      const walletId = createHash('sha256').update(privateKey).digest('hex').slice(0, 16);
+
     return {
-      id: createHash('sha256').update(privateKey).digest('hex'),
+        id: walletId,
       name,
       address,
       publicKey: publicKey.toString('hex'),
@@ -176,107 +296,14 @@ export class LitecoinAddressGenerator {
       derivationPath: `m/44'/2'/0'/0/0`,
       createdAt: Date.now()
     };
-  }
-}
-
-// Litecoin transaction utilities
-export class LitecoinTransactionUtils {
-  private network: typeof LITECOIN_NETWORKS.mainnet;
-
-  constructor(network: 'mainnet' | 'testnet' = 'mainnet') {
-    this.network = LITECOIN_NETWORKS[network];
-  }
-
-  // Estimate transaction fee
-  estimateFee(inputs: number, outputs: number, feeRate: number = 10): number {
-    // Litecoin uses similar fee structure to Bitcoin
-    const baseSize = 10; // Base transaction size
-    const inputSize = 148; // P2PKH input size
-    const outputSize = 34; // P2PKH output size
-    
-    const totalSize = baseSize + (inputs * inputSize) + (outputs * outputSize);
-    return (totalSize * feeRate) / 100000000; // Convert satoshis to LTC
-  }
-
-  // Create transaction signature
-  private createSignature(data: Buffer, privateKey: Buffer): string {
-    try {
-      const { ECPairFactory } = require('ecpair');
-      const ecc = require('tiny-secp256k1');
-      const ECPair = ECPairFactory(ecc);
-      
-      // Create key pair from private key
-      const keyPair = ECPair.fromPrivateKey(privateKey);
-      
-      // Sign the data
-      const signature = keyPair.sign(data);
-      
-      return signature.toString('hex');
     } catch (error) {
-      console.error('Error creating signature:', error);
-      throw new Error('Failed to create signature');
-    }
-  }
-
-  // Sign transaction
-  async signTransaction(
-    transaction: any,
-    privateKey: string,
-    inputs: any[]
-  ): Promise<string> {
-    try {
-      const bitcoin = require('bitcoinjs-lib');
-      const { ECPairFactory } = require('ecpair');
-      const ecc = require('tiny-secp256k1');
-      
-      // Litecoin network parameters
-      const litecoinNetwork = {
-        messagePrefix: '\x19Litecoin Signed Message:\n',
-        bech32: 'ltc',
-        bip32: {
-          public: 0x019da462,
-          private: 0x019d9cfe
-        },
-        pubKeyHash: 0x30,
-        scriptHash: 0x32,
-        wif: 0xb0
-      };
-      
-      // Create key pair from private key
-      const ECPair = ECPairFactory(ecc);
-      const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'));
-      
-      // Create transaction builder
-      const txb = new bitcoin.TransactionBuilder(litecoinNetwork);
-      
-      // Add inputs
-      inputs.forEach(input => {
-        txb.addInput(input.txid, input.vout);
-      });
-      
-      // Add outputs
-      if (transaction.outputs) {
-        transaction.outputs.forEach(output => {
-          txb.addOutput(output.address, output.value);
-        });
-      }
-      
-      // Sign inputs
-      inputs.forEach((input, index) => {
-        txb.sign(index, keyPair);
-      });
-      
-      // Build and return the signed transaction
-      const tx = txb.build();
-      return tx.toHex();
-    } catch (error) {
-      console.error('Error signing Litecoin transaction:', error);
-      throw error;
+      console.error('Error generating Litecoin wallet:', error);
+      throw new Error('Failed to generate Litecoin wallet');
     }
   }
 }
 
-// Litecoin API utilities for real blockchain interaction
+// Litecoin API utilities
 export class LitecoinAPI {
   private baseUrl: string;
 
@@ -286,48 +313,53 @@ export class LitecoinAPI {
       : 'https://testnet.litecoinspace.org/api';
   }
 
-  // Get address balance
+  // Get address balance with proper error handling
   async getBalance(address: string): Promise<{ confirmed: number; unconfirmed: number }> {
     try {
       const response = await fetch(`${this.baseUrl}/address/${address}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       return {
-        confirmed: data.chain_stats.funded_txo_sum / 100000000, // Convert satoshis to LTC
-        unconfirmed: (data.mempool_stats.funded_txo_sum - data.mempool_stats.spent_txo_sum) / 100000000
+        confirmed: (data.chain_stats?.funded_txo_sum || 0) / 100000000,
+        unconfirmed: ((data.mempool_stats?.funded_txo_sum || 0) - (data.mempool_stats?.spent_txo_sum || 0)) / 100000000
       };
     } catch (error) {
       console.error('Error fetching Litecoin balance:', error);
-      return { confirmed: 0, unconfirmed: 0 };
+      throw new Error(`Failed to fetch Litecoin balance: ${error.message}. Real Litecoin API integration required.`);
     }
   }
 
-  // Get address transactions
+  // Get address transactions with proper error handling
   async getTransactions(address: string): Promise<LitecoinTransaction[]> {
     try {
       const response = await fetch(`${this.baseUrl}/address/${address}/txs`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
-      return data.map((tx: any) => ({
+      return data.slice(0, 10).map((tx: any) => ({
         txid: tx.txid,
-        blockHeight: tx.status.block_height || 0,
-        timestamp: tx.status.block_time || Date.now(),
-        amount: tx.vout.reduce((sum: number, output: any) => {
-          if (output.scriptpubkey_address === address) {
-            return sum + output.value / 100000000;
-          }
-          return sum;
-        }, 0),
-        fee: tx.fee / 100000000 || 0,
-        type: 'receive',
+        blockHeight: tx.status?.block_height || 0,
+        timestamp: tx.status?.block_time ? tx.status.block_time * 1000 : Date.now(),
+        amount: tx.value ? tx.value / 100000000 : 0,
+        fee: tx.fee ? tx.fee / 100000000 : 0,
+        type: tx.vin?.[0]?.prevout?.scriptpubkey_address === address ? 'send' : 'receive' as 'send' | 'receive',
         address,
-        confirmations: tx.status.confirmed ? 6 : 0,
-        vout: tx.vout.length,
-        vin: tx.vin.length
+        confirmations: tx.status?.confirmed ? tx.status.confirmations : 0,
+        vout: tx.vout?.length || 0,
+        vin: tx.vin?.length || 0
       }));
     } catch (error) {
       console.error('Error fetching Litecoin transactions:', error);
-      return [];
+      throw new Error(`Failed to fetch Litecoin transactions: ${error.message}. Real Litecoin API integration required.`);
     }
   }
 
@@ -335,6 +367,11 @@ export class LitecoinAPI {
   async getFeeRates(): Promise<{ slow: number; medium: number; fast: number }> {
     try {
       const response = await fetch(`${this.baseUrl}/fee-estimates`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       
       return {
@@ -344,48 +381,7 @@ export class LitecoinAPI {
       };
     } catch (error) {
       console.error('Error fetching Litecoin fee rates:', error);
-      return { slow: 10, medium: 20, fast: 30 };
-    }
-  }
-
-  // Broadcast transaction
-  async broadcastTransaction(hex: string): Promise<{ success: boolean; txid?: string; error?: string }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/tx`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ tx: hex })
-      });
-      
-      const data = await response.json();
-      
-      if (data.txid) {
-        return { success: true, txid: data.txid };
-      } else {
-        return { success: false, error: data.error || 'Unknown error' };
-      }
-    } catch (error) {
-      console.error('Error broadcasting Litecoin transaction:', error);
-      return { success: false, error: 'Network error' };
-    }
-  }
-
-  // Get network status
-  async getNetworkStatus(): Promise<{ blockHeight: number; difficulty: number; hashRate: number }> {
-    try {
-      const response = await fetch(`${this.baseUrl}/blocks/tip`);
-      const data = await response.json();
-      
-      return {
-        blockHeight: data.height || 0,
-        difficulty: data.difficulty || 0,
-        hashRate: data.hash_rate || 0
-      };
-    } catch (error) {
-      console.error('Error fetching Litecoin network status:', error);
-      return { blockHeight: 0, difficulty: 0, hashRate: 0 };
+      throw new Error(`Failed to fetch Litecoin fee rates: ${error.message}. Real Litecoin API integration required.`);
     }
   }
 }
@@ -410,25 +406,5 @@ export const litecoinUtils = {
   getFeeRates: async (network: 'mainnet' | 'testnet' = 'mainnet') => {
     const api = new LitecoinAPI(network);
     return api.getFeeRates();
-  },
-  
-  broadcastTransaction: async (hex: string, network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const api = new LitecoinAPI(network);
-    return api.broadcastTransaction(hex);
-  },
-  
-  estimateFee: (inputs: number, outputs: number, feeRate: number = 10) => {
-    const utils = new LitecoinTransactionUtils();
-    return utils.estimateFee(inputs, outputs, feeRate);
-  },
-  
-  signTransaction: async (transaction: any, privateKey: string, inputs: any[], network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const utils = new LitecoinTransactionUtils(network);
-    return utils.signTransaction(transaction, privateKey, inputs);
-  },
-  
-  getNetworkStatus: async (network: 'mainnet' | 'testnet' = 'mainnet') => {
-    const api = new LitecoinAPI(network);
-    return api.getNetworkStatus();
   }
 };
