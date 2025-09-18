@@ -217,9 +217,9 @@ const NetworkSwitcher: React.FC = () => {
         // The WalletContext automatically handles address derivation for the new network
         // It will create the correct address format for each network type
         console.log(`✅ Network switched to ${network.name} with automatic address derivation`);
-        toast.success(`Switched to ${network.name}`);
+        // Success toast is handled by WalletContext
       } else {
-        toast.success(`Switched to ${network.name}`);
+        // Success toast is handled by WalletContext
       }
     } catch (error) {
       console.error('Failed to switch network:', error);

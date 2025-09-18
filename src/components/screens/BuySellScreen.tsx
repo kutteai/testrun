@@ -77,7 +77,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     if (currency.network !== currentNetwork?.id) {
       try {
         await switchNetwork(currency.network);
-        toast.success(`🌐 Switched to ${currency.name} network`);
+        // Success toast is handled by WalletContext
       } catch (error) {
         toast.error(`Failed to switch to ${currency.name} network`);
       }

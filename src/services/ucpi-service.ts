@@ -100,25 +100,16 @@ class UCPService {
         return globalResult;
       }
 
-      // 2. Fallback to local registration
-      const localResult = await this.registerLocal(ucpiData);
-      if (localResult.success) {
-        const fullUCPIData: UCPIData = {
-          ...ucpiData,
-          isGlobal: false,
-          isLocal: true,
-          lastUpdated: new Date().toISOString()
-        };
-
-        await this.saveLocalUCPI(fullUCPIData);
-        return localResult;
-      }
-
+      // NO FALLBACK - If global registration fails, don't create local fallback
+      // The user should either:
+      // 1. Register the blockchain domain manually, or
+      // 2. Choose a local domain (.local, .pay, .wallet, etc.)
+      
       return {
         success: false,
         isGlobal: false,
         isLocal: false,
-        error: 'Both global and local registration failed'
+        error: 'UCPI registration failed. For blockchain domains (.eth, .bnb, .polygon, .arb), please register manually on the respective network. For local domains, use extensions like .local, .pay, or .wallet.'
       };
 
     } catch (error) {
@@ -199,12 +190,77 @@ class UCPService {
 
   private async checkGlobalAvailability(ucpiId: string): Promise<{ available: boolean }> {
     try {
-      // Check if it's an ENS domain (.eth)
-      if (!ucpiId.endsWith('.eth')) {
-        // For non-ENS domains, check if they're available locally
-        return { available: true };
+      // Network-specific domain validation
+      const networkInfo = this.getNetworkFromDomain(ucpiId);
+      
+      if (!networkInfo) {
+        // Invalid domain format
+        return { available: false };
       }
 
+      // Check domain availability based on network
+      switch (networkInfo.network) {
+        case 'ethereum':
+          return await this.checkENSAvailability(ucpiId);
+        case 'binance':
+          return await this.checkSpaceIDAvailability(ucpiId);
+        case 'polygon':
+          return await this.checkPolygonNSAvailability(ucpiId);
+        case 'arbitrum':
+          return await this.checkArbitrumNSAvailability(ucpiId);
+        default:
+          // For local domains, always available
+        return { available: true };
+      }
+    } catch (error) {
+      console.error('Global availability check failed:', error);
+      return { available: false };
+    }
+  }
+
+  // Get network information from domain extension
+  private getNetworkFromDomain(ucpiId: string): { network: string; rpcUrl: string; registryAddress?: string } | null {
+    if (ucpiId.endsWith('.eth')) {
+      return {
+        network: 'ethereum',
+        rpcUrl: 'https://eth.llamarpc.com',
+        registryAddress: '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
+      };
+    }
+    
+    if (ucpiId.endsWith('.bnb')) {
+      return {
+        network: 'binance',
+        rpcUrl: 'https://bsc-dataseed1.binance.org',
+        registryAddress: '0x08CEd32a7f3FeC915Ba84415e9C07a7286977956' // Space ID registry
+      };
+    }
+    
+    if (ucpiId.endsWith('.polygon')) {
+      return {
+        network: 'polygon',
+        rpcUrl: 'https://polygon-rpc.com',
+        registryAddress: '0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f' // Polygon NS registry
+      };
+    }
+    
+    if (ucpiId.endsWith('.arb')) {
+      return {
+        network: 'arbitrum',
+        rpcUrl: 'https://arb1.arbitrum.io/rpc',
+        registryAddress: '0xc18360217D8F7Ab5e7c516566761Ea12Ce7F9D72' // Arbitrum NS registry
+      };
+    }
+    
+    // For local domains (.local, .pay, .wallet, etc.)
+    return {
+      network: 'local',
+      rpcUrl: ''
+    };
+  }
+
+  private async checkENSAvailability(ucpiId: string): Promise<{ available: boolean }> {
+    try {
       // Check ENS availability using public RPC
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.FALLBACK_TIMEOUT);
@@ -249,6 +305,108 @@ class UCPService {
     }
   }
 
+  private async checkSpaceIDAvailability(ucpiId: string): Promise<{ available: boolean }> {
+    try {
+      console.log('🔍 Checking Space ID (.bnb) availability for:', ucpiId);
+      
+      // Check Space ID (BNB) availability using BSC RPC
+      const response = await fetch('https://bsc-dataseed1.binance.org', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_call',
+          params: [{
+            to: '0x08CEd32a7f3FeC915Ba84415e9C07a7286977956', // Space ID registry
+            data: '0x' // Would need actual ABI encoding for real check
+          }, 'latest'],
+          id: 1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Space ID check failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('🔍 Space ID availability result:', result);
+      
+      // For now, assume available (would need proper Space ID integration)
+      return { available: true };
+    } catch (error) {
+      console.error('Space ID availability check failed:', error);
+      throw error;
+    }
+  }
+
+  private async checkPolygonNSAvailability(ucpiId: string): Promise<{ available: boolean }> {
+    try {
+      console.log('🔍 Checking Polygon NS (.polygon) availability for:', ucpiId);
+      
+      // Check Polygon Name Service availability
+      const response = await fetch('https://polygon-rpc.com', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_call',
+          params: [{
+            to: '0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f', // Polygon NS registry
+            data: '0x' // Would need actual ABI encoding for real check
+          }, 'latest'],
+          id: 1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Polygon NS check failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('🔍 Polygon NS availability result:', result);
+      
+      // For now, assume available (would need proper PNS integration)
+      return { available: true };
+    } catch (error) {
+      console.error('Polygon NS availability check failed:', error);
+      throw error;
+    }
+  }
+
+  private async checkArbitrumNSAvailability(ucpiId: string): Promise<{ available: boolean }> {
+    try {
+      console.log('🔍 Checking Arbitrum NS (.arb) availability for:', ucpiId);
+      
+      // Check Arbitrum Name Service availability
+      const response = await fetch('https://arb1.arbitrum.io/rpc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_call',
+          params: [{
+            to: '0xc18360217D8F7Ab5e7c516566761Ea12Ce7F9D72', // Arbitrum NS registry
+            data: '0x' // Would need actual ABI encoding for real check
+          }, 'latest'],
+          id: 1
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Arbitrum NS check failed: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('🔍 Arbitrum NS availability result:', result);
+      
+      // For now, assume available (would need proper ANS integration)
+      return { available: true };
+    } catch (error) {
+      console.error('Arbitrum NS availability check failed:', error);
+      throw error;
+    }
+  }
+
   // Helper function to encode ENS namehash
   private encodeENSNamehash(name: string): string {
     // Simplified namehash encoding for ENS
@@ -287,27 +445,48 @@ class UCPService {
 
   private async registerGlobal(ucpiData: Omit<UCPIData, 'isGlobal' | 'isLocal' | 'lastUpdated'>): Promise<UCPIRegistrationResult> {
     try {
-      // For ENS domains, we can't register them directly (requires ETH and gas fees)
-      // Instead, we'll provide instructions to the user
+      const networkInfo = this.getNetworkFromDomain(ucpiData.id);
+      
+      if (!networkInfo) {
+        throw new Error('Invalid domain format');
+      }
+
+      // Network-specific registration requirements - NO FALLBACKS
       if (ucpiData.id.endsWith('.eth')) {
+        throw new Error('ENS (.eth) registration requires ETH and gas fees. Please register manually at ens.domains and then import your ENS name, or use a local UCPI ID.');
+      }
+      
+      if (ucpiData.id.endsWith('.bnb')) {
+        throw new Error('Space ID (.bnb) registration requires BNB and gas fees. Please register manually at space.id and then import your .bnb name, or use a local UCPI ID.');
+      }
+      
+      if (ucpiData.id.endsWith('.polygon')) {
+        throw new Error('Polygon NS (.polygon) registration requires MATIC and gas fees. Please register manually at polygon.domains and then import your .polygon name, or use a local UCPI ID.');
+      }
+      
+      if (ucpiData.id.endsWith('.arb')) {
+        throw new Error('Arbitrum NS (.arb) registration requires ETH and gas fees. Please register manually at arbitrum.domains and then import your .arb name, or use a local UCPI ID.');
+      }
+
+      // For local domains (.local, .pay, .wallet, etc.), no blockchain registration needed
+      if (networkInfo.network === 'local') {
         return {
-          success: false,
+          success: true,
           isGlobal: false,
-          isLocal: false,
-          error: 'ENS registration requires ETH and gas fees. Please register manually at ens.domains or use a local UCPI ID.'
+          isLocal: true
         };
       }
 
-      // Real UCPI global registration requires actual blockchain transaction
-      throw new Error('UCPI global registration requires real blockchain integration with ENS or similar registry. No mock data provided.');
+      // If we get here, it's an unsupported blockchain domain
+      throw new Error('Blockchain domain registration must be done manually on the respective network.');
 
     } catch (error) {
-      console.warn('Global UCPI registration failed, falling back to local:', error);
+      console.error('Global UCPI registration failed:', error);
       return {
         success: false,
         isGlobal: false,
         isLocal: false,
-        error: error instanceof Error ? error.message : 'Global registration failed'
+        error: error.message
       };
     }
   }

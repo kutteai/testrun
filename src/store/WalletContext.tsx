@@ -1053,15 +1053,24 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   const unlockWallet = async (password: string): Promise<boolean> => {
     try {
       // Use secure background script for wallet unlock
-      const result = await SecureWalletComm.unlockWallet(password) as { success: boolean };
+      const result = await SecureWalletComm.unlockWallet(password) as { success: boolean; data?: any };
       
-      if (result.success) {
+      console.log('🔍 DEBUG: Unlock wallet result:', result);
+      
+      // Check both result.success and result.data.success for compatibility
+      const isUnlocked = result.success && (result.data?.success !== false);
+      
+      if (isUnlocked) {
         // Create secure session
         await SecureSessionManager.createSession(password);
         
         // Get wallet data from background script
         const accounts = await SecureWalletComm.getAccounts() as any[];
         const status = await SecureWalletComm.getWalletStatus() as { walletId: string };
+        
+        console.log('🔍 DEBUG: Accounts:', accounts);
+        console.log('🔍 DEBUG: Status:', status);
+        
         const primaryAccount = accounts[0];
         
         if (primaryAccount) {
@@ -1088,13 +1097,19 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           
           dispatch({ type: 'SET_WALLET', payload: walletData });
           dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+          
+          console.log('✅ Wallet unlocked successfully');
           return true;
+        } else {
+          console.error('❌ No primary account found');
         }
+      } else {
+        console.error('❌ Unlock failed - invalid response or password');
       }
       
-        return false;
+      return false;
     } catch (error) {
-      console.error('Secure wallet unlock failed:', error);
+      console.error('❌ Secure wallet unlock failed:', error);
       return false;
     }
   };

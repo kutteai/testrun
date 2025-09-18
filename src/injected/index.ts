@@ -663,34 +663,141 @@
         if (!response.success && response.error === 'WALLET_UNLOCK_REQUIRED') {
           console.log('🔒 Wallet popup launched for unlocking');
           
-          if (response.popupLaunched) {
+          if (response.popupLaunched && response.requestId) {
             // Show user-friendly message about wallet popup
             await UIManager.showWalletUnlockNotification(response.message);
             
-            // Wait for wallet to be unlocked and retry
-            console.log('⏳ Waiting for wallet unlock...');
+            // Check if popup might be blocked
+            setTimeout(() => {
+              // If we're still waiting after 5 seconds, show additional guidance
+              const additionalGuidance = UIManager.createModal(`
+                <div style="text-align: center;">
+                  <div style="width: 64px; height: 64px; margin: 0 auto 20px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="white">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </div>
+                  <h3 style="margin: 0 0 8px 0; color: #111827; font-size: 18px; font-weight: 600;">Still waiting for unlock?</h3>
+                  <p style="margin: 0 0 16px 0; color: #6b7280; font-size: 14px; line-height: 1.5;">
+                    If you don't see the PayCio popup, it might be blocked by your browser.
+                  </p>
+                  <div style="margin: 16px 0; padding: 12px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <p style="margin: 0; font-size: 13px; color: #92400e;">
+                      <strong>💡 Try this:</strong><br>
+                      • Look for a popup blocker icon in your address bar<br>
+                      • Click the PayCio extension icon manually<br>
+                      • Check if a new window opened behind this one
+                    </p>
+                  </div>
+                  <button onclick="this.closest('.paycio-modal').remove()" style="padding: 8px 16px; background: #f59e0b; color: white; border: none; border-radius: 6px; font-size: 14px; cursor: pointer;">
+                    Got it
+                  </button>
+                </div>
+              `);
+            }, 5000);
             
-            // Poll for wallet unlock status
+            // Wait for wallet to be unlocked using the improved flow
+            console.log('⏳ Waiting for wallet unlock with request ID:', response.requestId);
+            
+            // Set up event listener for immediate unlock notification
+            let unlockPromiseResolve: ((accounts: string[]) => void) | null = null;
+            let unlockPromiseReject: ((error: Error) => void) | null = null;
+            
+            const unlockPromise = new Promise<string[]>((resolve, reject) => {
+              unlockPromiseResolve = resolve;
+              unlockPromiseReject = reject;
+            });
+            
+            const unlockListener = async (event: MessageEvent) => {
+              if (event.data?.type === 'PAYCIO_WALLET_UNLOCKED' && event.data?.source === 'paycio-content') {
+                console.log('🔓 Received immediate wallet unlock notification');
+                
+                // Check status immediately
+                const statusResponse = await messageHandler.sendMessage('CHECK_UNLOCK_STATUS', {
+                  requestId: response.requestId
+                });
+                
+                if (statusResponse.success && statusResponse.unlocked && statusResponse.data) {
+                  const accounts = statusResponse.data.data || statusResponse.data.result;
+                  if (accounts && accounts.length > 0) {
+                    window.removeEventListener('message', unlockListener);
+                    unlockPromiseResolve?.(accounts);
+                    return;
+                  }
+                }
+                
+                // If no data from status check, retry original request
+                if (statusResponse.unlocked) {
+                  const retryResponse = await messageHandler.sendMessage('PAYCIO_DAPP_REQUEST', {
+                    method: 'eth_requestAccounts'
+                  });
+                  
+                  if (retryResponse.success && retryResponse.result?.length > 0) {
+                    window.removeEventListener('message', unlockListener);
+                    unlockPromiseResolve?.(retryResponse.result);
+                    return;
+                  }
+                }
+              }
+            };
+            
+            window.addEventListener('message', unlockListener);
+            
+            // Also poll as backup (more aggressive since this is critical for dApp connection)
             let attempts = 0;
-            const maxAttempts = 30; // 30 seconds max wait
+            const maxAttempts = 60; // 60 seconds max wait (increased for better UX)
             
-            while (attempts < maxAttempts) {
-              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-              
-              const retryResponse = await messageHandler.sendMessage('PAYCIO_DAPP_REQUEST', {
-                method: 'eth_accounts'
-              });
-              
-              if (retryResponse.success && retryResponse.result?.length > 0) {
-                console.log('✅ Wallet unlocked and accounts retrieved');
-                walletState.setConnected(retryResponse.result[0]);
-                return retryResponse.result;
+            const pollForUnlock = async () => {
+              while (attempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds (reduced frequency)
+                
+                const statusResponse = await messageHandler.sendMessage('CHECK_UNLOCK_STATUS', {
+                  requestId: response.requestId
+                });
+                
+                console.log(`🔍 Unlock status check (attempt ${attempts + 1}):`, statusResponse);
+                
+                if (statusResponse.success && statusResponse.unlocked && statusResponse.data) {
+                  console.log('✅ Wallet unlocked and original request completed');
+                  const accounts = statusResponse.data.data || statusResponse.data.result;
+                  if (accounts && accounts.length > 0) {
+                    window.removeEventListener('message', unlockListener);
+                    unlockPromiseResolve?.(accounts);
+                    return;
+                  }
+                }
+                
+                // If wallet is unlocked but no pending request, retry original request
+                if (statusResponse.unlocked && !statusResponse.pending) {
+                  console.log('🔄 Wallet unlocked, retrying original request');
+                  const retryResponse = await messageHandler.sendMessage('PAYCIO_DAPP_REQUEST', {
+                    method: 'eth_requestAccounts'
+                  });
+                  
+                  if (retryResponse.success && retryResponse.result?.length > 0) {
+                    console.log('✅ Original request retry successful');
+                    window.removeEventListener('message', unlockListener);
+                    unlockPromiseResolve?.(retryResponse.result);
+                    return;
+                  }
+                }
+                
+                attempts++;
               }
               
-              attempts++;
-            }
+              // Timeout reached
+              window.removeEventListener('message', unlockListener);
+              console.error('❌ Wallet unlock timeout after', maxAttempts * 2, 'seconds');
+              unlockPromiseReject?.(new Error(`Wallet unlock timeout after ${maxAttempts * 2} seconds. Please check if the PayCio popup opened and try again.`));
+            };
             
-            throw new Error('Wallet unlock timeout. Please try again.');
+            // Start polling in background
+            pollForUnlock();
+            
+            // Wait for either event or polling to complete
+            const accounts = await unlockPromise;
+            walletState.setConnected(accounts[0]);
+            return accounts;
             
           } else {
             throw new Error(response.message || 'Wallet is locked. Please open the PayCio extension and unlock your wallet.');

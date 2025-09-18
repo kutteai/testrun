@@ -90,21 +90,15 @@ const NetworkSwitcherModal: React.FC<NetworkSwitcherModalProps> = ({ isOpen, onC
 
     setIsSwitching(true);
     try {
-      // Show loading toast
-      toast.loading(`Switching to ${networks.find(n => n.id === networkId)?.name}...`, { id: 'network-switch' });
-      
       // Use WalletContext's switchNetwork which handles address derivation automatically
       await switchNetwork(networkId);
       
-      toast.success(`🌐 Switched to ${networks.find(n => n.id === networkId)?.name}`, {
-        id: 'network-switch-success'
-      });
-      
+      // Success toast is handled by WalletContext
       onClose();
     } catch (error) {
       console.error('Network switch error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      toast.error(`Failed to switch to ${networkId}: ${errorMessage}`, { id: 'network-switch' });
+      toast.error(`Failed to switch to ${networkId}: ${errorMessage}`);
     } finally {
       setIsSwitching(false);
     }

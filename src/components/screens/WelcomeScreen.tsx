@@ -55,25 +55,42 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
     setIsLoading(true);
     try {
-      console.log('Secure WelcomeScreen: Attempting wallet unlock...');
+      console.log('🔍 WelcomeScreen: Attempting wallet unlock with password length:', password.length);
+      console.log('🔍 WelcomeScreen: Password starts with:', password.substring(0, 3) + '***');
       
       // Call the secure unlock method
       const success = await unlockWallet(password);
       
+      console.log('🔍 WelcomeScreen: Unlock result:', success);
+      
       if (success) {
-        console.log('Secure WelcomeScreen: Wallet unlocked successfully');
+        console.log('✅ WelcomeScreen: Wallet unlocked successfully');
+        toast.success('Wallet unlocked successfully!');
         // Clear password from memory immediately
         setPassword('');
         // Navigation is handled by App.tsx when isWalletUnlocked changes
       } else {
-        console.log('Secure WelcomeScreen: Wallet unlock failed');
-        toast.error('Invalid password. Please try again.');
+        console.log('❌ WelcomeScreen: Wallet unlock failed - invalid password or other issue');
+        
+        // Try to get more debug info
+        try {
+          // Access the debug function if available
+          const walletContext = require('../../store/WalletContext');
+          if (walletContext.debugPassword) {
+            console.log('🔍 Running password debug...');
+            await walletContext.debugPassword(password);
+          }
+        } catch (debugError) {
+          console.log('Could not run password debug:', debugError);
+        }
+        
+        toast.error('Invalid password. Please check your password and try again.');
         // Clear password on failure for security
         setPassword('');
       }
     } catch (error) {
-      console.error('Secure WelcomeScreen: Unlock error:', error);
-      toast.error('Failed to unlock wallet. Please try again.');
+      console.error('❌ WelcomeScreen: Unlock error:', error);
+      toast.error(`Failed to unlock wallet: ${error.message || 'Unknown error'}`);
       // Clear password on error for security
       setPassword('');
     } finally {

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, Check, X } from 'lucide-react';
 import { storageUtils } from '../../utils/storage-utils';
 import { useWallet } from '../../store/WalletContext';
+import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
 const VerifyPhraseScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
@@ -57,14 +58,21 @@ const VerifyPhraseScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
           throw new Error('Missing password or seed phrase');
         }
 
-        // Import the wallet with the verified seed phrase
+        console.log('🔍 VerifyPhrase: Importing wallet with verified seed phrase...');
+        console.log('🔍 VerifyPhrase: Password length:', password.length);
+        console.log('🔍 VerifyPhrase: Seed phrase length:', seedPhrase.split(' ').length);
+
+        // Import the wallet with the verified seed phrase (this is the correct flow)
         await importWallet(seedPhrase, 'ethereum', password);
         
-        // Navigate to UCPI creation after successful wallet creation
+        console.log('✅ VerifyPhrase: Wallet imported successfully');
+        toast.success('Wallet imported and unlocked successfully!');
+        
+        // Navigate to UCPI creation after successful wallet import
         onNavigate('create-ucpi');
       } catch (error) {
-        console.error('Failed to create wallet:', error);
-        // You might want to show an error message to the user here
+        console.error('Failed to import wallet:', error);
+        toast.error('Failed to import wallet. Please try again.');
       } finally {
         setIsCreatingWallet(false);
       }
@@ -207,7 +215,7 @@ const VerifyPhraseScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
               : 'bg-gray-300 cursor-not-allowed'
           }`}
         >
-          {isCreatingWallet ? 'Creating Wallet...' : 'Okay'}
+          {isCreatingWallet ? 'Importing Wallet...' : 'Okay'}
         </button>
       </motion.div>
     </motion.div>

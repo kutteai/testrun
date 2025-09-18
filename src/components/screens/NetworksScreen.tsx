@@ -130,8 +130,9 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     try {
       await switchNetwork(network.id);
       await switchWalletNetwork(network.id);
-      toast.success(`Switched to ${network.name}`);
+      // Success toast is handled by WalletContext
     } catch (error) {
+      // Only show error toast here, success is handled centrally
       toast.error(`Failed to switch to ${network.name}`);
     }
   };

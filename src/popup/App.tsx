@@ -86,6 +86,38 @@ const App: React.FC = () => {
   const { securityState } = useSecurity();
   const { nfts } = useNFT();
 
+  // Check for pending dApp unlock requests
+  useEffect(() => {
+    const checkForDAppRequest = async () => {
+      try {
+        const result = await chrome.storage.local.get(['pendingDAppRequest']);
+        if (result.pendingDAppRequest) {
+          console.log('🔍 Popup: Found pending dApp request:', result.pendingDAppRequest);
+          
+          // If wallet exists but is locked, force unlock screen
+          if (hasWallet && !isWalletUnlocked) {
+            console.log('🔒 Popup: Forcing unlock screen for dApp request');
+            setCurrentScreen('welcome');
+            
+            // Show a toast to inform user
+            setTimeout(() => {
+              toast('🔗 dApp connection requires wallet unlock', {
+                duration: 4000,
+                icon: '🔓'
+              });
+            }, 500);
+          }
+        }
+      } catch (error) {
+        console.log('Could not check for pending dApp request:', error);
+      }
+    };
+    
+    if (!isInitializing) {
+      checkForDAppRequest();
+    }
+  }, [hasWallet, isWalletUnlocked, isInitializing]);
+
   useEffect(() => {
     if (isInitializing) {
       setCurrentScreen('welcome');

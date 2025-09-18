@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
 import { ucpiService, type UCPIData, type UCPIRegistrationResult } from '../../services/ucpi-service';
+import { ensRegistrationService, type ENSPricing } from '../../services/ens-registration-service';
 
 const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { wallet } = useWallet();
@@ -17,6 +18,8 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [popularIds, setPopularIds] = useState<string[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [ensPricing, setEnsPricing] = useState<ENSPricing | null>(null);
+  const [showENSRegistration, setShowENSRegistration] = useState(false);
 
   // Load popular IDs and search history on component mount
   useEffect(() => {
@@ -86,27 +89,45 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   // Real UCPI ID validation rules
+  // Network-specific UCPI ID validation
   const validateUcpiId = (id: string): string[] => {
     const errors: string[] = [];
+    
+    if (!id) {
+      errors.push('UCPI ID is required');
+      return errors;
+    }
     
     if (id.length < 3) {
       errors.push('UCPI ID must be at least 3 characters long');
     }
     
-    if (id.length > 20) {
-      errors.push('UCPI ID must be less than 20 characters');
+    if (id.length > 50) {
+      errors.push('UCPI ID must be less than 50 characters');
     }
     
     if (!/^[a-zA-Z0-9._-]+$/.test(id)) {
       errors.push('UCPI ID can only contain letters, numbers, dots, underscores, and hyphens');
     }
     
-    if (id.startsWith('.') || id.endsWith('.') || id.startsWith('-') || id.endsWith('-')) {
-      errors.push('UCPI ID cannot start or end with dots or hyphens');
+    if (id.startsWith('.') || id.startsWith('-') || id.includes('..') || id.includes('--')) {
+      errors.push('UCPI ID cannot start with dots/hyphens or contain consecutive dots/hyphens');
     }
-    
-    if (id.includes('..') || id.includes('--')) {
-      errors.push('UCPI ID cannot contain consecutive dots or hyphens');
+
+    // Network-specific validation based on domain extension
+    if (id.endsWith('.eth')) {
+      errors.push('💡 .eth domains can be registered automatically (requires ETH for gas fees) or imported if you already own one.');
+    } else if (id.endsWith('.bnb')) {
+      errors.push('⚠️ .bnb domains require manual registration at space.id with BNB gas fees. After registration, you can import it.');
+    } else if (id.endsWith('.polygon')) {
+      errors.push('⚠️ .polygon domains require manual registration at polygon.domains with MATIC gas fees. After registration, you can import it.');
+    } else if (id.endsWith('.arb')) {
+      errors.push('⚠️ .arb domains require manual registration at arbitrum.domains with ETH gas fees. After registration, you can import it.');
+    } else if (!id.includes('.')) {
+      errors.push('UCPI ID must include a domain extension (e.g., .local, .pay, .wallet)');
+    } else if (!id.endsWith('.local') && !id.endsWith('.pay') && !id.endsWith('.wallet') && 
+               !id.endsWith('.eth') && !id.endsWith('.bnb') && !id.endsWith('.polygon') && !id.endsWith('.arb')) {
+      errors.push('Supported extensions: .local, .pay, .wallet (instant) or .eth, .bnb, .polygon, .arb (manual registration required)');
     }
     
     return errors;
@@ -242,10 +263,24 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return;
     }
 
+    // Check if it's an ENS domain and offer registration
+    if (ucpiId.endsWith('.eth')) {
+      setShowENSRegistration(true);
+      
+      try {
+        const pricing = await ensRegistrationService.getRegistrationPricing(ucpiId, 1);
+        setEnsPricing(pricing);
+      } catch (error) {
+        console.error('Failed to get ENS pricing:', error);
+        toast.error('Failed to get ENS pricing information');
+      }
+      return;
+    }
+
     setIsCreating(true);
     
     try {
-      // Use hybrid UCPI service to register
+      // Use hybrid UCPI service to register non-ENS domains
       const ucpiData = {
         id: ucpiId,
         walletAddress: wallet.address,
@@ -255,27 +290,18 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         status: 'active' as const
       };
 
-      // Show single loading toast
       toast.loading('Creating UCPI ID...', { id: 'ucpi-registration' });
       
       const registrationResult = await ucpiService.registerUCPI(ucpiData);
       
       if (registrationResult.success) {
-        // Show single success message
         toast.success(`✅ UCPI ID "${ucpiId}" created successfully!`, { 
           id: 'ucpi-registration',
           duration: 3000
         });
-        
-        // Navigate to dashboard immediately
         onNavigate('dashboard');
       } else {
-        // Show single error message
-        const errorMsg = ucpiId.endsWith('.eth') && registrationResult.error?.includes('ENS registration requires ETH')
-          ? 'ENS registration requires ETH and gas fees. Please use a local UCPI ID instead.'
-          : registrationResult.error || 'Failed to create UCPI ID';
-        
-        toast.error(errorMsg, { 
+        toast.error(registrationResult.error || 'Failed to create UCPI ID', { 
           id: 'ucpi-registration',
           duration: 5000
         });
@@ -293,6 +319,46 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     }
   };
 
+  const handleENSRegistration = async () => {
+    if (!wallet?.address || !ensPricing) return;
+
+    setIsCreating(true);
+    
+    try {
+      toast.loading('Registering ENS domain...', { id: 'ens-registration' });
+      
+      const result = await ensRegistrationService.registerDomain({
+        domain: ucpiId,
+        walletAddress: wallet.address,
+        duration: 1,
+        password: '' // Would need to prompt for password
+      });
+
+      if (result.success) {
+        toast.success(`✅ ENS domain "${ucpiId}" registered successfully!`, { 
+          id: 'ens-registration',
+          duration: 4000
+        });
+        onNavigate('dashboard');
+      } else {
+        toast.error(result.error || 'ENS registration failed', { 
+          id: 'ens-registration',
+          duration: 5000
+        });
+      }
+      
+    } catch (error) {
+      console.error('ENS registration failed:', error);
+      toast.error(`ENS registration failed: ${error.message}`, { 
+        id: 'ens-registration',
+        duration: 5000
+      });
+    } finally {
+      setIsCreating(false);
+      setShowENSRegistration(false);
+    }
+  };
+
   const handleSuggestion = (suggestion: string) => {
     setUcpiId(suggestion);
     setIsAvailable(true);
@@ -300,23 +366,23 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const handleSkip = async () => {
+    console.log('🔍 User chose to skip UCPI creation');
+    
+    // Clear any error state that might cause "something went wrong"
     try {
-      // Set a default UCPI ID for skipped users
-      const defaultUcpiId = `user${Date.now().toString().slice(-6)}@eth`;
-      
-      // Store default UCPI ID
-      await storage.set({ 
-        ucpiId: defaultUcpiId,
-        ucpiSkipped: true,
-        ucpiTimestamp: Date.now()
-      });
-      
-      // Navigate to dashboard
-      onNavigate('dashboard');
-    } catch (error) {
-      console.error('Failed to skip UCPI creation:', error);
-      toast.error('Failed to skip UCPI creation. Please try again.');
+      // Access clearError function if available
+      const walletContext = require('../../store/WalletContext');
+      if (walletContext.clearError) {
+        walletContext.clearError();
+      }
+    } catch (clearError) {
+      // Ignore if clearError is not available
     }
+    
+    toast.success('UCPI creation skipped. You can create one later from Settings.');
+    
+    // Navigate to dashboard immediately
+    onNavigate('dashboard');
   };
 
   return (

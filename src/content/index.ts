@@ -578,6 +578,20 @@ browserAPI.runtime.onMessage.addListener((message: any, sender: any, sendRespons
     }, '*');
   }
   
+  // Handle wallet unlock notification
+  if (message.type === 'PAYCIO_WALLET_UNLOCKED') {
+    console.log('🔓 Content: Wallet unlocked notification received');
+    
+    // Notify the injected script
+    window.postMessage({
+      type: 'PAYCIO_WALLET_UNLOCKED',
+      timestamp: message.timestamp,
+      source: 'paycio-content'
+    }, '*');
+    
+    sendResponse({ received: true });
+  }
+  
   return true;
 });
 

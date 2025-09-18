@@ -56,6 +56,24 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const portfolio = usePortfolio();
   const nft = useNFT();
 
+  // Add error boundary state
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Add periodic refresh to prevent stale state
+  useEffect(() => {
+    const refreshInterval = setInterval(() => {
+      if (isMountedRef.current && wallet?.wallet?.address) {
+        console.log('🔄 Periodic dashboard refresh');
+        // Trigger a gentle refresh of crypto assets
+        setIsRefreshing(true);
+        setTimeout(() => setIsRefreshing(false), 1000);
+      }
+    }, 5 * 60 * 1000); // Refresh every 5 minutes
+
+    return () => clearInterval(refreshInterval);
+  }, [wallet?.wallet?.address]);
+
   // Get current network from both wallet and network context
   const currentNetwork = network?.currentNetwork || wallet?.wallet?.currentNetwork || 'ethereum';
 
@@ -197,7 +215,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         
         // Check if account has address for current network
         if (currentAccount) {
-          const currentNetworkId = network?.currentNetwork?.id || 'ethereum';
+          const currentNetworkId = typeof network?.currentNetwork === 'object' ? network.currentNetwork.id : (network?.currentNetwork || 'ethereum');
           if (!currentAccount.addresses?.[currentNetworkId]) {
             // Account missing address for current network
           }
@@ -306,27 +324,135 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     loadTransactionHistory();
   }, [wallet?.isInitializing]);
 
-  // Update crypto assets from portfolio data
+  // Load real crypto assets - NO FALLBACKS
   useEffect(() => {
-    if (!portfolio?.portfolioValue || !isMountedRef.current) return;
-
-    try {
-      const portfolioData = portfolio.portfolioValue;
-      if (portfolioData.assets && Array.isArray(portfolioData.assets)) {
-        setCryptoAssets(portfolioData.assets);
-        setTotalBalance(portfolioData.totalUSD?.toFixed(2) || '0.00');
-        setFiatBalance(`$${portfolioData.totalUSD?.toFixed(2) || '0.00'}`);
-        setBalanceChange(
-          portfolioData.totalChangePercent 
-            ? `${portfolioData.totalChangePercent >= 0 ? '+' : ''}${portfolioData.totalChangePercent.toFixed(2)}%`
-            : '+0.00%'
-        );
+    let isCancelled = false;
+    
+    const loadRealDashboardData = async () => {
+      if (!wallet?.wallet?.address || !currentNetwork || !isMountedRef.current) {
+        throw new Error('Missing wallet address or network information');
       }
-    } catch (error) {
-      console.error('Error updating crypto assets:', error);
-      setCryptoAssets([]);
-    }
-  }, [portfolio?.portfolioValue]);
+
+      console.log('🔄 Loading REAL dashboard data for network:', currentNetwork);
+      
+      const networkId = typeof currentNetwork === 'string' ? currentNetwork : currentNetwork.id;
+      
+      // Load real balance - NO FALLBACKS
+      const { getRealBalance } = await import('../../utils/web3-utils');
+      const realBalance = await getRealBalance(wallet.wallet.address, networkId);
+      
+      if (!realBalance) {
+        throw new Error(`Failed to fetch balance for ${networkId}. Real blockchain API integration required.`);
+      }
+      
+      console.log(`✅ Real balance loaded for ${networkId}: ${realBalance}`);
+      
+      // Load real price - NO FALLBACKS  
+      const nativeTokenInfo = {
+        ethereum: { symbol: 'ETH', name: 'Ethereum', icon: '🔷', coinId: 'ethereum' },
+        bsc: { symbol: 'BNB', name: 'BNB Smart Chain', icon: '🟡', coinId: 'binancecoin' },
+        polygon: { symbol: 'MATIC', name: 'Polygon', icon: '🟣', coinId: 'matic-network' },
+        arbitrum: { symbol: 'ETH', name: 'Arbitrum', icon: '🔵', coinId: 'ethereum' },
+        optimism: { symbol: 'ETH', name: 'Optimism', icon: '🟠', coinId: 'ethereum' },
+        avalanche: { symbol: 'AVAX', name: 'Avalanche', icon: '🔴', coinId: 'avalanche-2' },
+        bitcoin: { symbol: 'BTC', name: 'Bitcoin', icon: '🟠', coinId: 'bitcoin' },
+        litecoin: { symbol: 'LTC', name: 'Litecoin', icon: '⚪', coinId: 'litecoin' },
+        solana: { symbol: 'SOL', name: 'Solana', icon: '🟢', coinId: 'solana' },
+        tron: { symbol: 'TRX', name: 'TRON', icon: '🔴', coinId: 'tron' },
+        ton: { symbol: 'TON', name: 'Toncoin', icon: '🔵', coinId: 'the-open-network' },
+        xrp: { symbol: 'XRP', name: 'XRP Ledger', icon: '🟡', coinId: 'ripple' }
+      };
+
+      const tokenInfo = nativeTokenInfo[networkId as keyof typeof nativeTokenInfo];
+      if (!tokenInfo) {
+        throw new Error(`Unsupported network: ${networkId}`);
+      }
+
+      // Fetch real price from CoinGecko - NO FALLBACKS
+      const priceResponse = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${tokenInfo.coinId}&vs_currencies=usd&include_24hr_change=true`);
+      
+      if (!priceResponse.ok) {
+        throw new Error(`Failed to fetch price for ${tokenInfo.symbol}. CoinGecko API error: ${priceResponse.status}`);
+      }
+      
+      const priceData = await priceResponse.json();
+      const price = priceData[tokenInfo.coinId]?.usd;
+      const change24h = priceData[tokenInfo.coinId]?.usd_24h_change;
+      
+      if (price === undefined) {
+        throw new Error(`No price data available for ${tokenInfo.symbol} from CoinGecko API`);
+      }
+      
+      console.log(`💰 Real price loaded for ${tokenInfo.symbol}: $${price}`);
+      
+      // Calculate real USD value
+      const balanceNum = parseFloat(realBalance);
+      const usdValue = balanceNum * price;
+      
+      // Load custom tokens for this network - NO FALLBACKS
+      const { loadCustomTokens } = await import('../../utils/token-persistence-utils');
+      const customTokens = await loadCustomTokens();
+      
+      const enabledCustomTokens = customTokens.filter(token => 
+        token.network === networkId && token.isEnabled
+      );
+      
+      console.log(`📊 Found ${enabledCustomTokens.length} enabled custom tokens for ${networkId}`);
+      
+      // Create real asset list
+      const allAssets = [
+        // Native token with real data
+        {
+          symbol: tokenInfo.symbol,
+          name: tokenInfo.name,
+          icon: tokenInfo.icon,
+          balance: balanceNum.toFixed(tokenInfo.symbol === 'BTC' || tokenInfo.symbol === 'LTC' ? 8 : 4),
+          price: price,
+          usdValue: usdValue,
+          changePercent: change24h || 0,
+          network: networkId,
+          address: wallet.wallet.address,
+          change24h: change24h || 0,
+          isNative: true
+        },
+        // Add enabled custom tokens with real balances
+        ...enabledCustomTokens.map(token => ({
+          symbol: token.symbol,
+          name: token.name,
+          icon: '🪙',
+          balance: '0.0000', // Would need to fetch real balance for each custom token
+          price: 0,
+          usdValue: 0,
+          changePercent: 0,
+          network: token.network,
+          address: token.address,
+          change24h: 0,
+          isCustom: true
+        }))
+      ];
+      
+      if (!isCancelled) {
+        setCryptoAssets(allAssets);
+        setTotalBalance(balanceNum.toFixed(4));
+        setFiatBalance(`$${usdValue.toFixed(2)}`);
+        setBalanceChange(`${change24h >= 0 ? '+' : ''}${(change24h || 0).toFixed(2)}%`);
+        
+        console.log(`✅ Dashboard showing ${allAssets.length} real assets with total value: $${usdValue.toFixed(2)}`);
+      }
+    };
+
+    loadRealDashboardData().catch(error => {
+      console.error('❌ Dashboard data loading failed:', error);
+      if (!isCancelled) {
+        setError(error.message);
+      }
+    });
+
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isCancelled = true;
+    };
+  }, [wallet?.wallet?.address, currentNetwork]);
 
   // Load transaction history with proper cleanup
   useEffect(() => {
@@ -358,7 +484,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           
           const transactions = await getTransactionHistory(
             currentAccount.address,
-            network?.currentNetwork?.id || 'ethereum',
+            typeof network?.currentNetwork === 'object' ? network.currentNetwork.id : (network?.currentNetwork || 'ethereum'),
             1, // page
             5  // limit to 5 recent transactions
           );
@@ -627,12 +753,15 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             <div>
               <div className="text-white font-medium" style={{ fontSize: '13px', lineHeight: '18px' }}>
                 {(() => {
-                  // Get current account name from wallet state
+                  // Get current account name from wallet state - NO FALLBACKS
                   if (wallet?.wallet?.accounts && wallet.wallet.accounts.length > 0) {
                     const currentAccount = wallet.wallet.accounts.find(acc => acc.isActive) || wallet.wallet.accounts[0];
-                    return currentAccount?.name || 'Account 1';
+                    if (!currentAccount?.name) {
+                      throw new Error('Account name not available');
+                    }
+                    return currentAccount.name;
                   }
-                  return 'Account 1';
+                  throw new Error('No accounts available');
                 })()}
               </div>
               <div className="flex items-center space-x-1">
@@ -998,9 +1127,15 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 ))
               ) : (
                 <div className="text-center py-8">
-                  <Wallet className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">No crypto assets found</p>
-                  <p className="text-sm text-gray-400">Your crypto assets will appear here</p>
+                  <Wallet className="w-12 h-12 text-red-300 mx-auto mb-4" />
+                  <p className="text-red-500">Failed to load crypto assets</p>
+                  <p className="text-sm text-red-400">Real blockchain API integration required. Check console for details.</p>
+                  <button
+                    onClick={() => window.location.reload()}
+                    className="mt-4 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-sm"
+                  >
+                    Retry Loading
+                  </button>
                 </div>
               )}
             </div>
@@ -1180,7 +1315,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-4 right-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs max-w-xs">
           <div><strong>Network Debug:</strong></div>
-          <div>Current: {currentNetwork?.id || 'None'}</div>
+          <div>Current: {typeof currentNetwork === 'object' ? currentNetwork.id : (currentNetwork || 'None')}</div>
           <div>Modal: {showNetworkSwitcher ? 'Open' : 'Closed'}</div>
           <div>Networks: {network?.networks?.length || 0}</div>
           <button 
