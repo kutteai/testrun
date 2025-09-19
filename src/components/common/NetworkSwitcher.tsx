@@ -204,31 +204,41 @@ const NetworkSwitcher: React.FC = () => {
 
   const handleNetworkSwitch = async (network: NetworkWithIcon) => {
     try {
+      console.log('🔄 NetworkSwitcher: Starting network switch to:', network.name, network.id);
+      console.log('🔄 NetworkSwitcher: Network is custom:', network.isCustom);
+      console.log('🔄 NetworkSwitcher: Current network:', currentNetwork?.name);
+      
       // Close dropdown immediately for better UX
       setIsOpen(false);
       
       // Switch network in NetworkContext first
+      console.log('🔄 NetworkSwitcher: Switching NetworkContext...');
       await switchNetworkContext(network.id);
+      console.log('✅ NetworkSwitcher: NetworkContext switched successfully');
       
       // Then switch in WalletContext if wallet exists
       if (wallet) {
+        console.log('🔄 NetworkSwitcher: Switching WalletContext...');
         await switchWalletNetwork(network.id);
+        console.log('✅ NetworkSwitcher: WalletContext switched successfully');
         
         // The WalletContext automatically handles address derivation for the new network
         // It will create the correct address format for each network type
         console.log(`✅ Network switched to ${network.name} with automatic address derivation`);
-        // Success toast is handled by WalletContext
+        toast.success(`✅ Switched to ${network.name}`);
       } else {
-        // Success toast is handled by WalletContext
+        console.log('⚠️ NetworkSwitcher: No wallet found, only NetworkContext switched');
+        toast.success(`✅ Switched to ${network.name}`);
       }
     } catch (error) {
-      console.error('Failed to switch network:', error);
+      console.error('❌ NetworkSwitcher: Failed to switch network:', error);
       // Revert network context if wallet switch failed
       if (wallet) {
         try {
+          console.log('🔄 NetworkSwitcher: Reverting network switch...');
           await switchNetworkContext(currentNetwork?.id || 'ethereum');
         } catch (revertError) {
-          console.error('Failed to revert network:', revertError);
+          console.error('❌ NetworkSwitcher: Failed to revert network:', revertError);
         }
       }
       toast.error(`Failed to switch to ${network.name}: ${error.message}`);

@@ -1,20 +1,29 @@
-// content.js - DISABLED VERSION
-console.log('🚀 PayCio Content Script Loading... (DISABLED)');
+// content.js - ENABLED VERSION
+console.log('🚀 PayCio Content Script Loading...');
 
 // Set up content script indicator FIRST
 (window as any).paycioWalletContentScript = {
-    isRunning: false, // DISABLED
+    isRunning: true, // ENABLED
     timestamp: Date.now(),
     version: '1.0.0'
 };
 
-// REMOVED: Alert that content script is running
-// alert('📄 CONTENT SCRIPT IS RUNNING!');
-
-// DISABLED: Inject wallet script
+// Inject wallet script for DApp connection
 function injectWalletScript() {
-    console.log('📥 Wallet script injection DISABLED');
-    return; // Exit early - don't inject anything
+    console.log('📥 Injecting PayCio wallet script...');
+    
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('injected.js');
+    script.onload = function() {
+        console.log('✅ PayCio wallet script injected successfully');
+        script.remove();
+    };
+    script.onerror = function() {
+        console.error('❌ Failed to inject PayCio wallet script');
+        script.remove();
+    };
+    
+    (document.head || document.documentElement).appendChild(script);
 }
 
 // Listen for messages from injected script
@@ -58,10 +67,10 @@ function handleInjectedMessage(message: any) {
             console.log('PayCio Content: Responding to test message with ID:', message.id);
             try {
                 window.postMessage({
-                    type: 'PAYCIO_TEST_RESPONSE',
-                    id: message.id,
-                    success: true,
-                    timestamp: Date.now()
+      type: 'PAYCIO_TEST_RESPONSE',
+      id: message.id,
+      success: true,
+      timestamp: Date.now()
                 }, '*');
                 console.log('PayCio Content: Test response sent successfully');
             } catch (error) {
@@ -124,12 +133,12 @@ function forwardAddressRequest(message: any) {
         if (chrome.runtime.lastError) {
             sendErrorToInjected('PAYCIO_WALLET_ADDRESS_RESPONSE', message.id, chrome.runtime.lastError.message);
         } else {
-            window.postMessage({
+          window.postMessage({
                 type: 'PAYCIO_WALLET_ADDRESS_RESPONSE',
                 id: message.id,
                 success: response.success,
                 address: response.address || null
-            }, '*');
+          }, '*');
         }
     });
 }
@@ -142,7 +151,7 @@ function forwardWalletUnlockPopup(message: any) {
     }, (response) => {
         if (chrome.runtime.lastError) {
             sendErrorToInjected('PAYCIO_WALLET_UNLOCK_RESPONSE', message.id, chrome.runtime.lastError.message);
-        } else {
+      } else {
             window.postMessage({
                 type: 'PAYCIO_WALLET_UNLOCK_RESPONSE',
                 id: message.id,
@@ -177,7 +186,7 @@ function sendErrorToInjected(responseType: string, messageId: any, error: string
     window.postMessage({
         type: responseType,
         id: messageId,
-        success: false,
+          success: false,
         error: error
     }, '*');
 }
@@ -189,7 +198,7 @@ function testConnection() {
     // Check if extension context is still valid
     if (!chrome.runtime || !chrome.runtime.sendMessage) {
         console.error('❌ PayCio Content: Extension context invalidated');
-        return;
+      return;
     }
     
     // Test background script connection
@@ -231,18 +240,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Expose test function globally for debugging
 (window as any).paycioTestConnection = testConnection;
 
-// DISABLED: Initialize content script
-console.log('🚫 Content script initialization DISABLED');
-// if (document.readyState === 'loading') {
-//     document.addEventListener('DOMContentLoaded', () => {
-//         injectWalletScript();
-//         // Test connection after a short delay
-//         setTimeout(testConnection, 1000);
-//     });
-// } else {
-//     injectWalletScript();
-//     // Test connection after a short delay
-//     setTimeout(testConnection, 1000);
-// }
+// ENABLED: Initialize content script
+console.log('✅ Content script initialization ENABLED');
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        injectWalletScript();
+        // Test connection after a short delay
+        setTimeout(testConnection, 1000);
+    });
+} else {
+    // If page is already loaded
+    injectWalletScript();
+    // Test connection after a short delay
+    setTimeout(testConnection, 1000);
+}
 
 console.log('✅ PayCio Content Script Ready!');

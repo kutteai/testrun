@@ -1,9 +1,9 @@
 import { storage } from '../utils/storage-utils';
 import { crossBrowserSendMessage } from '../utils/runtime-utils';
 
-// PayCio Wallet injection script - DISABLED
-console.log('🔍 PayCio: Injection script DISABLED');
-// alert('💉 INJECTED SCRIPT IS RUNNING!');
+// PayCio Wallet injection script - ENABLED
+console.log('🚀 PayCio: Injection script ENABLED');
+console.log('💉 PayCio Wallet injected and ready for DApp connections!');
 
 // Toast notification function
 function showToast(message: string, type: 'success' | 'error' | 'info' = 'info') {
@@ -34,7 +34,7 @@ function showToast(message: string, type: 'success' | 'error' | 'info' = 'info')
   document.body.appendChild(toast);
   
   // Animate in
-  setTimeout(() => {
+        setTimeout(() => {
     toast.style.opacity = '1';
     toast.style.transform = 'translateX(0)';
   }, 100);
@@ -158,7 +158,7 @@ async function checkWalletUnlockStatus(): Promise<boolean> {
     console.log('PayCio: Wallet unlock status:', isUnlocked);
     
     return isUnlocked;
-  } catch (error) {
+          } catch (error) {
     console.error('PayCio: Error checking wallet status:', error);
     isWalletUnlocked = false;
     return false;
@@ -182,13 +182,13 @@ async function showWalletUnlockPopup(): Promise<boolean> {
     window.addEventListener('message', messageHandler);
     
     // Send request to content script
-    window.postMessage({
+        window.postMessage({
       type: 'PAYCIO_SHOW_UNLOCK_POPUP',
       id: messageId
-    }, '*');
-    
+        }, '*');
+        
     // Timeout after 10 seconds
-    setTimeout(() => {
+        setTimeout(() => {
       window.removeEventListener('message', messageHandler);
       resolve(false);
     }, 10000);
@@ -285,7 +285,7 @@ function createWalletSelectionModal(): Promise<string | null> {
             padding: 20px;
           `;
           accountsList.appendChild(noAccounts);
-        } else {
+            } else {
           accounts.forEach((account: any) => {
             const accountItem = document.createElement('div');
             accountItem.style.cssText = `
@@ -412,18 +412,18 @@ function createUnlockModal(): Promise<boolean> {
     }, 300000); // 5 minutes timeout
 
     // Create modal overlay
-    const modal = document.createElement('div');
+      const modal = document.createElement('div');
     modal.id = 'paycio-unlock-modal';
     modal.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
       background: rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
       z-index: 2147483647;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       backdrop-filter: blur(4px);
@@ -432,10 +432,10 @@ function createUnlockModal(): Promise<boolean> {
     // Create modal content (using WelcomeScreen design)
     const modalContent = document.createElement('div');
     modalContent.style.cssText = `
-      background: white;
-      border-radius: 16px;
-      max-width: 400px;
-      width: 90%;
+          background: white;
+          border-radius: 16px;
+          max-width: 400px;
+          width: 90%;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
       overflow: hidden;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -591,7 +591,7 @@ function createUnlockModal(): Promise<boolean> {
       top: 50%;
       transform: translateY(-50%);
       background: none;
-      border: none;
+          border: none;
       cursor: pointer;
       padding: 4px;
       color: #6b7280;
@@ -651,8 +651,8 @@ function createUnlockModal(): Promise<boolean> {
       border: none;
       border-radius: 8px;
       font-size: 16px;
-      font-weight: 600;
-      cursor: pointer;
+          font-weight: 600;
+          cursor: pointer;
       transition: all 0.2s;
       display: flex;
       align-items: center;
@@ -820,7 +820,7 @@ Password Hash Preview: "${passwordInfo.passwordHashPreview || 'N/A'}"
 Has Encrypted Seed Phrase: ${passwordInfo.hasEncryptedSeedPhrase}
 Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/A'}"`);
           }
-        } catch (error) {
+          } catch (error) {
           alert(`❌ Error getting wallet password: ${error.message}`);
         }
         
@@ -852,10 +852,10 @@ Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/
         
         if ((response as any)?.success) {
           alert('✅ Wallet unlocked successfully!');
-          clearTimeout(timeoutId);
-          modal.remove();
-          resolve(true);
-        } else {
+            clearTimeout(timeoutId);
+              modal.remove();
+              resolve(true);
+            } else {
           // Show detailed error in alert
           const errorDetails = (response as any)?.error ? `\n\nError details: ${(response as any).error}` : '';
           alert(`❌ Unlock failed: ${(response as any)?.error || 'Unknown error'}${errorDetails}
@@ -864,11 +864,11 @@ Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/
           
           unlockBtn.textContent = 'Unlock Wallet';
           unlockBtn.disabled = false;
-        }
-      } catch (error) {
+            }
+          } catch (error) {
         alert(`❌ Unlock error: ${error.message || 'Unknown error'}`);
         unlockBtn.textContent = 'Unlock Wallet';
-        unlockBtn.disabled = false;
+            unlockBtn.disabled = false;
       }
     });
     
@@ -909,7 +909,7 @@ Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/
     console.log('PayCio: Unlock modal created and added to DOM');
     
     // Focus password input
-    setTimeout(() => {
+        setTimeout(() => {
       passwordInput.focus();
       console.log('PayCio: Password input focused');
     }, 100);
@@ -918,7 +918,7 @@ Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/
 
 // Process wallet request using postMessage
 async function processWalletRequest(method: string, params: any[]): Promise<any> {
-  return new Promise((resolve, reject) => {
+      return new Promise((resolve, reject) => {
     const messageId = Date.now().toString();
     
     const messageHandler = (event: MessageEvent) => {
@@ -938,15 +938,15 @@ async function processWalletRequest(method: string, params: any[]): Promise<any>
     window.addEventListener('message', messageHandler);
     
     // Send request to content script
-    window.postMessage({
+        window.postMessage({
       type: 'PAYCIO_WALLET_REQUEST',
       id: messageId,
       method: method,
       params: params
-    }, '*');
+        }, '*');
     
     // Timeout after 30 seconds
-    setTimeout(() => {
+        setTimeout(() => {
       window.removeEventListener('message', messageHandler);
       reject(new Error('Request timeout'));
     }, 30000);
@@ -991,7 +991,7 @@ async function handleWalletRequest(method: string, params: any[]): Promise<any> 
           console.log('🔍 PayCio: Wallet unlocked successfully, retrying request...');
           // Retry the request after unlock
           return await processWalletRequest(method, params);
-        } else {
+      } else {
           throw new Error('User cancelled wallet unlock');
         }
       }
@@ -1019,7 +1019,7 @@ async function handlePendingConnections() {
     try {
       const result = await processWalletRequest(request.method, request.params);
       request.resolve(result);
-    } catch (error) {
+      } catch (error) {
       request.reject(error);
     }
   }
@@ -1114,7 +1114,7 @@ function interceptExistingProvider(provider: any) {
     try {
       const result = await handleWalletRequest(args.method, args.params || []);
       return result;
-    } catch (error) {
+          } catch (error) {
       console.error('PayCio: Error processing wallet request:', error);
       throw error;
     }
@@ -1167,10 +1167,10 @@ function interceptExistingProvider(provider: any) {
           if (attempts >= maxAttempts) {
             const error = { code: 4001, message: 'Wallet unlock timeout' };
             callback(error, null);
-            return;
-          }
-        }
-      }
+                    return;
+                  }
+                }
+              }
       
       // Process the request with automatic unlock handling
       try {
@@ -1253,7 +1253,7 @@ try {
           message.includes('Failed to connect to wallet') ||
           message.includes('socket connection to the relay server')) {
         // Don't log these errors
-        return;
+                    return;
       }
       
       // Log other errors normally
@@ -1465,11 +1465,11 @@ try {
     try {
       if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
         icon.src = chrome.runtime.getURL('assets/logo.png');
-      } else {
+          } else {
         // Fallback for local testing - use a data URL or placeholder
         icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
-      }
-    } catch (error) {
+        }
+      } catch (error) {
       // Fallback if chrome.runtime is not available
       icon.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+';
     }
@@ -1654,7 +1654,7 @@ try {
               if (event.data.address) {
                 console.log('✅ PayCio: Found real wallet address:', event.data.address);
                 resolve(event.data.address);
-              } else {
+        } else {
                 console.log('⚠️ PayCio: No wallet found in storage');
                 resolve(null);
               }
@@ -1727,16 +1727,16 @@ try {
               if (!unlockSuccess) {
                   console.log('PayCio: User cancelled wallet unlock');
                 reject(new Error('User cancelled wallet unlock'));
-                  return;
+      return;
                 }
                 console.log('PayCio: Wallet unlocked successfully, proceeding with connection');
               } catch (error) {
                 console.error('PayCio: Error during unlock process:', error);
                 reject(new Error('Failed to unlock wallet'));
-                return;
-              }
-            }
-            
+                    return;
+                  }
+                }
+                
             // Show wallet selection modal instead of simple confirmation
             try {
               const selectedAddress = await createWalletSelectionModal();
@@ -2015,31 +2015,285 @@ try {
     }
   };
   
-  // DISABLED: Inject Ethereum provider
-  console.log('🚫 PayCio: Ethereum provider injection DISABLED');
-  // if (!(window as any).ethereum) {
-  //   Object.defineProperty(window, 'ethereum', {
-  //     value: provider,
-  //     writable: false,
-  //     configurable: false
-  //   });
-  //   console.log('✅ PayCio: Ethereum provider injected');
-  // } else {
-  //   // If ethereum already exists, add our provider to the list
-  //   if ((window as any).ethereum.providers) {
-  //     (window as any).ethereum.providers.push(provider);
-  //   } else {
-  //     (window as any).ethereum.providers = [provider];
-  //   }
-  //   console.log('✅ PayCio: Added to existing providers');
-  // }
+  // ENABLED: Inject Ethereum provider
+  console.log('🚀 PayCio: Injecting Ethereum provider...');
+  if (!(window as any).ethereum) {
+    Object.defineProperty(window, 'ethereum', {
+      value: provider,
+        writable: false,
+        configurable: false
+      });
+    console.log('✅ PayCio: Ethereum provider injected as window.ethereum');
+  } else {
+    console.log('⚠️ PayCio: window.ethereum already exists, intercepting...');
+    // If ethereum already exists, add our provider to the list
+    if ((window as any).ethereum.providers) {
+      (window as any).ethereum.providers.push(provider);
+    } else {
+      (window as any).ethereum.providers = [provider];
+    }
+    console.log('✅ PayCio: Added to existing providers');
+    
+    // Also intercept the existing provider
+    interceptEthereumProvider();
+  }
 
   // Also inject as window.paycioWallet for direct access
   Object.defineProperty(window, 'paycioWallet', {
     value: provider,
+          writable: false,
+          configurable: false
+  });
+
+  // Announce provider to DApps (EIP-1193)
+  console.log('📢 PayCio: Announcing provider to DApps...');
+  window.dispatchEvent(new Event('ethereum#initialized'));
+  
+  // Also dispatch the standard provider detection event
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: {
+        info: {
+          uuid: 'paycio-wallet-uuid',
+          name: 'PayCio Wallet',
+          icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjgiIGZpbGw9IiMxODBDQjIiLz48L3N2Zz4=',
+          rdns: 'app.paycio.wallet'
+        },
+        provider: provider
+      }
+    }));
+    console.log('📢 PayCio: EIP-6963 provider announced');
+  }, 100);
+  
+  // Set up provider ready state
+  provider.isConnected = () => true;
+  provider._state = {
+    accounts: [],
+    chainId: '0x1',
+    isUnlocked: false,
+    networkVersion: '1'
+  };
+  
+  // Emit connect event when provider is ready
+  setTimeout(() => {
+    provider.emit('connect', { chainId: '0x1' });
+    console.log('📢 PayCio: Provider connect event emitted');
+  }, 200);
+
+  // ========== MULTI-CHAIN PROVIDER SUPPORT ==========
+  
+  // Bitcoin Provider (for Bitcoin, Litecoin, Bitcoin Cash, etc.)
+  const bitcoinProvider = {
+    isBitcoin: true,
+    isPayCio: true,
+    chainId: 'bitcoin',
+    networkVersion: 'mainnet',
+    
+    // Bitcoin-specific methods
+    async getAccounts() {
+      console.log('🔍 Bitcoin getAccounts called');
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'GET_ACCOUNTS',
+          blockchain: 'bitcoin'
+        });
+        return response.accounts || [];
+      } catch (error) {
+        console.error('Bitcoin getAccounts error:', error);
+        return [];
+      }
+    },
+    
+    async getBalance(address?: string) {
+      console.log('🔍 Bitcoin getBalance called for:', address);
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'GET_BALANCE',
+          blockchain: 'bitcoin',
+          address
+        });
+        return response.balance || '0';
+      } catch (error) {
+        console.error('Bitcoin getBalance error:', error);
+        return '0';
+      }
+    },
+    
+    async signTransaction(txData: any) {
+      console.log('🔍 Bitcoin signTransaction called:', txData);
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'SIGN_TRANSACTION',
+          blockchain: 'bitcoin',
+          transaction: txData
+        });
+        return response.signedTransaction;
+      } catch (error) {
+        console.error('Bitcoin signTransaction error:', error);
+        throw error;
+      }
+    },
+    
+    async sendTransaction(txData: any) {
+      console.log('🔍 Bitcoin sendTransaction called:', txData);
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'SEND_TRANSACTION',
+          blockchain: 'bitcoin',
+          transaction: txData
+        });
+        return response.txHash;
+    } catch (error) {
+        console.error('Bitcoin sendTransaction error:', error);
+        throw error;
+      }
+    },
+    
+    // Event emitter methods
+    on: (event: string, callback: Function) => {
+      console.log(`Bitcoin provider listening for ${event}`);
+    },
+    removeListener: (event: string, callback: Function) => {},
+    emit: (event: string, data: any) => {
+      console.log(`Bitcoin provider emitting ${event}:`, data);
+    }
+  };
+  
+  // Solana Provider
+  const solanaProvider = {
+    isSolana: true,
+    isPayCio: true,
+    isPhantom: false, // Don't conflict with Phantom
+    chainId: 'solana',
+    networkVersion: 'mainnet-beta',
+    
+    // Solana-specific methods
+    async connect() {
+      console.log('🔍 Solana connect called');
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'CONNECT',
+          blockchain: 'solana'
+        });
+        return { publicKey: response.publicKey };
+      } catch (error) {
+        console.error('Solana connect error:', error);
+        throw error;
+      }
+    },
+    
+    async getAccount() {
+      console.log('🔍 Solana getAccount called');
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'GET_ACCOUNTS',
+          blockchain: 'solana'
+        });
+        return response.accounts?.[0];
+      } catch (error) {
+        console.error('Solana getAccount error:', error);
+        return null;
+      }
+    },
+    
+    async signTransaction(transaction: any) {
+      console.log('🔍 Solana signTransaction called:', transaction);
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'SIGN_TRANSACTION',
+          blockchain: 'solana',
+          transaction
+        });
+        return response.signedTransaction;
+      } catch (error) {
+        console.error('Solana signTransaction error:', error);
+        throw error;
+      }
+    },
+    
+    async signAndSendTransaction(transaction: any) {
+      console.log('🔍 Solana signAndSendTransaction called:', transaction);
+      try {
+        const response = await crossBrowserSendMessage({
+          type: 'SEND_TRANSACTION',
+          blockchain: 'solana',
+          transaction
+        });
+        return { signature: response.signature };
+      } catch (error) {
+        console.error('Solana signAndSendTransaction error:', error);
+        throw error;
+      }
+    },
+    
+    // Event emitter methods
+    on: (event: string, callback: Function) => {
+      console.log(`Solana provider listening for ${event}`);
+    },
+    removeListener: (event: string, callback: Function) => {},
+    emit: (event: string, data: any) => {
+      console.log(`Solana provider emitting ${event}:`, data);
+    }
+  };
+  
+  // Inject Bitcoin provider
+  Object.defineProperty(window, 'bitcoin', {
+    value: bitcoinProvider,
     writable: false,
     configurable: false
   });
+  console.log('✅ PayCio: Bitcoin provider injected as window.bitcoin');
+  
+  // Inject Solana provider
+  Object.defineProperty(window, 'solana', {
+    value: solanaProvider,
+    writable: false,
+    configurable: false
+  });
+  console.log('✅ PayCio: Solana provider injected as window.solana');
+  
+  // Inject PayCio-specific multi-chain provider
+  Object.defineProperty(window, 'paycio', {
+    value: {
+      ethereum: provider,
+      bitcoin: bitcoinProvider,
+      solana: solanaProvider,
+      
+      // Multi-chain methods
+      async switchChain(chainType: string) {
+        console.log('🔍 PayCio switchChain called:', chainType);
+        try {
+          const response = await crossBrowserSendMessage({
+            type: 'SWITCH_CHAIN',
+            chainType
+          });
+          return response.success;
+        } catch (error) {
+          console.error('PayCio switchChain error:', error);
+          throw error;
+        }
+      },
+      
+      async getSupportedChains() {
+        return ['ethereum', 'bitcoin', 'litecoin', 'solana', 'polygon', 'bsc'];
+      },
+      
+      async getCurrentChain() {
+        try {
+          const response = await crossBrowserSendMessage({
+            type: 'GET_CURRENT_CHAIN'
+          });
+          return response.chainType;
+        } catch (error) {
+          console.error('PayCio getCurrentChain error:', error);
+          return 'ethereum';
+        }
+      }
+    },
+    writable: false,
+    configurable: false
+  });
+  console.log('✅ PayCio: Multi-chain provider injected as window.paycio');
 
   // Create a connector for modern dApp libraries
   const paycioConnector = {
@@ -2145,7 +2399,7 @@ try {
   if (!(window as any).paycioConnector) {
     Object.defineProperty(window, 'paycioConnector', {
       value: paycioConnector,
-      writable: false,
+    writable: false,
       configurable: false
     });
   }
@@ -2162,7 +2416,7 @@ try {
     icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzYzNjZGN0EiLz4KPHBhdGggZD0iTTE2IDhMMjQgMTZMMTYgMjRMOCAxNkwxNiA4WiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
     rdns: 'com.paycio.wallet'
   };
-
+  
   // Announce provider for EIP-6963
   window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
     detail: {
@@ -2170,7 +2424,7 @@ try {
       provider: provider
     }
   }));
-
+  
   // Listen for provider requests
   window.addEventListener('eip6963:requestProvider', () => {
     window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
@@ -2180,7 +2434,7 @@ try {
       }
     }));
   });
-
+  
   // Dispatch ethereum events for compatibility
   window.dispatchEvent(new CustomEvent('ethereum#initialized', {
     detail: { provider: provider }

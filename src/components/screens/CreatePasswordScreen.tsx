@@ -37,19 +37,62 @@ const CreatePasswordScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
 
   const handleCreatePassword = async () => {
     if (allRequirementsMet && passwordsMatch && acceptedTerms) {
-      if (isImportFlow) {
-        // This is for importing a wallet - store password and go to import options
-        await storageUtils.setImportFlow(true);
-        // Store password temporarily for import flow
-        await storageUtils.storePassword(password);
-        onNavigate('import');
-      } else {
-        // This is for creating a new wallet - generate seed phrase and go to recovery phrase
-        const seedPhrase = generateBIP39SeedPhrase();
-        await storageUtils.storeSeedPhrase(seedPhrase);
-        await storageUtils.storePassword(password);
-        await storageUtils.setImportFlow(false); // Clear the import flow flag
-        onNavigate('recovery-phrase');
+      try {
+        console.log('🔍 CreatePasswordScreen: Creating password hash...');
+        
+        // Create password hash immediately using serverless function
+        const { hybridAPI } = await import('../../services/backend-api');
+        await hybridAPI.initialize();
+        
+        const hashResult = await hybridAPI.generatePasswordHash(password);
+        console.log('🔍 CreatePasswordScreen: Password hash generated');
+        
+        // Store password hash in Chrome storage (same as background script)
+        const browserAPI = (() => {
+          if (typeof browser !== 'undefined') return browser;
+          if (typeof chrome !== 'undefined') return chrome;
+          throw new Error('No browser API available');
+        })();
+        
+        await browserAPI.storage.local.set({ passwordHash: hashResult.hash });
+        console.log('🔍 CreatePasswordScreen: Password hash stored in Chrome storage');
+        
+        // Verify it was stored
+        const verification = await browserAPI.storage.local.get(['passwordHash']);
+        console.log('🔍 CreatePasswordScreen: Hash verification:', {
+          stored: !!verification.passwordHash,
+          length: verification.passwordHash?.length || 0
+        });
+        
+        if (isImportFlow) {
+          // This is for importing a wallet - store password and go to import options
+          await storageUtils.setImportFlow(true);
+          // Store password temporarily for import flow
+          await storageUtils.storePassword(password);
+          onNavigate('import');
+        } else {
+          // This is for creating a new wallet - generate seed phrase and go to recovery phrase
+          const seedPhrase = generateBIP39SeedPhrase();
+          await storageUtils.storeSeedPhrase(seedPhrase);
+          await storageUtils.storePassword(password);
+          await storageUtils.setImportFlow(false); // Clear the import flow flag
+          onNavigate('recovery-phrase');
+        }
+      } catch (error) {
+        console.error('❌ CreatePasswordScreen: Failed to create password hash:', error);
+        // Continue with the flow even if hash creation fails
+        // The background script will try to recreate it later
+        if (isImportFlow) {
+          await storageUtils.setImportFlow(true);
+          await storageUtils.storePassword(password);
+          onNavigate('import');
+        } else {
+          const seedPhrase = generateBIP39SeedPhrase();
+          await storageUtils.storeSeedPhrase(seedPhrase);
+          await storageUtils.storePassword(password);
+          await storageUtils.setImportFlow(false);
+          onNavigate('recovery-phrase');
+        }
       }
     }
   };

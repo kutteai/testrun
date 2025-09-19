@@ -127,3 +127,5 @@ temp/
 # Local development files
 local/
 dev/ 
+# Local Netlify folder
+.netlify

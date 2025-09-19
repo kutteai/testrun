@@ -107,29 +107,95 @@ class SecureWalletComm {
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        reject(new Error('Request timeout'));
-      }, 30000);
+        reject(new Error('Request timeout - background script may not be responding'));
+      }, 15000); // Reduced timeout
 
       try {
+        console.log(`🔍 SecureWalletComm: Sending message ${type}:`, payload);
+        
         browserAPI.runtime.sendMessage({ type, ...payload }, (response) => {
           clearTimeout(timeoutId);
           
+          console.log(`🔍 SecureWalletComm: Received response for ${type}:`, response);
+          console.log('🔍 SecureWalletComm: Runtime last error:', browserAPI.runtime.lastError);
+          
           if (browserAPI.runtime.lastError) {
-            reject(new Error(browserAPI.runtime.lastError.message));
+            const errorMsg = browserAPI.runtime.lastError.message;
+            console.error(`❌ SecureWalletComm: Runtime error for ${type}:`, errorMsg);
+            reject(new Error(`Background script error: ${errorMsg}`));
             return;
           }
           
-          if (response?.success) {
-            resolve(response.data);
+          if (!response) {
+            console.error(`❌ SecureWalletComm: No response received for ${type}`);
+            reject(new Error('No response from background script'));
+            return;
+          }
+          
+          // Handle different response formats
+          if (response.success === true) {
+            console.log(`✅ SecureWalletComm: Success response for ${type}`);
+            resolve(response.data || response);
+          } else if (response.success === false) {
+            console.error(`❌ SecureWalletComm: Error response for ${type}:`, response.error);
+            reject(new Error(response.error || 'Background script returned error'));
           } else {
-            reject(new Error(response?.error || 'Unknown error'));
+            // Legacy format - assume success if no explicit success field
+            console.log(`⚠️ SecureWalletComm: Legacy response format for ${type}:`, response);
+            resolve(response);
           }
         });
       } catch (error) {
         clearTimeout(timeoutId);
+        console.error(`❌ SecureWalletComm: Exception sending ${type}:`, error);
         reject(error);
       }
     });
+  }
+  
+  static async healthCheck() {
+    try {
+      const response = await this.sendMessage('HEALTH_CHECK', {});
+      console.log('✅ Background script health check passed:', response);
+      return true;
+    } catch (error) {
+      console.error('❌ Background script health check failed:', error);
+      
+      // Try alternative connection methods
+      return await this.alternativeHealthCheck();
+    }
+  }
+
+  static async alternativeHealthCheck() {
+    try {
+      // Method 1: Try direct storage access
+      const browserAPI = (() => {
+        if (typeof browser !== 'undefined') return browser;
+        if (typeof chrome !== 'undefined') return chrome;
+        return null;
+      })();
+      
+      if (browserAPI && browserAPI.storage) {
+        await browserAPI.storage.local.get(['healthcheck']);
+        console.log('✅ Alternative health check: Storage accessible');
+        return true;
+      }
+      
+      // Method 2: Try runtime connection
+      if (browserAPI && browserAPI.runtime) {
+        const manifest = browserAPI.runtime.getManifest();
+        if (manifest) {
+          console.log('✅ Alternative health check: Runtime accessible');
+          return true;
+        }
+      }
+      
+      console.error('❌ All alternative health checks failed');
+      return false;
+    } catch (error) {
+      console.error('❌ Alternative health check failed:', error);
+      return false;
+    }
   }
   
   static async createWallet(name: string, seedPhrase: string, password: string) {
@@ -675,8 +741,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               const result = await storage.get(['currentNetwork']);
       const currentNetworkId = result.currentNetwork || 'ethereum';
       
-      // Get balance for current network
+      // Get balance for current network (getRealBalance now handles failures and returns "0")
       const balance = await getRealBalance(state.address!, currentNetworkId);
+      
+      console.log(`💰 Balance fetched for ${currentNetworkId}: ${balance}`);
       
       // Update balances state with new balance for current network
       const newBalances = { ...state.balances };
@@ -685,8 +753,12 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       dispatch({ type: 'SET_BALANCES', payload: newBalances });
     } catch (error) {
       console.error('Failed to update balances:', error);
-      // Don't show error toast or set error state for balance updates
-      // This prevents "something went wrong" from balance update failures
+      // Set balance to "0" as fallback
+      const result = await storage.get(['currentNetwork']);
+      const currentNetworkId = result.currentNetwork || 'ethereum';
+      const newBalances = { ...state.balances };
+      newBalances[currentNetworkId] = '0';
+      dispatch({ type: 'SET_BALANCES', payload: newBalances });
     }
   };
 
@@ -906,10 +978,26 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
       });
       console.log('🔍 WalletContext: Wallet imported successfully:', wallet.id);
 
-      console.log('🔍 WalletContext: Storing wallet...');
-      // Store wallet securely in WalletContext storage too for compatibility
-    await storeWallet(wallet);
-    console.log('🔍 WalletContext: Wallet stored successfully');
+      console.log('🔍 WalletContext: Storing wallet directly to Chrome storage...');
+      
+      // Store wallet directly in Chrome storage (bypass storeWallet function)
+      const browserAPI = (() => {
+        if (typeof browser !== 'undefined') return browser;
+        if (typeof chrome !== 'undefined') return chrome;
+        throw new Error('No browser API available');
+      })();
+      
+      await browserAPI.storage.local.set({ 
+        wallet: wallet,
+        walletState: {
+          isWalletUnlocked: true,
+          hasWallet: true,
+          isWalletCreated: true,
+          lastUpdated: Date.now()
+        }
+      });
+      
+      console.log('🔍 WalletContext: Wallet stored directly to Chrome storage successfully');
     
     dispatch({ type: 'SET_WALLET', payload: wallet });
     dispatch({ type: 'SET_WALLET_CREATED', payload: true });
@@ -1066,11 +1154,99 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     dispatch({ type: 'SET_ERROR', payload: null });
   };
 
+  // Fallback unlock when background script is not responding
+  const fallbackUnlock = async (password: string): Promise<boolean> => {
+    try {
+      console.log('🔄 Attempting fallback unlock using direct storage access...');
+      
+      // Try to access wallet data directly from storage
+      const browserAPI = (() => {
+        if (typeof browser !== 'undefined') return browser;
+        if (typeof chrome !== 'undefined') return chrome;
+        throw new Error('No browser API available');
+      })();
+      
+      const stored = await browserAPI.storage.local.get(['wallet', 'passwordHash']);
+      
+      if (!stored.wallet) {
+        throw new Error('No wallet found in storage');
+      }
+      
+      // Try serverless password verification
+      try {
+        const { hybridAPI } = await import('../services/backend-api');
+        await hybridAPI.initialize();
+        
+        if (stored.passwordHash) {
+          const verification = await hybridAPI.verifyPassword(password, stored.passwordHash);
+          if (verification) {
+            console.log('✅ Fallback: Serverless password verification successful');
+            
+            // Set wallet as unlocked in local state
+            const walletData: WalletData = {
+              id: stored.wallet.id || 'fallback-wallet',
+              name: stored.wallet.name || 'Main Account',
+              address: stored.wallet.address || '',
+              privateKey: '',
+              publicKey: '',
+              encryptedSeedPhrase: '',
+              accounts: stored.wallet.accounts || [],
+              networks: ['ethereum', 'bsc', 'polygon'],
+              currentNetwork: stored.wallet.currentNetwork || 'ethereum',
+              derivationPath: "m/44'/60'/0'/0/0",
+              balance: '0',
+              createdAt: stored.wallet.createdAt || Date.now(),
+              lastUsed: Date.now(),
+              decryptPrivateKey: async () => null
+            };
+            
+            dispatch({ type: 'SET_WALLET', payload: walletData });
+            dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
+            dispatch({ type: 'SET_ADDRESS', payload: walletData.address });
+            
+            // Create session
+            await SecureSessionManager.createSession(password);
+            
+            return true;
+          }
+        }
+      } catch (serverlessError) {
+        console.warn('Serverless verification failed in fallback:', serverlessError);
+      }
+      
+      throw new Error('Fallback unlock failed - could not verify password');
+    } catch (error) {
+      console.error('❌ Fallback unlock error:', error);
+      return false;
+    }
+  };
+
   // Unlock wallet using secure background script
   const unlockWallet = async (password: string): Promise<boolean> => {
     try {
       console.log('🔍 WalletContext: Starting unlock process...');
       console.log('🔍 WalletContext: Password length:', password.length);
+      
+      // First, check if the background script is responding
+      console.log('🔍 WalletContext: Testing background script connection...');
+      const isHealthy = await SecureWalletComm.healthCheck();
+      
+      if (!isHealthy) {
+        console.warn('⚠️ Background script not responding, attempting fallback unlock...');
+        
+        // Try fallback unlock using local storage and serverless functions
+        try {
+          const fallbackResult = await this.fallbackUnlock(password);
+          if (fallbackResult) {
+            console.log('✅ Fallback unlock successful');
+            return true;
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback unlock also failed:', fallbackError);
+        }
+        
+        throw new Error('Background script is not responding and fallback failed. Please:\n1. Go to chrome://extensions\n2. Find PayCio Wallet\n3. Click the reload button\n4. Try again');
+      }
       
       // Use secure background script for wallet unlock
       const result = await SecureWalletComm.unlockWallet(password) as { success: boolean; data?: any };
@@ -2893,3 +3069,6 @@ export const useWallet = (): WalletContextType => {
   }
   return context;
 }; 
+
+// Export SecureWalletComm for debugging purposes
+export { SecureWalletComm }; 

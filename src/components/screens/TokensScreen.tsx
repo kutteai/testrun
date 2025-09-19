@@ -676,6 +676,7 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       
       const currentNetworkInfo = availableNetworks.find(n => n.id === newToken.network);
       let isValidContract = false;
+      let validationError = '';
       
       if (currentNetworkInfo?.type === 'non-evm') {
         // Validate non-EVM token
@@ -692,15 +693,56 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           }));
         }
       } else {
-        // Validate EVM token
-        isValidContract = await validateTokenContract(newToken.address, newToken.network);
+        // Validate EVM token using Netlify functions first, then local validation
+        try {
+          console.log('🔍 Trying Netlify token validation...');
+          const { hybridAPI } = await import('../../services/backend-api');
+          await hybridAPI.initialize();
+          isValidContract = await hybridAPI.validateToken(newToken.address, newToken.network);
+          console.log('✅ Netlify validation result:', isValidContract);
+          
+          if (!isValidContract) {
+            console.log('🔄 Netlify validation failed, trying local validation...');
+            throw new Error('Netlify validation returned false');
+          }
+        } catch (netlifyError) {
+          console.warn('Netlify validation failed, trying local:', netlifyError.message);
+          try {
+            isValidContract = await validateTokenContract(newToken.address, newToken.network);
+            console.log('🔍 Local validation result:', isValidContract);
+          } catch (localError) {
+            console.error('Local validation also failed:', localError.message);
+            validationError = localError instanceof Error ? localError.message : 'Token validation failed';
+            isValidContract = false;
+          }
+        }
       }
       
       if (!isValidContract) {
         toast.dismiss();
         const standard = currentNetworkInfo?.tokenStandard || 'token';
-        toast.error(`Invalid ${standard} contract address on ${newToken.network} network`);
-        return;
+        
+        // Show detailed error with option to skip validation
+        const errorMsg = validationError || `Invalid ${standard} contract address on ${newToken.network} network`;
+        
+        // Special handling for NOTOK errors (common API issue)
+        let userFriendlyMsg = errorMsg;
+        if (validationError && validationError.includes('NOTOK')) {
+          userFriendlyMsg = 'Token validation failed - Explorer API returned "NOTOK". This is usually due to API issues, rate limiting, or the token being very new.';
+        }
+        
+        toast.error(userFriendlyMsg);
+        
+        // Ask user if they want to add anyway (for testing/development)
+        const skipValidation = confirm(
+          `Token validation failed: ${userFriendlyMsg}\n\nThis might happen if:\n- The token address is incorrect\n- The token is not deployed on ${newToken.network}\n- Explorer API is down or rate-limited\n- The token is new and not indexed yet\n\nDo you want to add this token anyway for testing purposes?`
+        );
+        
+        if (!skipValidation) {
+          return;
+        }
+        
+        toast.loading('Adding token without validation...');
       }
 
       // Fetch real balance for the custom token
@@ -758,8 +800,28 @@ const TokensScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setNewToken({ address: '', symbol: '', name: '', decimals: 18, network: 'ethereum' });
       setShowAddTokensModal(false);
       
+      // Force a refresh of the token list to ensure UI updates
+      setTimeout(() => {
+        const loadTokens = async () => {
+          try {
+            const defaultTokens = await getDefaultTokens();
+            const customResult = await storage.get(['customTokens']);
+            const savedCustomTokens = customResult.customTokens || [];
+            const autoResult = await storage.get(['autoDiscoveredTokens']);
+            const savedAutoTokens = autoResult.autoDiscoveredTokens || [];
+            
+            const allTokens = [...defaultTokens, ...savedCustomTokens, ...savedAutoTokens];
+            setTokens(allTokens);
+            console.log('🔄 Token list refreshed after adding custom token');
+          } catch (error) {
+            console.error('Failed to refresh token list:', error);
+          }
+        };
+        loadTokens();
+      }, 500);
+      
       toast.dismiss();
-      toast.success(`${customToken.symbol} added successfully!`);
+      toast.success(`✅ ${customToken.symbol} added successfully and should appear in your token list!`);
     } catch (error) {
       toast.dismiss();
       console.error('Failed to add custom token:', error);

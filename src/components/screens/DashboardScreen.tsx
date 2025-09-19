@@ -637,7 +637,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   if (wallet?.wallet?.accounts && wallet.wallet.accounts.length > 0) {
                     const currentAccount = wallet.wallet.accounts.find(acc => acc.isActive) || wallet.wallet.accounts[0];
                     return currentAccount?.name || 'Account 1';
-                  }
+                    }
                   return 'Account 1';
                 })()}
               </div>
@@ -1186,7 +1186,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-4 right-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs max-w-xs">
           <div><strong>Network Debug:</strong></div>
-          <div>Current: {currentNetwork?.id || 'None'}</div>
+          <div>Current: {typeof currentNetwork === 'object' ? currentNetwork?.id : currentNetwork || 'None'}</div>
           <div>Modal: {showNetworkSwitcher ? 'Open' : 'Closed'}</div>
           <div>Networks: {network?.networks?.length || 0}</div>
           <button 

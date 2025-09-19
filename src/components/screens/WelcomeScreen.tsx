@@ -46,10 +46,87 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         toast.success('Wallet unlocked successfully!');
       } else {
         console.log('❌ Wallet unlock failed - invalid password');
+        
+        // Check if password hash is missing and try to recreate it
+        try {
+          console.log('🔍 Checking if password hash is missing...');
+          
+          // Import browser API
+          const browserAPI = (() => {
+            if (typeof browser !== 'undefined') return browser;
+            if (typeof chrome !== 'undefined') return chrome;
+            throw new Error('No browser API available');
+          })();
+          
+          const stored = await browserAPI.storage.local.get(['wallet', 'passwordHash']);
+          console.log('🔍 Storage check:', {
+            hasWallet: !!stored.wallet,
+            hasPasswordHash: !!stored.passwordHash,
+            passwordHashLength: stored.passwordHash?.length || 0
+          });
+          
+          if (stored.wallet && !stored.passwordHash) {
+            console.log('🔧 Password hash is missing! Attempting to recreate...');
+            
+            // Try to decrypt the seed phrase with the provided password
+            // If successful, it means the password is correct and we can recreate the hash
+            if (stored.wallet.encryptedSeedPhrase) {
+              try {
+                // Try to decrypt seed phrase to verify password is correct
+                const { hybridAPI } = await import('../../services/backend-api');
+                await hybridAPI.initialize();
+                
+                // Generate new password hash
+                const newHash = await hybridAPI.generatePasswordHash(password);
+                console.log('🔧 Generated new password hash');
+                
+                // Store the new hash
+                await browserAPI.storage.local.set({ passwordHash: newHash.hash });
+                console.log('🔧 Password hash recreated and stored');
+                
+                // Try unlock again
+                toast.loading('Password hash recreated, trying unlock again...');
+                const retrySuccess = await unlockWallet(password);
+                
+                if (retrySuccess) {
+                  toast.dismiss();
+                  toast.success('Password hash fixed and wallet unlocked!');
+                  return;
+                } else {
+                  toast.dismiss();
+                  toast.error('Password hash recreated but unlock still failed');
+                }
+              } catch (recreateError) {
+                console.error('❌ Failed to recreate password hash:', recreateError);
+                toast.error('Failed to recreate password hash');
+              }
+            }
+          }
+          
+          // Run serverless diagnosis for better debugging
+          const { hybridAPI } = await import('../../services/backend-api');
+          await hybridAPI.initialize();
+          const diagnosis = await hybridAPI.diagnosePassword(password, {
+            unlockAttempt: true,
+            timestamp: new Date().toISOString()
+          });
+          console.log('🔍 Detailed password diagnosis:', diagnosis);
+        } catch (diagError) {
+          console.log('⚠️ Diagnosis failed:', diagError);
+        }
+        
         toast.error('Invalid password. Please check your password and try again.');
       }
     } catch (error) {
       console.error('❌ Failed to unlock wallet:', error);
+      
+      // Enhanced error logging
+      console.log('🔍 Unlock error details:', {
+        message: error.message,
+        passwordLength: password.length,
+        timestamp: new Date().toISOString()
+      });
+      
       toast.error(`Failed to unlock wallet: ${error.message || 'Please try again.'}`);
     } finally {
       setIsLoading(false);
@@ -128,83 +205,284 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   <span>Unlock</span>
                 )}
               </motion.button>
-            </form>
 
-            {/* Recovery Options */}
-            <div className="mt-8 text-center space-y-2">
-              <p className="text-gray-500 text-sm">Forgot your password?</p>
-              <p className="text-gray-500 text-sm">You can debug or reset without affecting funds.</p>
-              <div className="flex flex-col space-y-2">
+              {/* Password Reset Helper */}
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!password.trim()) {
+                      toast.error('Enter your password first, then try this reset');
+                      return;
+                    }
+                    
+                    try {
+                      // Use serverless diagnosis to check what's wrong
+                      const { hybridAPI } = await import('../../services/backend-api');
+                      await hybridAPI.initialize();
+                      
+                      const diagnosis = await hybridAPI.diagnosePassword(password, {
+                        resetAttempt: true,
+                        timestamp: new Date().toISOString()
+                      });
+                      
+                      console.log('🔍 Password reset diagnosis:', diagnosis);
+                      
+                      // Show diagnosis in user-friendly format
+                      const diagnosisText = `
+Password Analysis:
+- Length: ${diagnosis.password?.length || 0} characters
+- Has numbers: ${diagnosis.password?.hasNumbers ? 'Yes' : 'No'}
+- Has uppercase: ${diagnosis.password?.hasUppercase ? 'Yes' : 'No'}
+- Has lowercase: ${diagnosis.password?.hasLowercase ? 'Yes' : 'No'}
+
+Storage Status:
+- Password hash stored: ${diagnosis.storage?.hasStoredHash ? 'Yes' : 'No'}
+- Hash length: ${diagnosis.storage?.storedHashLength || 0}
+- Encrypted data: ${diagnosis.storage?.hasEncryptedData ? 'Yes' : 'No'}
+
+Recommendations:
+${diagnosis.recommendations?.join('\n') || 'No specific recommendations'}
+                      `;
+                      
+                      alert(diagnosisText);
+                      
+                      if (diagnosis.verification) {
+                        const verifyText = `
+Hash Verification:
+- Hashes match: ${diagnosis.verification.matches ? 'Yes' : 'No'}
+- Generated hash: ${diagnosis.verification.generatedHash}
+- Stored hash: ${diagnosis.verification.storedHash}
+                        `;
+                        alert(verifyText);
+                      }
+                      
+                    } catch (error) {
+                      console.error('Password diagnosis failed:', error);
+                      toast.error('Password diagnosis failed. Check console for details.');
+                    }
+                  }}
+                  className="text-sm text-gray-500 hover:text-[#180CB2] transition-colors"
+                >
+                  🔍 Diagnose Password Issue
+                </button>
+                
                 <button
                   type="button"
                   onClick={async () => {
                     try {
-                      console.log('🔍 Starting comprehensive password diagnosis...');
+                      // Test background script connection
+                      console.log('🔧 Testing background script connection...');
                       
-                      // Run comprehensive diagnosis with password
-                      const response = await chrome.runtime.sendMessage({
-                        type: 'DIAGNOSE_PASSWORD',
-                        password: password.trim()
+                      // Import SecureWalletComm dynamically
+                      const walletContextModule = await import('../../store/WalletContext');
+                      const SecureWalletComm = (walletContextModule as any).SecureWalletComm;
+                      
+                      if (!SecureWalletComm) {
+                        throw new Error('SecureWalletComm not available');
+                      }
+                      
+                      const isHealthy = await SecureWalletComm.healthCheck();
+                      
+                      if (isHealthy) {
+                        console.log('✅ Background script is responding');
+                        toast.success('✅ Background script is responding normally');
+                      } else {
+                        console.log('❌ Background script is not responding');
+                        toast.error('❌ Background script is not responding - try reloading the extension');
+                      }
+                    } catch (error) {
+                      console.error('❌ Background script test failed:', error);
+                      toast.error(`Background script test failed: ${error.message}`);
+                    }
+                  }}
+                  className="text-sm text-gray-500 hover:text-green-600 transition-colors ml-4"
+                >
+                  🔧 Test Background Script
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!password.trim()) {
+                      toast.error('Please enter your password first');
+                      return;
+                    }
+                    
+                    try {
+                      console.log('🔧 Manual password hash fix attempt...');
+                      
+                      // Import browser API
+                      const browserAPI = (() => {
+                        if (typeof browser !== 'undefined') return browser;
+                        if (typeof chrome !== 'undefined') return chrome;
+                        throw new Error('No browser API available');
+                      })();
+                      
+                      const stored = await browserAPI.storage.local.get(['wallet', 'passwordHash']);
+                      
+                      if (!stored.wallet) {
+                        toast.error('No wallet found in storage');
+                        return;
+                      }
+                      
+                      console.log('🔍 Current storage state:', {
+                        hasWallet: !!stored.wallet,
+                        hasPasswordHash: !!stored.passwordHash,
+                        hasEncryptedSeed: !!stored.wallet.encryptedSeedPhrase
                       });
                       
-                      if (response.success) {
-                        console.log('🔍 Diagnosis completed successfully');
-                        toast.success('Diagnosis completed - check console for detailed results');
+                      // Generate new password hash using serverless function
+                      const { hybridAPI } = await import('../../services/backend-api');
+                      await hybridAPI.initialize();
+                      
+                      toast.loading('Generating new password hash...');
+                      const newHash = await hybridAPI.generatePasswordHash(password);
+                      
+                      // Store the new hash
+                      await browserAPI.storage.local.set({ passwordHash: newHash.hash });
+                      
+                      // Verify it was stored
+                      const verification = await browserAPI.storage.local.get(['passwordHash']);
+                      
+                      if (verification.passwordHash) {
+                        toast.dismiss();
+                        toast.success('✅ Password hash recreated successfully! Try logging in now.');
+                        console.log('✅ Password hash recreated:', {
+                          hashLength: verification.passwordHash.length,
+                          hashPreview: verification.passwordHash.substring(0, 20) + '...'
+                        });
                       } else {
-                        console.error('🔍 Diagnosis failed:', response.error);
-                        toast.error('Diagnosis failed: ' + response.error);
+                        toast.dismiss();
+                        toast.error('❌ Failed to store password hash');
                       }
                       
                     } catch (error) {
-                      console.error('Debug failed:', error);
-                      toast.error('Debug failed: ' + error.message);
+                      toast.dismiss();
+                      console.error('❌ Manual password hash fix failed:', error);
+                      toast.error(`Password hash fix failed: ${error.message}`);
                     }
                   }}
-                  className="text-blue-600 hover:text-blue-700 text-sm font-medium hover:underline"
+                  className="text-sm text-gray-500 hover:text-orange-600 transition-colors ml-4"
                 >
-                  🔍 Debug Wallet Issue
+                  🔧 Fix Password Hash
                 </button>
+                
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      console.log('🔍 Checking storage contents...');
+                      
+                      // Import browser API
+                      const browserAPI = (() => {
+                        if (typeof browser !== 'undefined') return browser;
+                        if (typeof chrome !== 'undefined') return chrome;
+                        throw new Error('No browser API available');
+                      })();
+                      
+                      // Get all storage data
+                      const allData = await browserAPI.storage.local.get(null);
+                      console.log('🔍 Complete storage contents:', allData);
+                      
+                      // Check specific keys
+                      const specificKeys = await browserAPI.storage.local.get([
+                        'wallet', 'passwordHash', 'walletState', 'sessionPassword', 
+                        'seedPhrase', 'importFlow', 'currentNetwork'
+                      ]);
+                      console.log('🔍 Specific wallet keys:', specificKeys);
+                      
+                      // Display summary
+                      const summary = {
+                        'Wallet exists': !!specificKeys.wallet,
+                        'Password hash exists': !!specificKeys.passwordHash,
+                        'Wallet state exists': !!specificKeys.walletState,
+                        'Session password exists': !!specificKeys.sessionPassword,
+                        'Seed phrase exists': !!specificKeys.seedPhrase,
+                        'Import flow active': !!specificKeys.importFlow,
+                        'Current network': specificKeys.currentNetwork || 'none'
+                      };
+                      
+                      console.log('🔍 Storage summary:', summary);
+                      
+                      // Show alert with summary
+                      const summaryText = Object.entries(summary)
+                        .map(([key, value]) => `${key}: ${value}`)
+                        .join('\n');
+                      
+                      alert(`Storage Contents:\n\n${summaryText}\n\nCheck console for detailed data.`);
+                      
+                    } catch (error) {
+                      console.error('❌ Storage check failed:', error);
+                      toast.error(`Storage check failed: ${error.message}`);
+                    }
+                  }}
+                  className="text-sm text-gray-500 hover:text-purple-600 transition-colors ml-4"
+                >
+                  🔍 Check Storage
+                </button>
+                
               <button
                 type="button"
-                className="text-[#180CB2] font-semibold text-sm hover:underline"
                   onClick={async () => {
-                    if (confirm('This will attempt to fix password authentication issues. Continue?')) {
-                      try {
-                        console.log('🔧 Starting password recovery...');
-                        
-                        // Check if we have a wallet but missing password hash
-                        const { storage } = await import('../../utils/storage-utils');
-                        const data = await storage.get(['wallet', 'passwordHash']);
-                        
-                        if (!password.trim()) {
-                          toast.error('Enter your password first, then click this button');
-                          return;
+                    if (!password.trim()) {
+                      toast.error('Please enter your password first');
+                      return;
+                    }
+                    
+                    if (!confirm('This will create a new wallet with a generated seed phrase. Continue?')) {
+                      return;
+                    }
+                    
+                    try {
+                      console.log('🔧 Creating emergency wallet...');
+                      
+                      // Generate a new seed phrase
+                      const { generateBIP39SeedPhrase } = await import('../../utils/crypto-utils');
+                      const seedPhrase = generateBIP39SeedPhrase();
+                      console.log('🔍 Generated seed phrase length:', seedPhrase.split(' ').length);
+                      
+                      // Use the background script to create wallet properly
+                      const { SecureWalletComm } = await import('../../store/WalletContext');
+                      
+                      toast.loading('Creating emergency wallet...');
+                      
+                      const result = await SecureWalletComm.createWallet(
+                        'Emergency Wallet',
+                        seedPhrase,
+                        password
+                      );
+                      
+                      console.log('✅ Emergency wallet created:', result);
+                      
+                      toast.dismiss();
+                      toast.success('✅ Emergency wallet created! Please save this seed phrase:');
+                      
+                      // Show seed phrase to user
+                      alert(`IMPORTANT: Save this seed phrase!\n\n${seedPhrase}\n\nThis is your only way to recover your wallet. Write it down safely!`);
+                      
+                      // Try to unlock the newly created wallet
+                      setTimeout(async () => {
+                        const unlockSuccess = await unlockWallet(password);
+                        if (unlockSuccess) {
+                          toast.success('Wallet unlocked successfully!');
                         }
-                        
-                        // Use the background script's password hash recovery function
-                        const response = await chrome.runtime.sendMessage({
-                          type: 'FIX_PASSWORD_HASH',
-                          password: password.trim()
-                        });
-                        
-                        if (response.success) {
-                          console.log('🔧 Password hash recovery successful');
-                          toast.success(response.data.message + ' Try unlocking now!');
-                        } else {
-                          throw new Error(response.error || 'Password hash recovery failed');
-                        }
-                        
-                      } catch (error) {
-                        console.error('Password recovery failed:', error);
-                        toast.error('Recovery failed: ' + error.message);
-                      }
+                      }, 1000);
+                      
+                    } catch (error) {
+                      toast.dismiss();
+                      console.error('❌ Emergency wallet creation failed:', error);
+                      toast.error(`Emergency wallet creation failed: ${error.message}`);
                     }
                   }}
+                  className="text-sm text-gray-500 hover:text-red-600 transition-colors ml-4"
                 >
-                  🔧 Fix Password Issue
+                  🆘 Create Emergency Wallet
               </button>
-              </div>
             </div>
+            </form>
+
+            {/* Recovery options removed per user request */}
           </motion.div>
         </div>
       </motion.div>
