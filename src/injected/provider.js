@@ -76,17 +76,36 @@
         rdns: 'com.paycio.wallet'
       };
       
+      // Announce provider immediately
       window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
         detail: Object.freeze({ info, provider: this })
       }));
       
-      // Legacy support
+      // Also listen for provider requests and re-announce
+      window.addEventListener('eip6963:requestProvider', () => {
+        window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+          detail: Object.freeze({ info, provider: this })
+        }));
+      });
+      
+      // Legacy support - set as primary ethereum provider if none exists
       if (!window.ethereum) {
         window.ethereum = this;
+      } else if (window.ethereum.providers) {
+        // If multiple providers exist, add to the list
+        window.ethereum.providers.push(this);
+      } else {
+        // Convert single provider to array and add this one
+        window.ethereum.providers = [window.ethereum, this];
       }
       
       // Notify that provider is ready
       window.dispatchEvent(new Event('ethereum#initialized'));
+      
+      // Additional discovery events
+      window.dispatchEvent(new CustomEvent('paycio-wallet-ready', {
+        detail: { provider: this, info }
+      }));
     }
     
     // EIP-1193 Methods
@@ -195,7 +214,39 @@
   // Override window.ethereum if not already set
   if (!window.ethereum) {
     window.ethereum = provider;
+  } else if (window.ethereum.providers) {
+    // If multiple providers exist, add to the list
+    window.ethereum.providers.push(provider);
+  } else {
+    // Convert single provider to array and add this one
+    window.ethereum.providers = [window.ethereum, provider];
   }
   
-  console.log('Paycio provider ready');
+  // Force EIP-6963 announcement immediately
+  const announceEIP6963 = () => {
+    const info = {
+      uuid: 'paycio-wallet-uuid',
+      name: 'Paycio Wallet',
+      icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzE4MENCMyIvPgo8cGF0aCBkPSJNOCAxMkgxNlYyMEg4VjEyWiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE2IDEySDI0VjIwSDE2VjEyWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
+      rdns: 'com.paycio.wallet'
+    };
+    
+    console.log('Paycio: Announcing EIP-6963 provider:', info);
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: Object.freeze({ info, provider })
+    }));
+  };
+  
+  // Announce immediately
+  announceEIP6963();
+  
+  // Also listen for provider requests
+  window.addEventListener('eip6963:requestProvider', announceEIP6963);
+  
+  // Announce again after a short delay to catch late listeners
+  setTimeout(announceEIP6963, 100);
+  setTimeout(announceEIP6963, 500);
+  setTimeout(announceEIP6963, 1000);
+  
+  console.log('Paycio provider ready and announced via EIP-6963');
 })();

@@ -282,36 +282,25 @@ class PaycioContentScript {
   }
 
   private announceProvider() {
-    // Dispatch events to let DApps know Paycio is available
-    window.dispatchEvent(new Event('ethereum#initialized'));
-    
-    // Custom event for Paycio
-    window.dispatchEvent(new CustomEvent('paycio#initialized', {
-      detail: {
-        isPaycio: true,
-        version: '1.0.0',
-        supportedNetworks: [
-          'ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism',
-          'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
-        ]
-      }
-    }));
-
-    // Listen for EIP-6963 provider requests
-    window.addEventListener('eip6963:requestProvider', () => {
-      const info = {
-        uuid: 'paycio-wallet-uuid',
-        name: 'Paycio Wallet',
-        icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzE4MENCMyIvPgo8cGF0aCBkPSJNOCAxMkgxNlYyMEg4VjEyWiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE2IDEySDI0VjIwSDE2VjEyWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
-        rdns: 'com.paycio.wallet'
-      };
+    // Wait a bit for the provider script to load
+    setTimeout(() => {
+      // Dispatch events to let DApps know Paycio is available
+      window.dispatchEvent(new Event('ethereum#initialized'));
       
-      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-        detail: Object.freeze({ info, provider: window.ethereum })
+      // Custom event for Paycio
+      window.dispatchEvent(new CustomEvent('paycio#initialized', {
+        detail: {
+          isPaycio: true,
+          version: '2.0.0',
+          supportedNetworks: [
+            'ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism',
+            'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
+          ]
+        }
       }));
-    });
 
-    console.log('Paycio wallet announced to page');
+      console.log('Paycio wallet announced to page');
+    }, 100);
   }
 
   private generateRequestId(): string {

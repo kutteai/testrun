@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paycio Wallet Detection Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .warning { background: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        .info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        button {
+            background: #180CB2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 5px;
+        }
+        button:hover { background: #1409a0; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .provider-info {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Paycio Wallet Detection Test</h1>
+        <p>This page tests if the Paycio wallet extension is properly detected by dApps.</p>
+        
+        <div id="status" class="status info">
+            🔄 Testing wallet detection...
+        </div>
+
+        <div class="test-section">
+            <h3>📊 Detection Results</h3>
+            <div id="detection-results"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔧 Manual Tests</h3>
+            <button onclick="testBasicDetection()">Test Basic Detection</button>
+            <button onclick="testEIP6963()">Test EIP-6963</button>
+            <button onclick="testProviderMethods()">Test Provider Methods</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📝 Console Logs</h3>
+            <div id="logs" class="log"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>🔗 Test Links</h3>
+            <p>Test on these dApp sites:</p>
+            <a href="https://metamask.github.io/test-dapp/" target="_blank" style="color: #180CB2;">MetaMask Test DApp</a> |
+            <a href="https://app.uniswap.org/" target="_blank" style="color: #180CB2;">Uniswap</a> |
+            <a href="https://etherscan.io/" target="_blank" style="color: #180CB2;">Etherscan</a>
+        </div>
+    </div>
+
+    <script>
+        let logs = [];
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            logs.push(logEntry);
+            
+            const logsDiv = document.getElementById('logs');
+            logsDiv.innerHTML = logs.join('\n');
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+            
+            console.log(logEntry);
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function updateDetectionResults(results) {
+            const resultsDiv = document.getElementById('detection-results');
+            resultsDiv.innerHTML = results;
+        }
+
+        function testBasicDetection() {
+            log('🔍 Testing basic wallet detection...');
+            
+            const results = [];
+            
+            // Test window.ethereum
+            if (window.ethereum) {
+                results.push('<div class="status success">✅ window.ethereum found</div>');
+                log('✅ window.ethereum found');
+                
+                // Test if it's Paycio
+                if (window.ethereum.isPaycio) {
+                    results.push('<div class="status success">✅ Paycio detected as primary provider</div>');
+                    log('✅ Paycio is primary provider');
+                } else {
+                    results.push('<div class="status warning">⚠️ window.ethereum exists but not Paycio</div>');
+                    log('⚠️ window.ethereum exists but isPaycio = ' + window.ethereum.isPaycio);
+                }
+                
+                // Test providers array
+                if (window.ethereum.providers && Array.isArray(window.ethereum.providers)) {
+                    const paycioProvider = window.ethereum.providers.find(p => p.isPaycio);
+                    if (paycioProvider) {
+                        results.push('<div class="status success">✅ Paycio found in providers array</div>');
+                        log('✅ Paycio found in providers array');
+                    } else {
+                        results.push('<div class="status warning">⚠️ Providers array exists but Paycio not found</div>');
+                        log('⚠️ Providers array exists but Paycio not found');
+                    }
+                }
+            } else {
+                results.push('<div class="status error">❌ window.ethereum not found</div>');
+                log('❌ window.ethereum not found');
+            }
+            
+            // Test window.paycio
+            if (window.paycio) {
+                results.push('<div class="status success">✅ window.paycio found</div>');
+                log('✅ window.paycio found');
+            } else {
+                results.push('<div class="status error">❌ window.paycio not found</div>');
+                log('❌ window.paycio not found');
+            }
+            
+            // Test other providers
+            const otherProviders = [];
+            if (window.web3) otherProviders.push('web3');
+            if (window.ethereum && !window.ethereum.isPaycio) {
+                if (window.ethereum.isMetaMask) otherProviders.push('MetaMask');
+                if (window.ethereum.isCoinbaseWallet) otherProviders.push('Coinbase');
+                if (window.ethereum.isBraveWallet) otherProviders.push('Brave');
+            }
+            
+            if (otherProviders.length > 0) {
+                results.push(`<div class="status info">ℹ️ Other providers detected: ${otherProviders.join(', ')}</div>`);
+                log(`ℹ️ Other providers: ${otherProviders.join(', ')}`);
+            }
+            
+            updateDetectionResults(results.join(''));
+            
+            // Overall status
+            const hasPaycio = window.paycio || (window.ethereum && window.ethereum.isPaycio) || 
+                            (window.ethereum && window.ethereum.providers && 
+                             window.ethereum.providers.find(p => p.isPaycio));
+            
+            if (hasPaycio) {
+                updateStatus('✅ Paycio wallet detected successfully!', 'success');
+            } else {
+                updateStatus('❌ Paycio wallet not detected', 'error');
+            }
+        }
+
+        function testEIP6963() {
+            log('🔍 Testing EIP-6963 provider discovery...');
+            
+            const providers = [];
+            
+            // Listen for EIP-6963 announcements
+            window.addEventListener('eip6963:announceProvider', (event) => {
+                const { info, provider } = event.detail;
+                providers.push({ info, provider });
+                log(`📢 EIP-6963: ${info.name} announced (${info.uuid})`);
+                
+                if (info.name === 'Paycio Wallet') {
+                    log('✅ Paycio announced via EIP-6963!');
+                }
+            });
+            
+            // Request providers
+            window.dispatchEvent(new Event('eip6963:requestProvider'));
+            
+            setTimeout(() => {
+                if (providers.length === 0) {
+                    log('❌ No EIP-6963 providers found');
+                } else {
+                    log(`✅ Found ${providers.length} EIP-6963 providers`);
+                    providers.forEach(p => {
+                        log(`  - ${p.info.name} (${p.info.uuid})`);
+                    });
+                }
+            }, 1000);
+        }
+
+        function testProviderMethods() {
+            log('🔍 Testing provider methods...');
+            
+            const provider = window.paycio || window.ethereum;
+            
+            if (!provider) {
+                log('❌ No provider found to test');
+                return;
+            }
+            
+            // Test basic properties
+            log(`Provider type: ${provider.constructor.name}`);
+            log(`isPaycio: ${provider.isPaycio}`);
+            log(`isMetaMask: ${provider.isMetaMask}`);
+            log(`isConnected: ${typeof provider.isConnected === 'function' ? provider.isConnected() : 'N/A'}`);
+            
+            // Test request method
+            if (typeof provider.request === 'function') {
+                log('✅ request() method available');
+                
+                // Test a simple request
+                provider.request({ method: 'eth_chainId' })
+                    .then(chainId => {
+                        log(`✅ eth_chainId: ${chainId}`);
+                    })
+                    .catch(error => {
+                        log(`❌ eth_chainId failed: ${error.message}`);
+                    });
+            } else {
+                log('❌ request() method not available');
+            }
+            
+            // Test legacy methods
+            if (typeof provider.send === 'function') {
+                log('✅ send() method available');
+            }
+            if (typeof provider.sendAsync === 'function') {
+                log('✅ sendAsync() method available');
+            }
+            if (typeof provider.enable === 'function') {
+                log('✅ enable() method available');
+            }
+        }
+
+        function clearLogs() {
+            logs = [];
+            document.getElementById('logs').innerHTML = '';
+            log('Logs cleared');
+        }
+
+        // Auto-test on page load
+        window.addEventListener('load', () => {
+            log('🚀 Page loaded, starting auto-detection...');
+            
+            // Wait a bit for content script to load
+            setTimeout(() => {
+                testBasicDetection();
+                testEIP6963();
+            }, 1000);
+        });
+
+        // Listen for ethereum events
+        window.addEventListener('ethereum#initialized', () => {
+            log('📢 ethereum#initialized event received');
+        });
+
+        // Log any console errors
+        window.addEventListener('error', (event) => {
+            log(`❌ Error: ${event.error?.message || event.message}`, 'error');
+        });
+    </script>
+</body>
+</html>

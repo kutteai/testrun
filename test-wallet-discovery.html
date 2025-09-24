@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PayCio Wallet Discovery Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            background: #f5f5f5;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #180CB2;
+        }
+        .success { border-left-color: #10b981; background: #f0fdf4; }
+        .error { border-left-color: #ef4444; background: #fef2f2; }
+        .warning { border-left-color: #f59e0b; background: #fffbeb; }
+        button {
+            background: #180CB2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover { background: #1409a0; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        .log {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .provider-info {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+            border: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 PayCio Wallet Discovery Test</h1>
+    <p>This page tests whether your PayCio wallet is properly discoverable by dApp servers.</p>
+
+    <div class="test-section">
+        <h3>📡 Provider Detection Tests</h3>
+        <button onclick="testWindowEthereum()">Test window.ethereum</button>
+        <button onclick="testEIP6963()">Test EIP-6963 Discovery</button>
+        <button onclick="testProviderMethods()">Test Provider Methods</button>
+        <button onclick="clearLog()">Clear Log</button>
+        <div id="provider-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>🔗 Connection Tests</h3>
+        <button onclick="testConnection()">Test Wallet Connection</button>
+        <button onclick="testAccounts()">Get Accounts</button>
+        <button onclick="testChainId()">Get Chain ID</button>
+        <div id="connection-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>📋 Test Log</h3>
+        <div id="log" class="log"></div>
+    </div>
+
+    <script>
+        let logElement = document.getElementById('log');
+        let providerResults = document.getElementById('provider-results');
+        let connectionResults = document.getElementById('connection-results');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const prefix = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warning' ? '⚠️' : 'ℹ️';
+            logElement.textContent += `[${timestamp}] ${prefix} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function clearLog() {
+            logElement.textContent = '';
+            providerResults.innerHTML = '';
+            connectionResults.innerHTML = '';
+        }
+
+        function addResult(container, title, content, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `provider-info ${type}`;
+            div.innerHTML = `<strong>${title}</strong><br>${content}`;
+            container.appendChild(div);
+        }
+
+        // Test 1: window.ethereum detection
+        function testWindowEthereum() {
+            log('Testing window.ethereum detection...');
+            
+            if (typeof window.ethereum !== 'undefined') {
+                log('✅ window.ethereum found!', 'success');
+                
+                const provider = window.ethereum;
+                let info = `
+                    <strong>Provider Details:</strong><br>
+                    • isPayCio: ${provider.isPayCio || 'false'}<br>
+                    • isMetaMask: ${provider.isMetaMask || 'false'}<br>
+                    • chainId: ${provider.chainId || 'unknown'}<br>
+                    • networkVersion: ${provider.networkVersion || 'unknown'}<br>
+                    • selectedAddress: ${provider.selectedAddress || 'none'}<br>
+                `;
+                
+                if (provider.providers && Array.isArray(provider.providers)) {
+                    info += `• Multiple providers detected: ${provider.providers.length}<br>`;
+                    provider.providers.forEach((p, i) => {
+                        info += `  - Provider ${i + 1}: ${p.isPayCio ? 'PayCio' : 'Other'}<br>`;
+                    });
+                }
+                
+                addResult(providerResults, 'window.ethereum Detection', info, 'success');
+            } else {
+                log('❌ window.ethereum not found', 'error');
+                addResult(providerResults, 'window.ethereum Detection', 'No ethereum provider found on window object', 'error');
+            }
+        }
+
+        // Test 2: EIP-6963 Discovery
+        function testEIP6963() {
+            log('Testing EIP-6963 provider discovery...');
+            
+            const providers = [];
+            
+            // Listen for provider announcements
+            const handleProvider = (event) => {
+                const { info, provider } = event.detail;
+                providers.push({ info, provider });
+                log(`✅ EIP-6963 provider found: ${info.name} (${info.uuid})`, 'success');
+            };
+            
+            window.addEventListener('eip6963:announceProvider', handleProvider);
+            
+            // Request providers multiple times to catch all announcements
+            window.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
+            
+            // Also check for any existing providers that might have been announced
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
+            }, 100);
+            
+            setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
+            }, 500);
+            
+            // Check after a longer delay to catch all announcements
+            setTimeout(() => {
+                if (providers.length > 0) {
+                    let info = `<strong>Found ${providers.length} provider(s):</strong><br>`;
+                    providers.forEach((p, i) => {
+                        info += `
+                            <strong>Provider ${i + 1}:</strong><br>
+                            • Name: ${p.info.name}<br>
+                            • UUID: ${p.info.uuid}<br>
+                            • RDNS: ${p.info.rdns}<br>
+                            • isPayCio: ${p.provider.isPayCio || 'false'}<br>
+                        `;
+                    });
+                    addResult(providerResults, 'EIP-6963 Discovery', info, 'success');
+                } else {
+                    log('❌ No EIP-6963 providers found', 'error');
+                    log('💡 This might be because the provider was injected before the listener was set up', 'warning');
+                    addResult(providerResults, 'EIP-6963 Discovery', 'No providers announced via EIP-6963. Try refreshing the page and testing again.', 'error');
+                }
+                
+                window.removeEventListener('eip6963:announceProvider', handleProvider);
+            }, 2000);
+        }
+
+        // Test 3: Provider Methods
+        function testProviderMethods() {
+            log('Testing provider methods...');
+            
+            if (!window.ethereum) {
+                log('❌ No ethereum provider available for method testing', 'error');
+                return;
+            }
+            
+            const provider = window.ethereum;
+            const methods = ['request', 'on', 'removeListener', 'isConnected'];
+            let availableMethods = [];
+            let missingMethods = [];
+            
+            methods.forEach(method => {
+                if (typeof provider[method] === 'function') {
+                    availableMethods.push(method);
+                } else {
+                    missingMethods.push(method);
+                }
+            });
+            
+            let info = `<strong>Method Availability:</strong><br>`;
+            if (availableMethods.length > 0) {
+                info += `✅ Available: ${availableMethods.join(', ')}<br>`;
+            }
+            if (missingMethods.length > 0) {
+                info += `❌ Missing: ${missingMethods.join(', ')}<br>`;
+            }
+            
+            const type = missingMethods.length === 0 ? 'success' : 'warning';
+            addResult(providerResults, 'Provider Methods', info, type);
+        }
+
+        // Test 4: Connection
+        async function testConnection() {
+            log('Testing wallet connection...');
+            
+            if (!window.ethereum) {
+                log('❌ No ethereum provider available', 'error');
+                addResult(connectionResults, 'Connection Test', 'No ethereum provider available', 'error');
+                return;
+            }
+            
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                if (accounts && accounts.length > 0) {
+                    log(`✅ Connected successfully! Accounts: ${accounts.join(', ')}`, 'success');
+                    addResult(connectionResults, 'Connection Test', `Connected with accounts: ${accounts.join(', ')}`, 'success');
+                } else {
+                    log('⚠️ Connection successful but no accounts returned', 'warning');
+                    addResult(connectionResults, 'Connection Test', 'Connected but no accounts available', 'warning');
+                }
+            } catch (error) {
+                log(`❌ Connection failed: ${error.message}`, 'error');
+                addResult(connectionResults, 'Connection Test', `Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 5: Get Accounts
+        async function testAccounts() {
+            log('Testing get accounts...');
+            
+            if (!window.ethereum) {
+                log('❌ No ethereum provider available', 'error');
+                return;
+            }
+            
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                if (accounts && accounts.length > 0) {
+                    log(`✅ Accounts found: ${accounts.join(', ')}`, 'success');
+                    addResult(connectionResults, 'Get Accounts', `Found accounts: ${accounts.join(', ')}`, 'success');
+                } else {
+                    log('⚠️ No accounts found (wallet may not be connected)', 'warning');
+                    addResult(connectionResults, 'Get Accounts', 'No accounts found - wallet may not be connected', 'warning');
+                }
+            } catch (error) {
+                log(`❌ Failed to get accounts: ${error.message}`, 'error');
+                addResult(connectionResults, 'Get Accounts', `Failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test 6: Get Chain ID
+        async function testChainId() {
+            log('Testing get chain ID...');
+            
+            if (!window.ethereum) {
+                log('❌ No ethereum provider available', 'error');
+                return;
+            }
+            
+            try {
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                log(`✅ Chain ID: ${chainId}`, 'success');
+                addResult(connectionResults, 'Get Chain ID', `Chain ID: ${chainId}`, 'success');
+            } catch (error) {
+                log(`❌ Failed to get chain ID: ${error.message}`, 'error');
+                addResult(connectionResults, 'Get Chain ID', `Failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Set up continuous EIP-6963 listener
+        const eip6963Providers = [];
+        window.addEventListener('eip6963:announceProvider', (event) => {
+            const { info, provider } = event.detail;
+            eip6963Providers.push({ info, provider });
+            log(`🔔 EIP-6963 provider announced: ${info.name} (${info.uuid})`, 'success');
+        });
+
+        // Auto-run basic tests on page load
+        window.addEventListener('load', () => {
+            log('🚀 PayCio Wallet Discovery Test Page Loaded');
+            log('Running initial tests...');
+            
+            setTimeout(() => {
+                testWindowEthereum();
+                testEIP6963();
+                testProviderMethods();
+            }, 500);
+        });
+
+        // Listen for ethereum events
+        if (window.ethereum) {
+            window.ethereum.on('connect', (connectInfo) => {
+                log(`🔗 Wallet connected: ${JSON.stringify(connectInfo)}`, 'success');
+            });
+            
+            window.ethereum.on('disconnect', (error) => {
+                log(`🔌 Wallet disconnected: ${error.message || 'Unknown reason'}`, 'warning');
+            });
+            
+            window.ethereum.on('accountsChanged', (accounts) => {
+                log(`👤 Accounts changed: ${accounts.join(', ')}`, 'info');
+            });
+            
+            window.ethereum.on('chainChanged', (chainId) => {
+                log(`⛓️ Chain changed: ${chainId}`, 'info');
+            });
+        }
+    </script>
+</body>
+</html>
