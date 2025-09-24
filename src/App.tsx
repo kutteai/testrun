@@ -61,6 +61,7 @@ import NotificationsScreen from './components/screens/NotificationsScreen';
 import SupportScreen from './components/screens/SupportScreen';
 import ExpandViewScreen from './components/screens/ExpandViewScreen';
 import PasswordModal from './components/modals/PasswordModal';
+import DAppUnlockPopup, { useDAppUnlock } from './components/DAppUnlockPopup';
 
 import type { ScreenId } from './types/index';
 
@@ -81,6 +82,9 @@ const App: React.FC = () => {
     isInitializing,
     initializeWallet 
   } = useWallet();
+  
+  // DApp unlock functionality
+  const dappUnlock = useDAppUnlock();
   
   const { currentNetwork } = useNetwork();
   const { pendingTransactions } = useTransaction();
@@ -132,6 +136,26 @@ const App: React.FC = () => {
       window.removeEventListener('showPasswordModal', handlePasswordModal as EventListener);
     };
   }, []);
+
+  // Listen for DApp unlock requests
+  useEffect(() => {
+    const handleDAppUnlockRequest = (event: CustomEvent) => {
+      const { origin, requestType = 'connect' } = event.detail;
+      
+      console.log('DApp unlock request received:', { origin, requestType });
+      
+      dappUnlock.showUnlockPopup(origin, requestType, () => {
+        // Success callback - could trigger a refresh or specific action
+        console.log('DApp unlock successful for:', origin);
+      });
+    };
+
+    window.addEventListener('dapp_unlock_required', handleDAppUnlockRequest as EventListener);
+    
+    return () => {
+      window.removeEventListener('dapp_unlock_required', handleDAppUnlockRequest as EventListener);
+    };
+  }, [dappUnlock]);
 
   // Determine initial screen based on wallet state
   const determineInitialScreen = () => {
@@ -459,6 +483,9 @@ const App: React.FC = () => {
           networkName={passwordModalProps.networkName}
         />
       )}
+      
+      {/* DApp Unlock Popup */}
+      {dappUnlock.UnlockPopup}
     </div>
   );
 };

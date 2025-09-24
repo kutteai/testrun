@@ -162,7 +162,7 @@ export async function getBitcoinTransactions(
   }
 }
 
-// Create Bitcoin transaction (simplified - for future implementation)
+// Create Bitcoin transaction with real UTXO fetching
 export async function createBitcoinTransaction(
   fromAddress: string,
   toAddress: string,
@@ -182,16 +182,124 @@ export async function createBitcoinTransaction(
     const ECPair = ECPairFactory(ecc);
     const keyPair = ECPair.fromPrivateKey(Buffer.from(privateKey, 'hex'));
     
-    // Real Bitcoin transaction creation requires:
-    // 1. Fetching actual UTXOs from blockchain API (BlockCypher, Blockstream, etc.)
-    // 2. Proper fee calculation based on network conditions
-    // 3. Real transaction signing with proper key derivation
-    // 4. Broadcasting to Bitcoin network
+    // Fetch UTXOs from blockchain API
+    const utxos = await fetchUTXOs(fromAddress, network);
+    if (utxos.length === 0) {
+      throw new Error('No UTXOs found for the address');
+    }
     
-    throw new Error('Bitcoin transaction creation requires real UTXO fetching and proper signing implementation. Connect to Bitcoin node or API service.');
+    // Calculate total input value
+    const totalInputValue = utxos.reduce((sum, utxo) => sum + utxo.value, 0);
+    
+    // Calculate fee (simplified - in production use proper fee estimation)
+    const feeRate = await getFeeRate(network);
+    const estimatedFee = Math.ceil((utxos.length * 148 + 2 * 34 + 10) * feeRate); // Rough estimate
+    
+    // Check if we have enough funds
+    if (totalInputValue < amount + estimatedFee) {
+      throw new Error('Insufficient funds for transaction');
+    }
+    
+    // Create transaction builder
+    const txb = new (bitcoin as any).TransactionBuilder(networkParams);
+    
+    // Add inputs
+    utxos.forEach(utxo => {
+      txb.addInput(utxo.txid, utxo.vout);
+    });
+    
+    // Add output
+    txb.addOutput(toAddress, amount);
+    
+    // Add change output if needed
+    const change = totalInputValue - amount - estimatedFee;
+    if (change > 546) { // Dust threshold
+      txb.addOutput(fromAddress, change);
+    }
+    
+    // Sign inputs
+    utxos.forEach((utxo, index) => {
+      txb.sign(index, keyPair);
+    });
+    
+    // Build and return transaction
+    const tx = txb.build();
+    const txHex = tx.toHex();
+    
+    // Broadcast transaction
+    const txid = await broadcastTransaction(txHex, network);
+    return txid;
+    
   } catch (error) {
     console.error('Error creating Bitcoin transaction:', error);
     throw new Error(`Failed to create Bitcoin transaction: ${error.message}`);
+  }
+}
+
+// Fetch UTXOs from blockchain API
+async function fetchUTXOs(address: string, network: 'mainnet' | 'testnet'): Promise<any[]> {
+  try {
+    const apiUrl = network === 'mainnet' 
+      ? 'https://blockstream.info/api'
+      : 'https://blockstream.info/testnet/api';
+    
+    const response = await fetch(`${apiUrl}/address/${address}/utxo`);
+    const utxos = await response.json();
+    
+    return utxos.map((utxo: any) => ({
+      txid: utxo.txid,
+      vout: utxo.vout,
+      value: utxo.value,
+      scriptPubKey: utxo.scriptpubkey
+    }));
+  } catch (error) {
+    console.error('Error fetching UTXOs:', error);
+    return [];
+  }
+}
+
+// Get current fee rate
+async function getFeeRate(network: 'mainnet' | 'testnet'): Promise<number> {
+  try {
+    const apiUrl = network === 'mainnet' 
+      ? 'https://blockstream.info/api'
+      : 'https://blockstream.info/testnet/api';
+    
+    const response = await fetch(`${apiUrl}/fee-estimates`);
+    const feeEstimates = await response.json();
+    
+    // Return fee for 6 blocks confirmation (medium priority)
+    return feeEstimates['6'] || 10; // Default to 10 sat/vB
+  } catch (error) {
+    console.error('Error fetching fee rate:', error);
+    return 10; // Default fee rate
+  }
+}
+
+// Broadcast transaction to network
+async function broadcastTransaction(txHex: string, network: 'mainnet' | 'testnet'): Promise<string> {
+  try {
+    const apiUrl = network === 'mainnet' 
+      ? 'https://blockstream.info/api'
+      : 'https://blockstream.info/testnet/api';
+    
+    const response = await fetch(`${apiUrl}/tx`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+      body: txHex
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to broadcast transaction: ${response.statusText}`);
+    }
+    
+    const txid = await response.text();
+    return txid;
+  } catch (error) {
+    console.error('Error broadcasting transaction:', error);
+    throw new Error(`Failed to broadcast transaction: ${error.message}`);
   }
 }
 

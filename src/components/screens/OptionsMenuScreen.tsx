@@ -33,16 +33,8 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const handleMenuItemClick = async (screen: string) => {
     if (screen === 'lock-paycio') {
       try {
-        // Lock the wallet
+        // Lock the wallet (this will only clear session data, NOT wallet data)
         await lockWallet();
-        
-        // Clear session storage
-        sessionStorage.removeItem('walletPassword');
-        sessionStorage.removeItem('walletUnlocked');
-        
-        // Clear Chrome session storage
-        // Use cross-browser storage utility
-        await storage.clear();
         
         toast.success('Wallet locked successfully');
         onNavigate('welcome'); // Navigate to welcome/unlock screen

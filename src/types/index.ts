@@ -284,7 +284,9 @@ export interface WalletContextType {
   clearError: () => void;
   extendSession: () => Promise<void>;
   debugSessionStatus: () => Promise<void>;
-  debugPassword: (testPassword?: string) => Promise<void>;
+  debugPassword: (testPassword: string) => Promise<boolean>;
+  debugUnlockIssue: (testPassword: string) => Promise<void>;
+  debugStorage: () => Promise<boolean>;
 }
 
 export interface SecurityContextType {

@@ -85,6 +85,7 @@
     "@walletconnect/types": "^2.21.8",
     "@walletconnect/utils": "^2.16.1",
     "add": "^2.0.6",
+    "argon2-browser": "^1.18.0",
     "assert": "^2.1.0",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",

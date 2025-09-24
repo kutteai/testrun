@@ -151,15 +151,171 @@ export class DeFiManager {
 
   // Get yield opportunities
   async getYieldOpportunities(network: string, token: string): Promise<DeFiYield[]> {
-    // Real implementation requires actual DeFi protocol APIs
-    throw new Error('DeFi yield opportunities require real protocol integration. Connect to Uniswap, Aave, Compound, etc. APIs for live data.');
+    try {
+      const yields: DeFiYield[] = [];
+      
+      // Get Uniswap V3 LP yields
+      const uniswapYields = await this.getUniswapV3Yields(network, token);
+      yields.push(...uniswapYields);
+      
+      // Get Aave lending yields
+      const aaveYields = await this.getAaveYields(network, token);
+      yields.push(...aaveYields);
+      
+      // Get Compound yields
+      const compoundYields = await this.getCompoundYields(network, token);
+      yields.push(...compoundYields);
+      
+      // Get Curve yields
+      const curveYields = await this.getCurveYields(network, token);
+      yields.push(...curveYields);
+      
+      return yields.sort((a, b) => b.apy - a.apy);
+    } catch (error) {
+      console.error('Error fetching yield opportunities:', error);
+      return [];
+    }
+  }
+
+  private async getUniswapV3Yields(network: string, token: string): Promise<DeFiYield[]> {
+    try {
+      const response = await fetch(`https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v3`);
+      const query = `
+        query {
+          pools(where: { token0: "${token}", totalValueLockedUSD_gt: 1000000 }) {
+            id
+            token0 { symbol }
+            token1 { symbol }
+            totalValueLockedUSD
+            feeTier
+            volumeUSD
+          }
+        }
+      `;
+      
+      const result = await response.json();
+      const pools = result.data?.pools || [];
+      
+      return pools.map((pool: any) => ({
+        protocol: 'Uniswap V3',
+        type: 'liquidity_provider',
+        apy: this.calculateUniswapAPY(pool.volumeUSD, pool.totalValueLockedUSD, pool.feeTier),
+        tvl: parseFloat(pool.totalValueLockedUSD),
+        token: `${pool.token0.symbol}/${pool.token1.symbol}`,
+        network,
+        risk: 'medium'
+      }));
+    } catch (error) {
+      console.error('Error fetching Uniswap V3 yields:', error);
+      return [];
+    }
+  }
+
+  private async getAaveYields(network: string, token: string): Promise<DeFiYield[]> {
+    try {
+      const subgraphUrl = network === 'ethereum' 
+        ? 'https://api.thegraph.com/subgraphs/name/aave/aave-v2'
+        : 'https://api.thegraph.com/subgraphs/name/aave/aave-v2-polygon';
+        
+      const response = await fetch(subgraphUrl);
+      const query = `
+        query {
+          reserves(where: { underlyingAsset: "${token}" }) {
+            id
+            symbol
+            liquidityRate
+            variableBorrowRate
+            totalLiquidity
+            totalBorrows
+          }
+        }
+      `;
+      
+      const result = await response.json();
+      const reserves = result.data?.reserves || [];
+      
+      return reserves.map((reserve: any) => ({
+        protocol: 'Aave',
+        type: 'lending',
+        apy: parseFloat(reserve.liquidityRate) / 1e25, // Convert from ray to percentage
+        tvl: parseFloat(reserve.totalLiquidity),
+        token: reserve.symbol,
+        network,
+        risk: 'low'
+      }));
+    } catch (error) {
+      console.error('Error fetching Aave yields:', error);
+      return [];
+    }
+  }
+
+  private async getCompoundYields(network: string, token: string): Promise<DeFiYield[]> {
+    try {
+      const response = await fetch('https://api.thegraph.com/subgraphs/name/graphprotocol/compound-v2');
+      const query = `
+        query {
+          markets(where: { underlyingAddress: "${token}" }) {
+            id
+            symbol
+            supplyRate
+            totalSupply
+            totalBorrows
+          }
+        }
+      `;
+      
+      const result = await response.json();
+      const markets = result.data?.markets || [];
+      
+      return markets.map((market: any) => ({
+        protocol: 'Compound',
+        type: 'lending',
+        apy: parseFloat(market.supplyRate) / 1e18, // Convert from wei to percentage
+        tvl: parseFloat(market.totalSupply),
+        token: market.symbol,
+        network,
+        risk: 'low'
+      }));
+    } catch (error) {
+      console.error('Error fetching Compound yields:', error);
+      return [];
+    }
+  }
+
+  private async getCurveYields(network: string, token: string): Promise<DeFiYield[]> {
+    try {
+      const response = await fetch('https://api.curve.fi/api/getPools/ethereum/main');
+      const data = await response.json();
+      const pools = data.data?.poolData || [];
+      
+      return pools
+        .filter((pool: any) => pool.coins?.some((coin: any) => coin.address?.toLowerCase() === token.toLowerCase()))
+        .map((pool: any) => ({
+          protocol: 'Curve',
+          type: 'liquidity_provider',
+          apy: parseFloat(pool.apy || 0),
+          tvl: parseFloat(pool.tvl || 0),
+          token: pool.name,
+          network,
+          risk: 'medium'
+        }));
+    } catch (error) {
+      console.error('Error fetching Curve yields:', error);
+      return [];
+    }
+  }
+
+  private calculateUniswapAPY(volumeUSD: string, tvlUSD: string, feeTier: string): number {
+    const volume = parseFloat(volumeUSD);
+    const tvl = parseFloat(tvlUSD);
+    const fee = parseFloat(feeTier) / 10000; // Convert from basis points
     
-    // This would integrate with:
-    // - Uniswap V3 API for LP yields
-    // - Aave API for lending yields
-    // - Compound API for lending/borrowing
-    // - Yearn Finance API for vault yields
-    // - Curve Finance API for stablecoin yields
+    if (tvl === 0) return 0;
+    
+    // Annualized APY = (Daily volume * fee rate * 365) / TVL
+    const dailyVolume = volume / 30; // Approximate daily volume
+    const annualFees = dailyVolume * fee * 365;
+    return (annualFees / tvl) * 100;
   }
 
   // Add liquidity to DEX

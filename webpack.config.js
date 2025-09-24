@@ -29,9 +29,11 @@ module.exports = (env, argv) => {
 
     entry: {
       popup: './src/popup/index.tsx',
-      background: './src/background/background.js',
+      background: './src/background/index.ts',
       content: './src/content/index.ts',
-      injected: './src/injected/index.ts',
+      'content-script': './src/content-script/index.ts',
+      'content-script-enhanced': './src/content-script-enhanced.js',
+      'injected/provider': './src/injected/provider.js',
       options: './src/options/index.tsx',
       expand: './src/expand.tsx'
     },

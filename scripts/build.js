@@ -142,8 +142,7 @@ function validateBuild() {
     'popup.html',
     'popup.js',
     'background.js',
-    'content.js',
-    'injected.js'
+    'content-script.js'
   ];
   
   config.browsers.forEach(browser => {

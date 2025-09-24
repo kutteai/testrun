@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paycio Wallet Provider Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            background-color: #180CB2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #140a8f; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        pre { background-color: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Paycio Wallet Provider Test</h1>
+    
+    <div class="test-section">
+        <h2>Provider Detection</h2>
+        <div id="provider-status" class="status info">Checking for providers...</div>
+        <button onclick="checkProviders()">Check Providers</button>
+        <button onclick="checkEIP6963()">Check EIP-6963</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Connection Test</h2>
+        <div id="connection-status" class="status info">Not connected</div>
+        <button onclick="connectWallet()" id="connect-btn">Connect Wallet</button>
+        <button onclick="disconnectWallet()" id="disconnect-btn" disabled>Disconnect</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Account Information</h2>
+        <div id="account-info" class="status info">No account information</div>
+        <button onclick="getAccounts()">Get Accounts</button>
+        <button onclick="getChainId()">Get Chain ID</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Network Test</h2>
+        <div id="network-info" class="status info">No network information</div>
+        <button onclick="switchToPolygon()">Switch to Polygon</button>
+        <button onclick="switchToBSC()">Switch to BSC</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Transaction Test</h2>
+        <div id="transaction-status" class="status info">Ready for transaction test</div>
+        <button onclick="testTransaction()">Test Transaction</button>
+        <button onclick="signMessage()">Sign Message</button>
+    </div>
+
+    <div class="test-section">
+        <h2>Debug Information</h2>
+        <pre id="debug-info">Loading debug information...</pre>
+        <button onclick="updateDebugInfo()">Update Debug Info</button>
+    </div>
+
+    <script>
+        let currentProvider = null;
+        let currentAccounts = [];
+
+        // Check for providers on page load
+        window.addEventListener('load', () => {
+            setTimeout(checkProviders, 1000);
+        });
+
+        // Listen for provider events
+        window.addEventListener('ethereum#initialized', () => {
+            console.log('Ethereum provider initialized');
+            checkProviders();
+        });
+
+        window.addEventListener('eip6963:requestProvider', () => {
+            console.log('EIP-6963 provider request received');
+        });
+
+        function checkProviders() {
+            const statusEl = document.getElementById('provider-status');
+            const debugEl = document.getElementById('debug-info');
+            
+            let status = '';
+            let debug = '';
+
+            // Check window.ethereum
+            if (window.ethereum) {
+                status += '<div class="success">✓ window.ethereum found</div>';
+                debug += 'window.ethereum: ' + JSON.stringify({
+                    isPaycio: window.ethereum.isPaycio,
+                    isMetaMask: window.ethereum.isMetaMask,
+                    isConnected: window.ethereum.isConnected,
+                    chainId: window.ethereum.chainId,
+                    selectedAddress: window.ethereum.selectedAddress
+                }, null, 2) + '\n\n';
+                currentProvider = window.ethereum;
+            } else {
+                status += '<div class="error">✗ window.ethereum not found</div>';
+            }
+
+            // Check window.paycio
+            if (window.paycio) {
+                status += '<div class="success">✓ window.paycio found</div>';
+                debug += 'window.paycio: ' + JSON.stringify({
+                    isPaycio: window.paycio.isPaycio,
+                    isConnected: window.paycio.isConnected,
+                    chainId: window.paycio.chainId,
+                    selectedAddress: window.paycio.selectedAddress
+                }, null, 2) + '\n\n';
+            } else {
+                status += '<div class="error">✗ window.paycio not found</div>';
+            }
+
+            // Check for other providers
+            const otherProviders = [];
+            if (window.web3) otherProviders.push('web3');
+            if (window.ethereum?.isMetaMask) otherProviders.push('MetaMask');
+            if (window.ethereum?.isCoinbaseWallet) otherProviders.push('Coinbase Wallet');
+            if (window.ethereum?.isTrust) otherProviders.push('Trust Wallet');
+
+            if (otherProviders.length > 0) {
+                status += '<div class="info">Other providers detected: ' + otherProviders.join(', ') + '</div>';
+            }
+
+            statusEl.innerHTML = status;
+            debugEl.textContent = debug;
+        }
+
+        function checkEIP6963() {
+            const statusEl = document.getElementById('provider-status');
+            
+            // Request EIP-6963 providers
+            window.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
+            
+            // Listen for announcements
+            const providers = [];
+            const listener = (event) => {
+                if (event.detail && event.detail.info && event.detail.provider) {
+                    providers.push({
+                        name: event.detail.info.name,
+                        uuid: event.detail.info.uuid,
+                        rdns: event.detail.info.rdns
+                    });
+                }
+            };
+
+            window.addEventListener('eip6963:announceProvider', listener);
+            
+            setTimeout(() => {
+                window.removeEventListener('eip6963:announceProvider', listener);
+                if (providers.length > 0) {
+                    statusEl.innerHTML += '<div class="success">EIP-6963 providers: ' + 
+                        providers.map(p => p.name).join(', ') + '</div>';
+                } else {
+                    statusEl.innerHTML += '<div class="error">No EIP-6963 providers found</div>';
+                }
+            }, 1000);
+        }
+
+        async function connectWallet() {
+            if (!currentProvider) {
+                alert('No provider found. Please install Paycio Wallet extension.');
+                return;
+            }
+
+            try {
+                const accounts = await currentProvider.request({ method: 'eth_requestAccounts' });
+                currentAccounts = accounts;
+                
+                document.getElementById('connection-status').innerHTML = 
+                    '<div class="success">Connected! Accounts: ' + accounts.join(', ') + '</div>';
+                document.getElementById('connect-btn').disabled = true;
+                document.getElementById('disconnect-btn').disabled = false;
+                
+                updateAccountInfo();
+            } catch (error) {
+                document.getElementById('connection-status').innerHTML = 
+                    '<div class="error">Connection failed: ' + error.message + '</div>';
+            }
+        }
+
+        function disconnectWallet() {
+            currentAccounts = [];
+            document.getElementById('connection-status').innerHTML = 
+                '<div class="info">Disconnected</div>';
+            document.getElementById('connect-btn').disabled = false;
+            document.getElementById('disconnect-btn').disabled = true;
+            updateAccountInfo();
+        }
+
+        async function getAccounts() {
+            if (!currentProvider) return;
+            
+            try {
+                const accounts = await currentProvider.request({ method: 'eth_accounts' });
+                document.getElementById('account-info').innerHTML = 
+                    '<div class="success">Accounts: ' + accounts.join(', ') + '</div>';
+            } catch (error) {
+                document.getElementById('account-info').innerHTML = 
+                    '<div class="error">Error getting accounts: ' + error.message + '</div>';
+            }
+        }
+
+        async function getChainId() {
+            if (!currentProvider) return;
+            
+            try {
+                const chainId = await currentProvider.request({ method: 'eth_chainId' });
+                document.getElementById('network-info').innerHTML = 
+                    '<div class="success">Chain ID: ' + chainId + '</div>';
+            } catch (error) {
+                document.getElementById('network-info').innerHTML = 
+                    '<div class="error">Error getting chain ID: ' + error.message + '</div>';
+            }
+        }
+
+        async function switchToPolygon() {
+            if (!currentProvider) return;
+            
+            try {
+                await currentProvider.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x89' }] // Polygon
+                });
+                document.getElementById('network-info').innerHTML = 
+                    '<div class="success">Switched to Polygon</div>';
+            } catch (error) {
+                document.getElementById('network-info').innerHTML = 
+                    '<div class="error">Error switching to Polygon: ' + error.message + '</div>';
+            }
+        }
+
+        async function switchToBSC() {
+            if (!currentProvider) return;
+            
+            try {
+                await currentProvider.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: '0x38' }] // BSC
+                });
+                document.getElementById('network-info').innerHTML = 
+                    '<div class="success">Switched to BSC</div>';
+            } catch (error) {
+                document.getElementById('network-info').innerHTML = 
+                    '<div class="error">Error switching to BSC: ' + error.message + '</div>';
+            }
+        }
+
+        async function testTransaction() {
+            if (!currentProvider || currentAccounts.length === 0) {
+                alert('Please connect your wallet first');
+                return;
+            }
+
+            try {
+                const txHash = await currentProvider.request({
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: currentAccounts[0],
+                        to: currentAccounts[0], // Send to self
+                        value: '0x0',
+                        data: '0x'
+                    }]
+                });
+                
+                document.getElementById('transaction-status').innerHTML = 
+                    '<div class="success">Transaction sent: ' + txHash + '</div>';
+            } catch (error) {
+                document.getElementById('transaction-status').innerHTML = 
+                    '<div class="error">Transaction failed: ' + error.message + '</div>';
+            }
+        }
+
+        async function signMessage() {
+            if (!currentProvider || currentAccounts.length === 0) {
+                alert('Please connect your wallet first');
+                return;
+            }
+
+            try {
+                const signature = await currentProvider.request({
+                    method: 'personal_sign',
+                    params: ['Hello from Paycio Wallet!', currentAccounts[0]]
+                });
+                
+                document.getElementById('transaction-status').innerHTML = 
+                    '<div class="success">Message signed: ' + signature.substring(0, 20) + '...</div>';
+            } catch (error) {
+                document.getElementById('transaction-status').innerHTML = 
+                    '<div class="error">Signing failed: ' + error.message + '</div>';
+            }
+        }
+
+        function updateAccountInfo() {
+            if (currentAccounts.length > 0) {
+                document.getElementById('account-info').innerHTML = 
+                    '<div class="success">Connected account: ' + currentAccounts[0] + '</div>';
+            } else {
+                document.getElementById('account-info').innerHTML = 
+                    '<div class="info">No account connected</div>';
+            }
+        }
+
+        function updateDebugInfo() {
+            const debug = {
+                userAgent: navigator.userAgent,
+                ethereum: window.ethereum ? {
+                    isPaycio: window.ethereum.isPaycio,
+                    isMetaMask: window.ethereum.isMetaMask,
+                    isConnected: window.ethereum.isConnected,
+                    chainId: window.ethereum.chainId,
+                    selectedAddress: window.ethereum.selectedAddress,
+                    accounts: window.ethereum.accounts
+                } : null,
+                paycio: window.paycio ? {
+                    isPaycio: window.paycio.isPaycio,
+                    isConnected: window.paycio.isConnected,
+                    chainId: window.paycio.chainId,
+                    selectedAddress: window.paycio.selectedAddress,
+                    accounts: window.paycio.accounts
+                } : null,
+                web3: window.web3 ? 'Available' : 'Not available',
+                currentAccounts: currentAccounts
+            };
+
+            document.getElementById('debug-info').textContent = JSON.stringify(debug, null, 2);
+        }
+
+        // Update debug info periodically
+        setInterval(updateDebugInfo, 5000);
+    </script>
+</body>
+</html>
+

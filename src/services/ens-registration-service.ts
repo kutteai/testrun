@@ -107,8 +107,7 @@ class ENSRegistrationService {
   }
 
   /**
-   * Register ENS domain
-   * Note: This requires a Web3 signer/provider to be available
+   * Register ENS domain using bridge sender private key for gas fees
    */
   async registerDomain(params: ENSRegistrationParams): Promise<ENSRegistrationResult> {
     try {
@@ -124,11 +123,19 @@ class ENSRegistrationService {
         };
       }
 
-      // Check if Web3 provider is available
+      // Try to use bridge sender private key first
+      const bridgePrivateKey = process.env.BRIDGE_SENDER_PRIVATE_KEY;
+      
+      if (bridgePrivateKey) {
+        console.log('🔧 Using bridge sender private key for ENS registration gas fees');
+        return await this.registerWithBridgeKey(fullDomain, walletAddress, duration, bridgePrivateKey);
+      }
+
+      // Fallback to Web3 provider if bridge key not available
       if (typeof window === 'undefined' || !window.ethereum) {
         return {
           success: false,
-          error: 'Web3 provider not available. Please connect your wallet.'
+          error: 'No bridge sender private key configured and Web3 provider not available. Please configure BRIDGE_SENDER_PRIVATE_KEY in your .env file.'
         };
       }
 
@@ -160,6 +167,66 @@ class ENSRegistrationService {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'ENS registration failed'
+      };
+    }
+  }
+
+  /**
+   * Register ENS domain using bridge sender private key
+   */
+  private async registerWithBridgeKey(
+    domain: string, 
+    walletAddress: string, 
+    duration: number, 
+    bridgePrivateKey: string
+  ): Promise<ENSRegistrationResult> {
+    try {
+      const { ethers } = await import('ethers');
+      
+      // Create provider for Ethereum mainnet
+      const provider = new ethers.JsonRpcProvider('https://eth.llamarpc.com');
+      
+      // Create wallet from bridge private key
+      const bridgeWallet = new ethers.Wallet(bridgePrivateKey, provider);
+      
+      console.log('🔧 Bridge wallet address:', bridgeWallet.address);
+      
+      // Check bridge wallet balance
+      const balance = await provider.getBalance(bridgeWallet.address);
+      const balanceEth = ethers.formatEther(balance);
+      console.log('🔧 Bridge wallet balance:', balanceEth, 'ETH');
+      
+      if (balance === 0n) {
+        return {
+          success: false,
+          error: `Bridge wallet has no ETH balance. Please fund the bridge wallet (${bridgeWallet.address}) with ETH for gas fees.`
+        };
+      }
+
+      // Register domain using ENS utils with bridge wallet as signer
+      const durationInSeconds = duration * 365 * 24 * 60 * 60; // Convert years to seconds
+      const result = await registerENSDomain(domain, walletAddress, durationInSeconds, bridgeWallet);
+
+      if (result.success) {
+        console.log('✅ ENS domain registered successfully using bridge wallet');
+        return {
+          success: true,
+          transactionHash: result.txHash,
+          domain: domain,
+          owner: walletAddress
+        };
+      } else {
+        return {
+          success: false,
+          error: result.error || 'ENS registration failed'
+        };
+      }
+
+    } catch (error) {
+      console.error('ENS registration with bridge key failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'ENS registration with bridge key failed'
       };
     }
   }
@@ -286,6 +353,5 @@ class ENSRegistrationService {
 // Export singleton instance
 export const ensRegistrationService = new ENSRegistrationService();
 
-// Export types for use in other files
-export type { ENSPricing, ENSRegistrationParams, ENSRegistrationResult };
+// Types are already exported above in the interface declarations
 

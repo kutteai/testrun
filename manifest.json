@@ -11,12 +11,17 @@
     "notifications",
     "clipboardWrite",
     "background",
-    "tabs"
+    "tabs",
+    "windows",
+    "unlimitedStorage",
+    "idle"
   ],
-  "optional_permissions": [],
+  "optional_permissions": [
+    "history",
+    "bookmarks"
+  ],
   "host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "<all_urls>"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -37,7 +42,7 @@
         "<all_urls>"
       ],
       "js": [
-        "content.js"
+        "content-script-enhanced.js"
       ],
       "run_at": "document_start",
       "all_frames": true
@@ -46,9 +51,12 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "injected.js",
         "assets/*",
-        "expand.html"
+        "expand.html",
+        "expand.js",
+        "expand.css",
+        "injected/provider.js",
+        "popup.html"
       ],
       "matches": [
         "<all_urls>"
@@ -63,12 +71,7 @@
     "128": "assets/icon128.png"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
-  },
-  "externally_connectable": {
-    "matches": [
-      "<all_urls>"
-    ]
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
   },
   "commands": {
     "_execute_action": {
@@ -78,5 +81,19 @@
       },
       "description": "Open PayCio Wallet"
     }
+  },
+  "minimum_chrome_version": "88",
+  "homepage_url": "https://paycio-wallet.com",
+  "author": "PayCio Wallet Team",
+  "short_name": "PayCio",
+  "offline_enabled": true,
+  "incognito": "split",
+  "externally_connectable": {
+    "matches": [
+      "https://*.paycio-wallet.com/*",
+      "https://*.paycio.com/*",
+      "<all_urls>"
+    ],
+    "accepts_tls_channel_id": true
   }
 }
