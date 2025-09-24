@@ -311,8 +311,8 @@ export class AddressBook {
         // Industry standard XRP address validation (Base58, starts with 'r')
         return /^r[a-km-zA-HJ-NP-Z1-9]{25,34}$/.test(address);
       case 'ton':
-        // Industry standard TON address validation (Base64, starts with 'UQ')
-        return /^UQ[A-Za-z0-9+/]{40,50}$/.test(address);
+        // Industry standard TON address validation (Base64, starts with 'EQ' or 'UQ')
+        return /^(EQ|UQ)[A-Za-z0-9_-]{44,48}$/.test(address);
       default:
         return false; // Reject unknown networks
     }

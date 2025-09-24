@@ -358,7 +358,7 @@ export class AddressDerivationService {
       litecoin: /^[LM][1-9A-HJ-NP-Za-km-z]{25,34}$/,
       solana: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
       tron: /^T[1-9A-HJ-NP-Za-km-z]{33}$/,
-      ton: /^(EQ|UQ)[A-Za-z0-9_-]{46}$/,
+      ton: /^(EQ|UQ)[A-Za-z0-9_-]{44,48}$/,
       xrp: /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/
     };
 
@@ -397,4 +397,5 @@ export class AddressDerivationService {
     return addresses;
   }
 }
+
 

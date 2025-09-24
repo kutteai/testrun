@@ -63,6 +63,7 @@
         <button onclick="testWindowEthereum()">Test window.ethereum</button>
         <button onclick="testEIP6963()">Test EIP-6963 Discovery</button>
         <button onclick="testProviderMethods()">Test Provider Methods</button>
+        <button onclick="triggerEIP6963Request()">Trigger EIP-6963 Request</button>
         <button onclick="clearLog()">Clear Log</button>
         <div id="provider-results"></div>
     </div>
@@ -70,6 +71,8 @@
     <div class="test-section">
         <h3>🔗 Connection Tests</h3>
         <button onclick="testConnection()">Test Wallet Connection</button>
+        <button onclick="testConnectionWithPayCio()">Test PayCio Connection</button>
+        <button onclick="testConnectionWithMetaMask()">Test MetaMask Connection</button>
         <button onclick="testAccounts()">Get Accounts</button>
         <button onclick="testChainId()">Get Chain ID</button>
         <div id="connection-results"></div>
@@ -84,6 +87,21 @@
         let logElement = document.getElementById('log');
         let providerResults = document.getElementById('provider-results');
         let connectionResults = document.getElementById('connection-results');
+        let eip6963Providers = [];
+
+        // Set up EIP-6963 listener IMMEDIATELY - before any other code
+        const seenProviders = new Set();
+        window.addEventListener('eip6963:announceProvider', (event) => {
+            const { info, provider } = event.detail;
+            const key = `${info.name}-${info.uuid}`;
+            
+            if (!seenProviders.has(key)) {
+                seenProviders.add(key);
+                eip6963Providers.push({ info, provider });
+                console.log('🔔 EIP-6963 provider announced:', info.name, info.uuid);
+                log(`🔔 EIP-6963 provider announced: ${info.name} (${info.uuid})`, 'success');
+            }
+        });
 
         function log(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
@@ -96,6 +114,12 @@
             logElement.textContent = '';
             providerResults.innerHTML = '';
             connectionResults.innerHTML = '';
+        }
+
+        function triggerEIP6963Request() {
+            log('Manually triggering EIP-6963 request...');
+            window.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
+            log('EIP-6963 request sent. Check console for announcements.', 'info');
         }
 
         function addResult(container, title, content, type = 'info') {
@@ -139,17 +163,7 @@
         // Test 2: EIP-6963 Discovery
         function testEIP6963() {
             log('Testing EIP-6963 provider discovery...');
-            
-            const providers = [];
-            
-            // Listen for provider announcements
-            const handleProvider = (event) => {
-                const { info, provider } = event.detail;
-                providers.push({ info, provider });
-                log(`✅ EIP-6963 provider found: ${info.name} (${info.uuid})`, 'success');
-            };
-            
-            window.addEventListener('eip6963:announceProvider', handleProvider);
+            log(`Current providers detected: ${eip6963Providers.length}`, 'info');
             
             // Request providers multiple times to catch all announcements
             window.dispatchEvent(new CustomEvent('eip6963:requestProvider'));
@@ -165,9 +179,9 @@
             
             // Check after a longer delay to catch all announcements
             setTimeout(() => {
-                if (providers.length > 0) {
-                    let info = `<strong>Found ${providers.length} provider(s):</strong><br>`;
-                    providers.forEach((p, i) => {
+                if (eip6963Providers.length > 0) {
+                    let info = `<strong>Found ${eip6963Providers.length} provider(s):</strong><br>`;
+                    eip6963Providers.forEach((p, i) => {
                         info += `
                             <strong>Provider ${i + 1}:</strong><br>
                             • Name: ${p.info.name}<br>
@@ -182,8 +196,6 @@
                     log('💡 This might be because the provider was injected before the listener was set up', 'warning');
                     addResult(providerResults, 'EIP-6963 Discovery', 'No providers announced via EIP-6963. Try refreshing the page and testing again.', 'error');
                 }
-                
-                window.removeEventListener('eip6963:announceProvider', handleProvider);
             }, 2000);
         }
 
@@ -233,9 +245,30 @@
             
             try {
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                if (accounts && accounts.length > 0) {
-                    log(`✅ Connected successfully! Accounts: ${accounts.join(', ')}`, 'success');
-                    addResult(connectionResults, 'Connection Test', `Connected with accounts: ${accounts.join(', ')}`, 'success');
+                log(`🔍 Raw accounts response:`, 'info');
+                log(`Type: ${typeof accounts}, Is Array: ${Array.isArray(accounts)}`, 'info');
+                log(`Value: ${JSON.stringify(accounts)}`, 'info');
+                
+                // Handle different response formats
+                let accountList = [];
+                if (Array.isArray(accounts)) {
+                    accountList = accounts;
+                } else if (accounts && typeof accounts === 'object') {
+                    // If it's an object, try to extract accounts
+                    if (accounts.accounts && Array.isArray(accounts.accounts)) {
+                        accountList = accounts.accounts;
+                    } else if (accounts.result && Array.isArray(accounts.result)) {
+                        accountList = accounts.result;
+                    } else {
+                        accountList = [accounts];
+                    }
+                } else if (accounts) {
+                    accountList = [accounts];
+                }
+                
+                if (accountList.length > 0) {
+                    log(`✅ Connected successfully! Accounts: ${accountList.join(', ')}`, 'success');
+                    addResult(connectionResults, 'Connection Test', `Connected with accounts: ${accountList.join(', ')}`, 'success');
                 } else {
                     log('⚠️ Connection successful but no accounts returned', 'warning');
                     addResult(connectionResults, 'Connection Test', 'Connected but no accounts available', 'warning');
@@ -270,6 +303,102 @@
             }
         }
 
+        // Test PayCio Connection
+        async function testConnectionWithPayCio() {
+            log('Testing PayCio wallet connection...');
+            
+            // Find PayCio provider from EIP-6963 providers
+            const paycioProvider = eip6963Providers.find(p => p.info.name === 'Paycio Wallet');
+            
+            if (!paycioProvider) {
+                log('❌ PayCio provider not found', 'error');
+                addResult(connectionResults, 'PayCio Connection', 'PayCio provider not found', 'error');
+                return;
+            }
+            
+            try {
+                const accounts = await paycioProvider.provider.request({ method: 'eth_requestAccounts' });
+                log(`🔍 PayCio accounts response:`, 'info');
+                log(`Type: ${typeof accounts}, Is Array: ${Array.isArray(accounts)}`, 'info');
+                log(`Value: ${JSON.stringify(accounts)}`, 'info');
+                
+                // Handle different response formats
+                let accountList = [];
+                if (Array.isArray(accounts)) {
+                    accountList = accounts;
+                } else if (accounts && typeof accounts === 'object') {
+                    if (accounts.accounts && Array.isArray(accounts.accounts)) {
+                        accountList = accounts.accounts;
+                    } else if (accounts.result && Array.isArray(accounts.result)) {
+                        accountList = accounts.result;
+                    } else {
+                        accountList = [accounts];
+                    }
+                } else if (accounts) {
+                    accountList = [accounts];
+                }
+                
+                if (accountList.length > 0) {
+                    log(`✅ PayCio connected successfully! Accounts: ${accountList.join(', ')}`, 'success');
+                    addResult(connectionResults, 'PayCio Connection', `Connected with accounts: ${accountList.join(', ')}`, 'success');
+                } else {
+                    log('⚠️ PayCio connection successful but no accounts returned', 'warning');
+                    addResult(connectionResults, 'PayCio Connection', 'Connected but no accounts available', 'warning');
+                }
+            } catch (error) {
+                log(`❌ PayCio connection failed: ${error.message}`, 'error');
+                addResult(connectionResults, 'PayCio Connection', `Connection failed: ${error.message}`, 'error');
+            }
+        }
+
+        // Test MetaMask Connection
+        async function testConnectionWithMetaMask() {
+            log('Testing MetaMask wallet connection...');
+            
+            // Find MetaMask provider from EIP-6963 providers
+            const metamaskProvider = eip6963Providers.find(p => p.info.name === 'MetaMask');
+            
+            if (!metamaskProvider) {
+                log('❌ MetaMask provider not found', 'error');
+                addResult(connectionResults, 'MetaMask Connection', 'MetaMask provider not found', 'error');
+                return;
+            }
+            
+            try {
+                const accounts = await metamaskProvider.provider.request({ method: 'eth_requestAccounts' });
+                log(`🔍 MetaMask accounts response:`, 'info');
+                log(`Type: ${typeof accounts}, Is Array: ${Array.isArray(accounts)}`, 'info');
+                log(`Value: ${JSON.stringify(accounts)}`, 'info');
+                
+                // Handle different response formats
+                let accountList = [];
+                if (Array.isArray(accounts)) {
+                    accountList = accounts;
+                } else if (accounts && typeof accounts === 'object') {
+                    if (accounts.accounts && Array.isArray(accounts.accounts)) {
+                        accountList = accounts.accounts;
+                    } else if (accounts.result && Array.isArray(accounts.result)) {
+                        accountList = accounts.result;
+                    } else {
+                        accountList = [accounts];
+                    }
+                } else if (accounts) {
+                    accountList = [accounts];
+                }
+                
+                if (accountList.length > 0) {
+                    log(`✅ MetaMask connected successfully! Accounts: ${accountList.join(', ')}`, 'success');
+                    addResult(connectionResults, 'MetaMask Connection', `Connected with accounts: ${accountList.join(', ')}`, 'success');
+                } else {
+                    log('⚠️ MetaMask connection successful but no accounts returned', 'warning');
+                    addResult(connectionResults, 'MetaMask Connection', 'Connected but no accounts available', 'warning');
+                }
+            } catch (error) {
+                log(`❌ MetaMask connection failed: ${error.message}`, 'error');
+                addResult(connectionResults, 'MetaMask Connection', `Connection failed: ${error.message}`, 'error');
+            }
+        }
+
         // Test 6: Get Chain ID
         async function testChainId() {
             log('Testing get chain ID...');
@@ -289,13 +418,7 @@
             }
         }
 
-        // Set up continuous EIP-6963 listener
-        const eip6963Providers = [];
-        window.addEventListener('eip6963:announceProvider', (event) => {
-            const { info, provider } = event.detail;
-            eip6963Providers.push({ info, provider });
-            log(`🔔 EIP-6963 provider announced: ${info.name} (${info.uuid})`, 'success');
-        });
+        // EIP-6963 listener is already set up at the top of the script
 
         // Auto-run basic tests on page load
         window.addEventListener('load', () => {

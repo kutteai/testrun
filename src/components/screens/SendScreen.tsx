@@ -282,8 +282,8 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           break;
           
         case 'ton':
-          // TON address validation (Base64, starts with 'UQ')
-          const tonAddressRegex = /^UQ[A-Za-z0-9+/]{40,50}$/;
+          // TON address validation (Base64, starts with 'EQ' or 'UQ')
+          const tonAddressRegex = /^(EQ|UQ)[A-Za-z0-9_-]{44,48}$/;
           isValid = tonAddressRegex.test(value);
           break;
           

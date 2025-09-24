@@ -465,7 +465,7 @@ class WalletManager {
       const fullBytes = [...addressBytes, ...checksumBytes];
       
       let address = 'EQ';
-      for (let i = 0; i < 44; i++) {
+      for (let i = 0; i < 46; i++) {
         const index = fullBytes[i % fullBytes.length] % base64urlChars.length;
         address += base64urlChars[index];
       }
@@ -651,6 +651,16 @@ class WalletManager {
         
         // Update current network
         const updatedWallet = { ...wallet, currentNetwork: networkId, address };
+        
+        // Also update the current account's addresses if it exists
+        if (wallet.accounts && wallet.accounts.length > 0) {
+          const currentAccount = wallet.accounts.find(acc => acc.isActive) || wallet.accounts[0];
+          if (currentAccount && typeof currentAccount === 'object') {
+            currentAccount.addresses = { ...currentAccount.addresses, [networkId]: address };
+            currentAccount.address = address; // Update the main address field too
+          }
+        }
+        
         await storage.local.set({ wallet: updatedWallet });
         
         return { 
@@ -676,6 +686,15 @@ class WalletManager {
         currentNetwork: networkId,
         address: newAddress
       };
+      
+      // Also update the current account's addresses if it exists
+      if (wallet.accounts && wallet.accounts.length > 0) {
+        const currentAccount = wallet.accounts.find(acc => acc.isActive) || wallet.accounts[0];
+        if (currentAccount && typeof currentAccount === 'object') {
+          currentAccount.addresses = { ...currentAccount.addresses, [networkId]: newAddress };
+          currentAccount.address = newAddress; // Update the main address field too
+        }
+      }
       
       await storage.local.set({ wallet: updatedWallet });
       
@@ -1106,13 +1125,13 @@ class AddressDerivationService {
       const fullBytes = [...addressBytes, ...checksumBytes];
       
       let address = 'EQ';
-      for (let i = 0; i < 44; i++) {
+      for (let i = 0; i < 46; i++) {
         const index = fullBytes[i % fullBytes.length] % base64urlChars.length;
         address += base64urlChars[index];
       }
       
       // Validate format
-      if (!address.match(/^EQ[A-Za-z0-9_-]{44}$/)) {
+      if (!address.match(/^EQ[A-Za-z0-9_-]{44,48}$/)) {
         throw new Error('Generated invalid TON address format');
       }
       
@@ -1189,7 +1208,7 @@ class AddressDerivationService {
       litecoin: /^[LM][1-9A-HJ-NP-Za-km-z]{25,34}$/,
       solana: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/,
       tron: /^T[1-9A-HJ-NP-Za-km-z]{33}$/,
-      ton: /^(EQ|UQ)[A-Za-z0-9_-]{46}$/,
+      ton: /^(EQ|UQ)[A-Za-z0-9_-]{44,48}$/,
       xrp: /^r[1-9A-HJ-NP-Za-km-z]{25,34}$/
     };
 
@@ -2665,6 +2684,32 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
     }
   },
 
+  'GET_WALLET_ADDRESS': async () => {
+    try {
+      const accounts = await WalletManager.getAccounts();
+      if (accounts && accounts.length > 0) {
+        return { success: true, address: accounts[0].address };
+      } else {
+        return { success: false, error: 'No wallet address found' };
+      }
+    } catch (error) {
+      console.error('GET_WALLET_ADDRESS error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  'SHOW_UNLOCK_POPUP': async () => {
+    try {
+      // This would typically show the unlock popup
+      // For now, return success to indicate the popup was shown
+      console.log('🔍 SHOW_UNLOCK_POPUP handler called');
+      return { success: true, result: { popupShown: true } };
+    } catch (error) {
+      console.error('SHOW_UNLOCK_POPUP error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   'CREATE_WALLET': async (message) => {
     try {
       const { password, seedPhrase, name } = message;
@@ -2877,6 +2922,85 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
     } catch (error) {
       console.error(`SWITCH_NETWORK error for ${message.networkId}:`, error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  'PAYCIO_SWITCH_TO_TON': async (message) => {
+    try {
+      console.log('🔍 PAYCIO_SWITCH_TO_TON handler called');
+      
+      const result = await WalletManager.switchNetwork('ton');
+      console.log('✅ TON network switch result:', result);
+      
+      return { success: true, result };
+
+    } catch (error) {
+      console.error('PAYCIO_SWITCH_TO_TON error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  'PAYCIO_SWITCH_TO_ETHEREUM': async (message) => {
+    try {
+      console.log('🔍 PAYCIO_SWITCH_TO_ETHEREUM handler called');
+      
+      const result = await WalletManager.switchNetwork('ethereum');
+      console.log('✅ Ethereum network switch result:', result);
+      
+      return { success: true, result };
+
+    } catch (error) {
+      console.error('PAYCIO_SWITCH_TO_ETHEREUM error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  'PAYCIO_SWITCH_NETWORK': async (message) => {
+    try {
+      const { chainId } = message;
+      console.log(`🔍 PAYCIO_SWITCH_NETWORK handler called for chainId: ${chainId}`);
+      
+      if (!chainId) {
+        throw new Error('Chain ID is required');
+      }
+
+      // Convert chain ID to network name
+      let networkId = 'ethereum'; // default
+      if (chainId === '0x28' || chainId === '40') {
+        networkId = 'ton';
+      } else if (chainId === '0x1' || chainId === '1') {
+        networkId = 'ethereum';
+      } else if (chainId === '0x38' || chainId === '56') {
+        networkId = 'bsc';
+      } else if (chainId === '0x89' || chainId === '137') {
+        networkId = 'polygon';
+      }
+
+      const result = await WalletManager.switchNetwork(networkId);
+      return { success: true, result };
+
+    } catch (error) {
+      console.error('PAYCIO_SWITCH_NETWORK error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  'PAYCIO_ADD_NETWORK': async (message) => {
+    try {
+      const { networkInfo } = message;
+      console.log('🔍 PAYCIO_ADD_NETWORK handler called for:', networkInfo);
+      
+      if (!networkInfo) {
+        throw new Error('Network info is required');
+      }
+
+      // For now, just return success - network addition logic can be implemented later
+      console.log('✅ Network addition request received:', networkInfo.chainName);
+      return { success: true, result: { added: true } };
+
+    } catch (error) {
+      console.error('PAYCIO_ADD_NETWORK error:', error);
       return { success: false, error: error.message };
     }
   },
@@ -3115,7 +3239,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
           const fullBytes = [...addressBytes, ...checksumBytes];
           
           address = 'EQ';
-          for (let i = 0; i < 44; i++) {
+          for (let i = 0; i < 46; i++) {
             const index = fullBytes[i % fullBytes.length] % base64urlChars.length;
             address += base64urlChars[index];
           }
@@ -3151,7 +3275,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
           isValid = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address);
           break;
         case 'ton':
-          isValid = /^(EQ|UQ)[A-Za-z0-9_-]{46}$/.test(address);
+          isValid = /^(EQ|UQ)[A-Za-z0-9_-]{44,48}$/.test(address);
           break;
         case 'xrp':
           isValid = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/.test(address);
@@ -3168,6 +3292,15 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
       const updatedAddresses = { ...wallet.addresses, [networkId]: address };
       const updatedWallet = { ...wallet, addresses: updatedAddresses };
+      
+      // Also update the current account's addresses if it exists
+      if (wallet.accounts && wallet.accounts.length > 0) {
+        const currentAccount = wallet.accounts.find(acc => acc.isActive) || wallet.accounts[0];
+        if (currentAccount && typeof currentAccount === 'object') {
+          currentAccount.addresses = { ...currentAccount.addresses, [networkId]: address };
+          currentAccount.address = address; // Update the main address field too
+        }
+      }
       
       await storage.local.set({ wallet: updatedWallet });
       
@@ -3320,6 +3453,65 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   handleMessage();
   return true;
+});
+
+// Handle messages from injected scripts (content script communication)
+window.addEventListener('message', async (event) => {
+  // Only accept messages from the same origin
+  if (event.source !== window) return;
+  
+  const { type, id } = event.data;
+  
+  if (!type || !id) return;
+  
+  try {
+    console.log('🔍 Background received message from injected script:', type);
+    
+    let response;
+    
+    switch (type) {
+      case 'PAYCIO_SWITCH_TO_TON':
+        response = await messageHandlers['PAYCIO_SWITCH_TO_TON'](event.data);
+        break;
+      case 'PAYCIO_SWITCH_TO_ETHEREUM':
+        response = await messageHandlers['PAYCIO_SWITCH_TO_ETHEREUM'](event.data);
+        break;
+      case 'PAYCIO_SWITCH_NETWORK':
+        response = await messageHandlers['PAYCIO_SWITCH_NETWORK'](event.data);
+        break;
+      case 'PAYCIO_ADD_NETWORK':
+        response = await messageHandlers['PAYCIO_ADD_NETWORK'](event.data);
+        break;
+      case 'PAYCIO_CHECK_WALLET_STATUS':
+        response = await messageHandlers['GET_WALLET_STATUS'](event.data);
+        break;
+      case 'PAYCIO_GET_WALLET_ADDRESS':
+        response = await messageHandlers['GET_WALLET_ADDRESS'](event.data);
+        break;
+      case 'PAYCIO_SHOW_UNLOCK_POPUP':
+        response = await messageHandlers['SHOW_UNLOCK_POPUP'](event.data);
+        break;
+      default:
+        console.log('Unknown message type from injected script:', type);
+        return;
+    }
+    
+    // Send response back to injected script
+    window.postMessage({
+      type: `${type}_RESPONSE`,
+      id: id,
+      ...response
+    }, '*');
+    
+  } catch (error) {
+    console.error('Error handling injected script message:', error);
+    window.postMessage({
+      type: `${type}_RESPONSE`,
+      id: id,
+      success: false,
+      error: error.message
+    }, '*');
+  }
 });
 
 // ============================================================================
