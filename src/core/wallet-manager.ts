@@ -1353,21 +1353,22 @@ export class WalletManager {
       // Encrypt the private key for this account
       const encryptedPrivateKey = await encryptData(privateKey, password);
       
-      // Generate addresses for EVM-compatible networks only
-      // Private keys can only generate EVM addresses, not Bitcoin/Solana/etc.
-      const evmNetworks = ['ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche'];
+      // Generate addresses for ALL supported networks using the private key
+      const { deriveAddressesFromPrivateKey, getSupportedNetworksForPrivateKey } = await import('../utils/private-key-address-utils');
+      const supportedNetworks = getSupportedNetworksForPrivateKey();
       const addresses: Record<string, string> = {};
       const balances: Record<string, string> = {};
       const nonces: Record<string, number> = {};
       
-      // Generate addresses for all EVM networks using the same private key
-      for (const networkId of evmNetworks) {
+      // Generate addresses for all supported networks using the private key
+      const derivationResults = await deriveAddressesFromPrivateKey(privateKey, supportedNetworks);
+      
+      for (const [networkId, result] of Object.entries(derivationResults)) {
         try {
-          const { importFromPrivateKey } = await import('../utils/crypto-utils');
-          const networkWalletData = importFromPrivateKey(privateKey, networkId);
-          addresses[networkId] = networkWalletData.address;
+          addresses[networkId] = result.address;
           balances[networkId] = '0';
           nonces[networkId] = 0;
+          console.log(`✅ Generated ${networkId} address: ${result.address}`);
         } catch (networkError) {
           console.warn(`Failed to generate ${networkId} address for private key account:`, networkError);
         }
@@ -1380,13 +1381,13 @@ export class WalletManager {
         privateKey: walletData.privateKey,
         publicKey: walletData.publicKey,
         derivationPath: walletData.derivationPath,
-        networks: evmNetworks, // Limited to EVM networks only
+        networks: supportedNetworks, // Now supports ALL networks
         balances,
         nonces,
         createdAt: Date.now(),
         encryptedSeedPhrase: encryptedPrivateKey, // Store encrypted private key in this field
         isActive: false,
-        accountType: 'private-key' // Mark as private key account
+        accountType: 'private-key' // Mark as private key account (now supports all networks)
       };
 
       // Add to wallet
