@@ -1,4 +1,4 @@
-import { getConfig } from '../config';
+import { getConfig } from '../utils/config-injector';
 
 export interface TokenSearchResult {
   symbol: string;

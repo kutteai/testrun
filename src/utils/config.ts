@@ -4,6 +4,9 @@ export interface Config {
   COINGECKO_API_KEY?: string;
   ENS_RPC_URL?: string;
   ETHERSCAN_API_KEY?: string;
+  COINMARKETCAP_API_KEY?: string;
+  MORALIS_API_KEY?: string;
+  DEXSCREENER_API_KEY?: string;
 }
 
 // Get configuration from environment variables
@@ -31,7 +34,10 @@ export function getConfig(): Config {
     INFURA_PROJECT_ID: getEnvVar('INFURA_PROJECT_ID'),
     COINGECKO_API_KEY: getEnvVar('COINGECKO_API_KEY'),
     ENS_RPC_URL: getEnvVar('ENS_RPC_URL'),
-    ETHERSCAN_API_KEY: getEnvVar('ETHERSCAN_API_KEY')
+    ETHERSCAN_API_KEY: getEnvVar('ETHERSCAN_API_KEY'),
+    COINMARKETCAP_API_KEY: getEnvVar('COINMARKETCAP_API_KEY'),
+    MORALIS_API_KEY: getEnvVar('MORALIS_API_KEY'),
+    DEXSCREENER_API_KEY: getEnvVar('DEXSCREENER_API_KEY')
   };
 }
 

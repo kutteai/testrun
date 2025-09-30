@@ -35,6 +35,8 @@ export function initializeConfig() {
       OPTIMISMSCAN_API_KEY: '',
       COINGECKO_API_KEY: '',
       COINMARKETCAP_API_KEY: '',
+      MORALIS_API_KEY: '',
+      DEXSCREENER_API_KEY: '',
       OPENSEA_API_KEY: '',
       ALCHEMY_NFT_API_KEY: '',
       DEFI_PULSE_API_KEY: '',
