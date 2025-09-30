@@ -13,22 +13,26 @@ export class HardwareWalletManager {
   }
 
   // Device detection and support
-  async checkSupport(): Promise<{ ledger: boolean; trezor: boolean }> {
+  async checkSupport(): Promise<{ ledger: boolean; trezor: boolean; lattice: boolean; qr: boolean }> {
     return {
       ledger: true, // Assume support for now
-      trezor: true
+      trezor: true,
+      lattice: true,
+      qr: true
     };
   }
 
   getAvailableWalletTypes(): Array<{ type: string; supported: boolean; detected: boolean }> {
     return [
       { type: 'ledger', supported: true, detected: false },
-      { type: 'trezor', supported: true, detected: false }
+      { type: 'trezor', supported: true, detected: false },
+      { type: 'lattice', supported: true, detected: false },
+      { type: 'qr', supported: true, detected: false }
     ];
   }
 
   isSupported(type: string): boolean {
-    return ['ledger', 'trezor'].includes(type);
+    return ['ledger', 'trezor', 'lattice', 'qr'].includes(type);
   }
 
   // Device management
@@ -48,8 +52,8 @@ export class HardwareWalletManager {
   async requestUSBPermissions(): Promise<{ success: boolean; error?: string }> {
     try {
       // Request USB permissions
-      if (navigator.usb) {
-        await navigator.usb.requestDevice({ filters: [] });
+      if ((navigator as any).usb) {
+        await (navigator as any).usb.requestDevice({ filters: [] });
         return { success: true };
       }
       return { success: false, error: 'USB API not available' };
@@ -63,11 +67,15 @@ export class HardwareWalletManager {
   }
 
   // Connection management
-  async connectToDevice(type: 'ledger' | 'trezor'): Promise<any> {
+  async connectToDevice(type: 'ledger' | 'trezor' | 'lattice' | 'qr'): Promise<any> {
     if (type === 'ledger') {
       return this.manager.connectLedger();
     } else if (type === 'trezor') {
       return this.manager.connectTrezor();
+    } else if (type === 'lattice') {
+      return this.manager.connectLattice();
+    } else if (type === 'qr') {
+      return this.manager.connectQRWallet();
     }
     throw new Error(`Unsupported device type: ${type}`);
   }

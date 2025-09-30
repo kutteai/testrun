@@ -72,8 +72,8 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
             name: 'Lattice',
             icon: <Shield className="w-5 h-5" />,
             selected: selectedWallet === 'lattice',
-            supported: false, // Lattice not yet implemented
-            detected: false,
+            supported: availableTypes.find(t => t.type === 'lattice')?.supported || false,
+            detected: availableTypes.find(t => t.type === 'lattice')?.detected || false,
             connecting: false,
             connected: false
           },
@@ -82,8 +82,8 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
             name: 'QR-based',
             icon: <QrCode className="w-5 h-5" />,
             selected: selectedWallet === 'qr',
-            supported: false, // QR not yet implemented
-            detected: false,
+            supported: availableTypes.find(t => t.type === 'qr')?.supported || false,
+            detected: availableTypes.find(t => t.type === 'qr')?.detected || false,
             connecting: false,
             connected: false
           }
@@ -331,9 +331,9 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
       case 'trezor':
         return 'Plug your Trezor directly into your computer, unlock it, and ensure it\'s ready.';
       case 'lattice':
-        return 'Lattice hardware wallet support is coming soon.';
+        return 'Ensure your Lattice device is connected to WiFi and ready for pairing.';
       case 'qr':
-        return 'QR-based hardware wallet support is coming soon.';
+        return 'Scan the QR code with your mobile wallet app to connect.';
       default:
         return 'Connect your hardware wallet';
     }

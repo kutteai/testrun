@@ -268,7 +268,7 @@ export interface WalletContextType {
   getBalance: (address: string, network: string) => Promise<string>;
   updateAllBalances: () => Promise<void>;
   initializeWallet: () => Promise<void>;
-  addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
+  addHardwareWallet: (type: 'ledger' | 'trezor' | 'lattice' | 'qr', address: string, derivationPath: string) => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
   addAccount: (password: string, accountName?: string) => Promise<{account: any, seedPhrase: string}>;
   addAccountFromSeedPhrase: (seedPhrase: string, password: string, accountName?: string) => Promise<any>;

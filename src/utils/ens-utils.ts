@@ -6,15 +6,9 @@ function getConfig() {
     return window.CONFIG;
   }
   
-  // Use environment variables or fallback to public endpoints
-  const config = {
-    ENS_RPC_URL: process.env.INFURA_PROJECT_ID 
-      ? `https://mainnet.infura.io/v3/${process.env.INFURA_PROJECT_ID}`
-      : 'https://ethereum.publicnode.com',
-    INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID || ''
-  };
-  
-  return config;
+  // Use config-injector for consistent configuration
+  const { getConfig: getConfigFromInjector } = require('./config-injector');
+  return getConfigFromInjector();
 }
 
 // ENS Registry Contract Address

@@ -41,6 +41,7 @@ export interface TokenSearchSuggestion {
   change24h?: number;
   marketCap?: number;
   volume24h?: number;
+  decimals?: number;
   tags?: string[];
   verified?: boolean;
   // Non-EVM chain support
@@ -1934,18 +1935,107 @@ function deduplicateTokens(tokens: TokenSearchSuggestion[]): TokenSearchSuggesti
 
 // Individual fetch functions for different sources
 async function fetchTokenFromMoralis(address: string, network: string): Promise<TokenSearchSuggestion | null> {
-  // Implementation similar to searchMoralisAPI but for single token
-  return null; // Placeholder
+  try {
+    const config = getConfig();
+    if (!config.MORALIS_API_KEY) {
+      return null;
+    }
+
+    const response = await fetch(`https://deep-index.moralis.io/api/v2.2/erc20/metadata?chain=${network}&addresses[]=${address}`, {
+      headers: {
+        'X-API-Key': config.MORALIS_API_KEY,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.result && data.result.length > 0) {
+      const token = data.result[0];
+      return {
+        symbol: token.symbol,
+        name: token.name,
+        address: token.address,
+        network: network,
+        logo: token.logo,
+        isPopular: false,
+        verified: true,
+        decimals: token.decimals
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Moralis token fetch failed:', error);
+    return null;
+  }
 }
 
 async function fetchTokenFromDexScreener(address: string, network: string): Promise<TokenSearchSuggestion | null> {
-  // Implementation similar to searchDexScreener but for single token
-  return null; // Placeholder
+  try {
+    const response = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${address}`);
+    
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.pairs && data.pairs.length > 0) {
+      const pair = data.pairs[0];
+      return {
+        symbol: pair.baseToken.symbol,
+        name: pair.baseToken.name,
+        address: pair.baseToken.address,
+        network: network,
+        logo: pair.baseToken.image,
+        isPopular: false,
+        verified: true,
+        price: pair.priceUsd,
+        decimals: pair.baseToken.decimals
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('DexScreener token fetch failed:', error);
+    return null;
+  }
 }
 
 async function fetchTokenFromCoinGecko(address: string, network: string): Promise<TokenSearchSuggestion | null> {
-  // Implementation similar to searchCoinGeckoV3 but for single token
-  return null; // Placeholder
+  try {
+    const config = getConfig();
+    const apiKey = config.COINGECKO_API_KEY ? `&x-cg-demo-api-key=${config.COINGECKO_API_KEY}` : '';
+    
+    const response = await fetch(`https://api.coingecko.com/api/v3/coins/${network}/contract/${address}${apiKey}`);
+    
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = await response.json();
+    if (data.id) {
+      return {
+        symbol: data.symbol.toUpperCase(),
+        name: data.name,
+        address: address,
+        network: network,
+        logo: data.image?.small,
+        isPopular: false,
+        verified: true,
+        price: data.market_data?.current_price?.usd,
+        decimals: 18 // Default, would need to fetch from contract
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error('CoinGecko token fetch failed:', error);
+    return null;
+  }
 }
 
 // Export all enhanced functions

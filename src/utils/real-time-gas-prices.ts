@@ -1,5 +1,6 @@
 // Real-time gas price fetcher for multiple networks
 // Uses external APIs to get accurate gas prices with no mock data fallbacks
+import { getConfig } from './config-injector';
 
 export interface GasPriceData {
   network: string;

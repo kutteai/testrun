@@ -2554,7 +2554,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   };
 
   // Add hardware wallet
-  const addHardwareWallet = async (type: 'ledger' | 'trezor', address: string, derivationPath: string): Promise<void> => {
+  const addHardwareWallet = async (type: 'ledger' | 'trezor' | 'lattice' | 'qr', address: string, derivationPath: string): Promise<void> => {
     try {
       const { HardwareWalletManager } = await import('../utils/hardware-wallet');
       const hardwareWalletManager = new HardwareWalletManager();

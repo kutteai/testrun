@@ -1,5 +1,6 @@
 // Backend API service for PayCio Wallet
 // This service handles all external API calls through our Node.js backend
+import { getConfig } from '../utils/config-injector';
 
 interface BackendConfig {
   baseUrl: string;
@@ -12,7 +13,7 @@ class BackendAPI {
   constructor() {
     this.config = {
       // Use deployed Netlify Functions
-      baseUrl: process.env.REACT_APP_BACKEND_URL || 'https://ext-wallet.netlify.app/.netlify/functions',
+      baseUrl: getConfig().REACT_APP_BACKEND_URL || 'https://ext-wallet.netlify.app/.netlify/functions',
       timeout: 30000
     };
   }

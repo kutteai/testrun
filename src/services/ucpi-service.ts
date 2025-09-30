@@ -1,5 +1,6 @@
 // UCPI Service - Hybrid Global/Local Implementation
 import { storage } from '../utils/storage-utils';
+import { getConfig } from '../utils/config-injector';
 
 export interface UCPIData {
   id: string;
@@ -218,9 +219,12 @@ class UCPService {
     }
   }
 
-  // Get network information from domain extension
+  // Enhanced network detection with multi-chain support
   private getNetworkFromDomain(ucpiId: string): { network: string; rpcUrl: string; registryAddress?: string } | null {
-    if (ucpiId.endsWith('.eth')) {
+    const lowerUcpiId = ucpiId.toLowerCase();
+    
+    // Ethereum Name Service (.eth)
+    if (lowerUcpiId.endsWith('.eth')) {
       return {
         network: 'ethereum',
         rpcUrl: 'https://eth.llamarpc.com',
@@ -228,35 +232,98 @@ class UCPService {
       };
     }
     
-    if (ucpiId.endsWith('.bnb')) {
+    // Space ID (.bnb) - BSC
+    if (lowerUcpiId.endsWith('.bnb')) {
       return {
-        network: 'binance',
+        network: 'bsc',
         rpcUrl: 'https://bsc-dataseed1.binance.org',
-        registryAddress: '0x08CEd32a7f3FeC915Ba84415e9C07a7286977956' // Space ID registry
+        registryAddress: '0x08CEd32a7f3FeC915Ba84415e9C07a7286977956'
       };
     }
     
-    if (ucpiId.endsWith('.polygon')) {
+    // Polygon Name Service (.polygon)
+    if (lowerUcpiId.endsWith('.polygon')) {
       return {
         network: 'polygon',
         rpcUrl: 'https://polygon-rpc.com',
-        registryAddress: '0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f' // Polygon NS registry
+        registryAddress: '0xa9a6A3626993D487d2Dbda3173cf58cA1a9D9e9f'
       };
     }
     
-    if (ucpiId.endsWith('.arb')) {
+    // Arbitrum Name Service (.arb)
+    if (lowerUcpiId.endsWith('.arb')) {
       return {
         network: 'arbitrum',
         rpcUrl: 'https://arb1.arbitrum.io/rpc',
-        registryAddress: '0xc18360217D8F7Ab5e7c516566761Ea12Ce7F9D72' // Arbitrum NS registry
+        registryAddress: '0xc18360217D8F7Ab5e7c516566761Ea12Ce7F9D72'
+      };
+    }
+    
+    // Avalanche Name Service (.avax)
+    if (lowerUcpiId.endsWith('.avax')) {
+      return {
+        network: 'avalanche',
+        rpcUrl: 'https://api.avax.network/ext/bc/C/rpc',
+        registryAddress: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41'
+      };
+    }
+    
+    // Optimism Name Service (.op)
+    if (lowerUcpiId.endsWith('.op')) {
+      return {
+        network: 'optimism',
+        rpcUrl: 'https://mainnet.optimism.io',
+        registryAddress: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41'
+      };
+    }
+    
+    // Base Name Service (.base)
+    if (lowerUcpiId.endsWith('.base')) {
+      return {
+        network: 'base',
+        rpcUrl: 'https://mainnet.base.org',
+        registryAddress: '0x4976fb03C32e5B8cfe2b6cCB31c09Ba78EBaBa41'
+      };
+    }
+    
+    // Solana Name Service (.sol)
+    if (lowerUcpiId.endsWith('.sol')) {
+      return {
+        network: 'solana',
+        rpcUrl: 'https://api.mainnet-beta.solana.com',
+        registryAddress: 'namesLPneVptA9Z5rqUDD9tMTWEJwofgaYwp8cawRkX'
+      };
+    }
+    
+    // TRON Name Service (.trx)
+    if (lowerUcpiId.endsWith('.trx')) {
+      return {
+        network: 'tron',
+        rpcUrl: 'https://api.trongrid.io',
+        registryAddress: 'TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE'
+      };
+    }
+    
+    // Unstoppable Domains (.crypto, .nft, .blockchain, etc.)
+    const unstoppableTlds = ['.crypto', '.nft', '.blockchain', '.bitcoin', '.dao', '.888', '.wallet', '.x', '.klever', '.zil'];
+    if (unstoppableTlds.some(tld => lowerUcpiId.endsWith(tld))) {
+      return {
+        network: 'ethereum', // Primary network for Unstoppable Domains
+        rpcUrl: 'https://eth.llamarpc.com',
+        registryAddress: '0xa6E7cEf2EDDEA66352Fd68E5915b60BDbb7309f5'
       };
     }
     
     // For local domains (.local, .pay, .wallet, etc.)
-    return {
-      network: 'local',
-      rpcUrl: ''
-    };
+    const localTlds = ['.local', '.pay', '.wallet', '.test'];
+    if (localTlds.some(tld => lowerUcpiId.endsWith(tld))) {
+      return {
+        network: 'local',
+        rpcUrl: ''
+      };
+    }
+    
+    return null;
   }
 
   private async checkENSAvailability(ucpiId: string): Promise<{ available: boolean }> {
@@ -454,19 +521,21 @@ class UCPService {
       // Network-specific registration requirements
       if (ucpiData.id.endsWith('.eth')) {
         // Check if bridge sender private key is available for gas fees
-        const bridgePrivateKey = process.env.BRIDGE_SENDER_PRIVATE_KEY;
+        const config = getConfig();
+        const bridgePrivateKey = config.BRIDGE_SENDER_PRIVATE_KEY;
         
         console.log('🔍 UCPI Service Debug:');
-        console.log('🔍 process.env exists:', typeof process !== 'undefined' && typeof process.env !== 'undefined');
+        console.log('🔍 Config loaded:', !!config);
         console.log('🔍 BRIDGE_SENDER_PRIVATE_KEY exists:', !!bridgePrivateKey);
         console.log('🔍 Bridge key length:', bridgePrivateKey ? bridgePrivateKey.length : 0);
-        console.log('🔍 All process.env keys:', Object.keys(process.env || {}));
         
         if (bridgePrivateKey) {
           console.log('🔧 Bridge sender private key available, attempting ENS registration...');
           return await this.registerENSWithBridgeKey(ucpiData, bridgePrivateKey);
         } else {
-          throw new Error('ENS (.eth) registration requires ETH and gas fees. Please configure BRIDGE_SENDER_PRIVATE_KEY in your .env file, or register manually at ens.domains and then import your ENS name, or use a local UCPI ID.');
+          // Try to use the current wallet for gas fees
+          console.log('🔧 No bridge key, attempting to use current wallet for gas fees...');
+          return await this.registerENSWithCurrentWallet(ucpiData);
         }
       }
       
@@ -738,6 +807,80 @@ class UCPService {
         isGlobal: false,
         isLocal: false,
         error: error instanceof Error ? error.message : 'ENS registration with bridge key failed'
+      };
+    }
+  }
+
+  /**
+   * Register ENS domain using current wallet
+   */
+  private async registerENSWithCurrentWallet(
+    ucpiData: Omit<UCPIData, 'isGlobal' | 'isLocal' | 'lastUpdated'>
+  ): Promise<UCPIRegistrationResult> {
+    try {
+      console.log('🔧 Registering ENS domain with current wallet:', ucpiData.id);
+      
+      // Check if we have access to the current wallet
+      if (typeof window === 'undefined' || !window.ethereum) {
+        return {
+          success: false,
+          isGlobal: false,
+          isLocal: false,
+          error: 'No wallet connection available. Please connect your wallet or configure BRIDGE_SENDER_PRIVATE_KEY.'
+        };
+      }
+
+      // Import ENS registration service
+      const { ensRegistrationService } = await import('./ens-registration-service');
+      
+      // Register ENS domain using the current wallet
+      const ensResult = await ensRegistrationService.registerDomain({
+        domain: ucpiData.id,
+        walletAddress: ucpiData.walletAddress,
+        duration: 1, // 1 year
+        password: '' // Not needed when using current wallet
+      });
+
+      if (ensResult.success) {
+        console.log('✅ ENS domain registered successfully with current wallet:', ensResult.transactionHash);
+        
+        // Save the registered UCPI data
+        const fullUCPIData: UCPIData = {
+          ...ucpiData,
+          isGlobal: true,
+          isLocal: true,
+          lastUpdated: new Date().toISOString(),
+          transactionHash: ensResult.transactionHash,
+          blockNumber: ensResult.blockNumber,
+          globalRegistryId: ensResult.transactionHash
+        };
+
+        await this.saveLocalUCPI(fullUCPIData);
+        
+        return {
+          success: true,
+          isGlobal: true,
+          isLocal: true,
+          transactionHash: ensResult.transactionHash,
+          blockNumber: ensResult.blockNumber,
+          globalRegistryId: ensResult.transactionHash
+        };
+      } else {
+        return {
+          success: false,
+          isGlobal: false,
+          isLocal: false,
+          error: ensResult.error || 'ENS registration failed'
+        };
+      }
+
+    } catch (error) {
+      console.error('ENS registration with current wallet failed:', error);
+      return {
+        success: false,
+        isGlobal: false,
+        isLocal: false,
+        error: error instanceof Error ? error.message : 'ENS registration with current wallet failed'
       };
     }
   }

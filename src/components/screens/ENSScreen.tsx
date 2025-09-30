@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Search, Copy, Check, Globe, ExternalLink, User, Calendar, DollarSign, Loader, AlertCircle, RefreshCw, Plus, Edit, Trash2, X } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
+import { getConfig } from '../../utils/config-injector';
 import { 
   resolveENS, 
   lookupENS, 
@@ -195,7 +196,8 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
 
       // Create signer from private key
-      const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/' + (process.env.INFURA_PROJECT_ID || ''));
+      const config = getConfig();
+      const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/' + (config.INFURA_PROJECT_ID || ''));
       const signer = new ethers.Wallet(privateKey, provider);
 
       // Real ENS domain registration
@@ -272,7 +274,8 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
 
       // Create signer from private key
-      const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/' + (process.env.INFURA_PROJECT_ID || ''));
+      const config = getConfig();
+      const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/' + (config.INFURA_PROJECT_ID || ''));
       const signer = new ethers.Wallet(privateKey, provider);
 
       // Real ENS domain renewal
@@ -330,7 +333,8 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
 
       // Create signer from private key
-      const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/' + (process.env.INFURA_PROJECT_ID || ''));
+      const config = getConfig();
+      const provider = new ethers.JsonRpcProvider('https://mainnet.infura.io/v3/' + (config.INFURA_PROJECT_ID || ''));
       const signer = new ethers.Wallet(privateKey, provider);
 
       // Real ENS text record setting

@@ -1,6 +1,7 @@
 import { SignClient } from '@walletconnect/sign-client';
 import { getSdkError } from '@walletconnect/utils';
 import { ethers } from 'ethers';
+import { getConfig } from './config-injector';
 
 // Type definitions for WalletConnect v2
 export interface WalletConnectSession {
@@ -63,8 +64,9 @@ export class WalletConnectManager {
   private cleanupTimeouts: Set<NodeJS.Timeout> = new Set();
 
   constructor() {
-    // Get project ID from environment or use a working default
-    this.projectId = process.env.WALLETCONNECT_PROJECT_ID || '4f7e02b6d85b4e24bf2f2f2b2f2f2f2f';
+    // Get project ID from config system or use a working default
+    const config = getConfig();
+    this.projectId = config.WALLETCONNECT_PROJECT_ID || '4f7e02b6d85b4e24bf2f2f2b2f2f2f2f';
   }
 
   // Event emitter methods

@@ -15,6 +15,9 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 import { resolveENS } from '../../utils/ens-utils';
+import { getGasPrice, estimateGas } from '../../utils/web3-utils';
+import { getNetworks } from '../../utils/web3-utils';
+import { ethers } from 'ethers';
 
 const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork, switchNetwork } = useWallet();
@@ -229,6 +232,49 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     setIsAddressValid(false); // Reset validation
   };
 
+  // Enhanced gas fee calculation
+  const calculateGasFee = async (amount: string, toAddress: string) => {
+    try {
+      const networkId = currentNetwork?.id || 'ethereum';
+      const networkConfig = getNetworks()[networkId];
+      
+      if (!networkConfig) {
+        throw new Error(`Unsupported network: ${networkId}`);
+      }
+
+      // Get current gas price from multiple sources
+      const gasPrice = await getGasPrice(networkId);
+      const gasLimit = await estimateGas(
+        fromAccount?.address || fromAccount?.addresses?.[networkId],
+        toAddress,
+        ethers.parseEther(amount).toString(),
+        '0x',
+        networkId
+      );
+
+      // Calculate fee in network's native token
+      const gasPriceWei = BigInt(gasPrice);
+      const gasLimitBigInt = BigInt(gasLimit);
+      const totalFeeWei = gasPriceWei * gasLimitBigInt;
+      const totalFeeEth = ethers.formatEther(totalFeeWei);
+
+      return {
+        gasPrice: gasPrice,
+        gasLimit: gasLimit,
+        totalFee: totalFeeEth,
+        networkSymbol: networkConfig.symbol
+      };
+    } catch (error) {
+      console.error('Gas fee calculation failed:', error);
+      return {
+        gasPrice: '0',
+        gasLimit: '21000',
+        totalFee: '0',
+        networkSymbol: 'ETH'
+      };
+    }
+  };
+
   const handleAddressChange = (value: string) => {
     setToAddress(value);
     
@@ -305,26 +351,58 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setIsAddressValid(isValid);
       
     } else if (addressType === 'ens') {
-      // ENS validation (supports multiple networks)
+      // Enhanced ENS validation with multi-chain support
       const networkId = currentNetwork?.id || 'ethereum';
       let isValid = false;
       
-      if (['ethereum', 'polygon', 'arbitrum', 'optimism'].includes(networkId)) {
-        // Ethereum-based networks support .eth domains
-        const ensRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.eth$/;
-        isValid = ensRegex.test(value.toLowerCase());
-      } else if (networkId === 'bsc' || networkId === 'binance') {
-        // BSC network supports .bnb domains (Space ID)
-        const bnbRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.bnb$/;
-        isValid = bnbRegex.test(value.toLowerCase());
-      } else if (networkId === 'polygon') {
-        // Polygon supports .polygon domains
-        const polygonRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.polygon$/;
-        isValid = polygonRegex.test(value.toLowerCase());
-      } else if (networkId === 'avalanche') {
-        // Avalanche supports .avax domains
-        const avaxRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.avax$/;
-        isValid = avaxRegex.test(value.toLowerCase());
+      // Network-specific domain validation
+      switch (networkId) {
+        case 'ethereum':
+        case 'polygon':
+        case 'arbitrum':
+        case 'optimism':
+        case 'base':
+          // Ethereum-based networks support .eth domains
+          const ensRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.eth$/;
+          isValid = ensRegex.test(value.toLowerCase());
+          break;
+          
+        case 'bsc':
+        case 'binance':
+          // BSC network supports .bnb domains (Space ID)
+          const bnbRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.bnb$/;
+          isValid = bnbRegex.test(value.toLowerCase());
+          break;
+          
+        case 'polygon':
+          // Polygon supports .polygon domains
+          const polygonRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.polygon$/;
+          isValid = polygonRegex.test(value.toLowerCase());
+          break;
+          
+        case 'avalanche':
+          // Avalanche supports .avax domains
+          const avaxRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.avax$/;
+          isValid = avaxRegex.test(value.toLowerCase());
+          break;
+          
+        case 'solana':
+          // Solana supports .sol domains
+          const solRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.sol$/;
+          isValid = solRegex.test(value.toLowerCase());
+          break;
+          
+        case 'tron':
+          // TRON supports .trx domains
+          const trxRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.trx$/;
+          isValid = trxRegex.test(value.toLowerCase());
+          break;
+          
+        default:
+          // Multi-chain domains (Unstoppable Domains)
+          const multiChainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(crypto|nft|blockchain|bitcoin|dao|888|wallet|x|klever|zil)$/;
+          isValid = multiChainRegex.test(value.toLowerCase());
+          break;
       }
       
       setIsAddressValid(isValid);
@@ -370,16 +448,24 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     if (isAddressValid && amount && parseFloat(amount) > 0 && fromAccount) {
       let resolvedAddress = toAddress;
       
-      // Resolve ENS/domain names to addresses
+      // Enhanced domain resolution with multi-chain support
       if (addressType === 'ens') {
         try {
           console.log('🔍 Resolving domain:', toAddress);
           const networkId = currentNetwork?.id || 'ethereum';
-          const resolved = await resolveENS(toAddress, networkId);
           
-          if (resolved) {
-            resolvedAddress = resolved;
-            console.log('✅ Domain resolved to:', resolved);
+          // Use multi-chain domain resolver
+          const { MultiChainDomainResolver } = await import('../../utils/multi-chain-domains');
+          const resolutionResult = await MultiChainDomainResolver.resolveDomain(toAddress, networkId);
+          
+          if (resolutionResult.success && resolutionResult.address) {
+            resolvedAddress = resolutionResult.address;
+            console.log('✅ Domain resolved to:', resolvedAddress);
+            console.log('✅ Resolution details:', {
+              network: resolutionResult.network,
+              service: resolutionResult.service,
+              isGlobal: resolutionResult.isGlobal
+            });
           } else {
             toast.error(`Could not resolve domain: ${toAddress}`);
             return;
@@ -387,6 +473,31 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         } catch (error) {
           console.error('❌ Domain resolution failed:', error);
           toast.error(`Failed to resolve domain: ${toAddress}`);
+          return;
+        }
+      }
+      
+      // UCPI ID resolution
+      if (addressType === 'ucpi') {
+        try {
+          console.log('🔍 Resolving UCPI ID:', toAddress);
+          const { ucpiService } = await import('../../services/ucpi-service');
+          const resolutionResult = await ucpiService.resolveUCPI(toAddress);
+          
+          if (resolutionResult && resolutionResult.address) {
+            resolvedAddress = resolutionResult.address;
+            console.log('✅ UCPI ID resolved to:', resolvedAddress);
+            console.log('✅ UCPI resolution details:', {
+              isGlobal: resolutionResult.isGlobal,
+              isLocal: resolutionResult.isLocal
+            });
+          } else {
+            toast.error(`Could not resolve UCPI ID: ${toAddress}`);
+            return;
+          }
+        } catch (error) {
+          console.error('❌ UCPI resolution failed:', error);
+          toast.error(`Failed to resolve UCPI ID: ${toAddress}`);
           return;
         }
       }

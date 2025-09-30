@@ -8,6 +8,9 @@ export interface DomainResolutionResult {
   network: string;
   service: string;
   isValid: boolean;
+  success: boolean;
+  isGlobal: boolean;
+  isLocal: boolean;
   error?: string;
 }
 

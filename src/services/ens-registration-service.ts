@@ -7,6 +7,7 @@ import {
   getENSRecords
 } from '../utils/ens-utils';
 import { ENSRegistrationValidator, ensValidator } from '../utils/ens-registration-validator';
+import { getConfig } from '../utils/config-injector';
 
 export interface ENSPricing {
   domain: string;
@@ -124,7 +125,8 @@ class ENSRegistrationService {
       }
 
       // Try to use bridge sender private key first
-      const bridgePrivateKey = process.env.BRIDGE_SENDER_PRIVATE_KEY;
+      const config = getConfig();
+      const bridgePrivateKey = config.BRIDGE_SENDER_PRIVATE_KEY;
       
       if (bridgePrivateKey) {
         console.log('🔧 Using bridge sender private key for ENS registration gas fees');

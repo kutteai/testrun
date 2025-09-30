@@ -53,10 +53,10 @@ function getConfig() {
   if (typeof window !== 'undefined' && window.CONFIG) {
     return window.CONFIG;
   }
-  return {
-    INFURA_PROJECT_ID: process.env.INFURA_PROJECT_ID ,
-    ALCHEMY_API_KEY: process.env.ALCHEMY_API_KEY || ''
-  };
+  
+  // Use config-injector for consistent configuration
+  const { getConfig: getConfigFromInjector } = require('../utils/config-injector');
+  return getConfigFromInjector();
 }
 
 // Default networks with real API configurations
