@@ -185,7 +185,7 @@
         };
       }
     }
-
+    
     // EIP-1193 Methods
     async request({ method, params = [] }) {
       try {
@@ -266,6 +266,7 @@
     // Check wallet unlock status
     async checkWalletUnlockStatus() {
       try {
+        console.log('PayCio: Checking wallet unlock status...');
         const response = await new Promise((resolve) => {
           const messageId = Date.now().toString();
           window.postMessage({
@@ -288,7 +289,10 @@
           }, 5000);
         });
         
-        return response?.success && response?.result?.isUnlocked;
+        console.log('PayCio: Wallet status response:', response);
+        const isUnlocked = response?.success && response?.data?.isUnlocked;
+        console.log('PayCio: Wallet is unlocked:', isUnlocked);
+        return isUnlocked;
       } catch (error) {
         console.error('PayCio: Error checking wallet status:', error);
         return false;
@@ -297,26 +301,194 @@
     
     // Show unlock modal
     async showUnlockModal() {
+      // Use the createUnlockModal function from the injected script
+      if (window.createUnlockModal) {
+        return await window.createUnlockModal();
+      }
+      
+      // Fallback: try to create a simple modal
       return new Promise((resolve) => {
-        const messageId = Date.now().toString();
-        window.postMessage({
-          type: 'PAYCIO_SHOW_UNLOCK_POPUP',
-          id: messageId
-        }, '*');
-        
-        const handleMessage = (event) => {
-          if (event.source !== window) return;
-          if (event.data.type === 'PAYCIO_UNLOCK_POPUP_RESPONSE' && event.data.id === messageId) {
-            window.removeEventListener('message', handleMessage);
-            resolve(event.data.success || false);
+        // Remove any existing unlock modal
+        const existingModal = document.getElementById('paycio-unlock-modal');
+        if (existingModal) {
+          existingModal.remove();
+        }
+
+        // Create modal overlay
+        const modal = document.createElement('div');
+        modal.id = 'paycio-unlock-modal';
+        modal.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 2147483647;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        `;
+
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.style.cssText = `
+          background: white;
+          border-radius: 16px;
+          max-width: 400px;
+          width: 90%;
+          padding: 32px;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        `;
+
+        // Title
+        const title = document.createElement('h2');
+        title.textContent = 'Unlock PayCio Wallet';
+        title.style.cssText = `
+          margin: 0 0 16px 0;
+          color: #111827;
+          font-size: 24px;
+          font-weight: 600;
+        `;
+
+        // Password input
+        const passwordInput = document.createElement('input');
+        passwordInput.type = 'password';
+        passwordInput.placeholder = 'Enter your password';
+        passwordInput.style.cssText = `
+          width: 100%;
+          padding: 12px;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 16px;
+          margin-bottom: 16px;
+          box-sizing: border-box;
+        `;
+
+        // Buttons container
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.cssText = `
+          display: flex;
+          gap: 12px;
+        `;
+
+        // Unlock button
+        const unlockBtn = document.createElement('button');
+        unlockBtn.textContent = 'Unlock';
+        unlockBtn.style.cssText = `
+          flex: 1;
+          padding: 12px;
+          background: #180CB2;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+        `;
+
+        // Cancel button
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.style.cssText = `
+          flex: 1;
+          padding: 12px;
+          background: transparent;
+          color: #6b7280;
+          border: 1px solid #d1d5db;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+        `;
+
+        // Assemble modal
+        buttonsContainer.appendChild(unlockBtn);
+        buttonsContainer.appendChild(cancelBtn);
+        modalContent.appendChild(title);
+        modalContent.appendChild(passwordInput);
+        modalContent.appendChild(buttonsContainer);
+        modal.appendChild(modalContent);
+        document.body.appendChild(modal);
+
+        // Focus password input
+        passwordInput.focus();
+
+        // Handle unlock
+        const handleUnlock = async () => {
+          const password = passwordInput.value;
+          if (!password.trim()) {
+            alert('Please enter your password');
+            return;
+          }
+
+          unlockBtn.textContent = 'Unlocking...';
+          unlockBtn.disabled = true;
+
+          try {
+            // Send unlock request to background script
+            const response = await new Promise((resolve) => {
+              const messageId = Date.now().toString();
+              const unlockMessage = {
+                type: 'PAYCIO_UNLOCK_WALLET',
+                id: messageId,
+                password: password
+              };
+              
+              const messageHandler = (event) => {
+                if (event.source !== window) return;
+                if (event.data.type === 'PAYCIO_UNLOCK_WALLET_RESPONSE' && event.data.id === messageId) {
+                  window.removeEventListener('message', messageHandler);
+                  resolve(event.data);
+                }
+              };
+              
+              window.addEventListener('message', messageHandler);
+              window.postMessage(unlockMessage, '*');
+              
+              setTimeout(() => {
+                window.removeEventListener('message', messageHandler);
+                resolve({ success: false, error: 'Timeout' });
+              }, 10000);
+            });
+
+            if (response.success) {
+              modal.remove();
+              resolve(true);
+            } else {
+              alert(`Unlock failed: ${response.error || 'Unknown error'}`);
+              unlockBtn.textContent = 'Unlock';
+              unlockBtn.disabled = false;
+            }
+          } catch (error) {
+            alert(`Unlock error: ${error.message || 'Unknown error'}`);
+            unlockBtn.textContent = 'Unlock';
+            unlockBtn.disabled = false;
           }
         };
-        
-        window.addEventListener('message', handleMessage);
-        setTimeout(() => {
-          window.removeEventListener('message', handleMessage);
+
+        // Handle cancel
+        const handleCancel = () => {
+          modal.remove();
           resolve(false);
-        }, 10000);
+        };
+
+        // Event listeners
+        unlockBtn.addEventListener('click', handleUnlock);
+        cancelBtn.addEventListener('click', handleCancel);
+        passwordInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            handleUnlock();
+          }
+        });
+
+        // Handle overlay click
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            handleCancel();
+          }
+        });
       });
     }
     

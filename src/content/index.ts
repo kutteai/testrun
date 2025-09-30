@@ -119,9 +119,9 @@ function forwardStatusCheck(message: any) {
                 type: 'PAYCIO_WALLET_STATUS_RESPONSE',
                 id: message.id,
                 success: response.success,
-                isUnlocked: response.result?.isUnlocked || false,
-                hasWallet: response.result?.hasWallet || false,
-                address: response.result?.address || null
+                isUnlocked: response.data?.isUnlocked || false,
+                hasWallet: response.data?.hasWallet || false,
+                address: response.data?.address || null
             }, '*');
         }
     });

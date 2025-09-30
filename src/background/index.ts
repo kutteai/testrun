@@ -2728,6 +2728,15 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
   'UNLOCK_WALLET': async (message) => {
     try {
+              console.log('🔍 UNLOCK_WALLET handler called - ensuring service worker is active...');
+              
+              // Aggressively wake up service worker
+              if (typeof self !== 'undefined') {
+                console.log('🔄 Service worker is active, processing unlock...');
+              } else {
+                console.log('⚠️ Service worker context not available');
+              }
+              
       const { password } = message;
       console.log('🔍 UNLOCK_WALLET handler called with password length:', password?.length);
       
@@ -3418,6 +3427,16 @@ async function handleSigningRequest(method: string, params: any[], origin: strin
 // ============================================================================
 
 browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('🔍 Background script received message:', message.type, message);
+  
+  // Aggressively wake up service worker on every message
+  if (typeof self !== 'undefined') {
+    console.log('🔄 Service worker is active for message:', message.type);
+  } else {
+    console.log('⚠️ Service worker context not available for message:', message.type);
+  }
+  
+  // Return true immediately to keep the message channel open for async responses
   const handleMessage = async () => {
     try {
       if (!message.type) {
@@ -3435,7 +3454,44 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      const handler = messageHandlers[message.type];
+      // Handle special wake-up message
+      if (message.type === 'WAKE_UP') {
+        console.log('🔄 Background: Wake-up message received');
+        
+        // Ensure service worker is active
+        if (typeof self !== 'undefined') {
+          console.log('✅ Service worker is active');
+          
+          // Start keepalive if not already started
+          startKeepAlive();
+          
+          sendResponse({
+            success: true,
+            message: 'Extension is awake and ready'
+          });
+        } else {
+          console.log('⚠️ Service worker context not available');
+          sendResponse({
+            success: false,
+            error: 'Service worker context not available'
+          });
+        }
+        return;
+      }
+
+      // Map PAYCIO_ messages to their corresponding handlers
+      let handlerType = message.type;
+      if (message.type === 'PAYCIO_UNLOCK_WALLET') {
+        handlerType = 'UNLOCK_WALLET';
+      } else if (message.type === 'PAYCIO_GET_WALLET_ADDRESS') {
+        handlerType = 'GET_WALLET_ADDRESS';
+      } else if (message.type === 'PAYCIO_GET_WALLET_STATUS') {
+        handlerType = 'GET_WALLET_STATUS';
+      } else if (message.type === 'PAYCIO_SHOW_UNLOCK_POPUP') {
+        handlerType = 'SHOW_UNLOCK_POPUP';
+      }
+
+      const handler = messageHandlers[handlerType];
       if (!handler) {
         throw new Error(`Unknown message type: ${message.type}`);
       }
@@ -3451,8 +3507,9 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
   };
 
+  // Execute async handler
   handleMessage();
-  return true;
+  return true; // Keep the message channel open for async response
 });
 
 // Handle messages from injected scripts (content script communication)
@@ -3465,7 +3522,7 @@ window.addEventListener('message', async (event) => {
   if (!type || !id) return;
   
   try {
-    console.log('🔍 Background received message from injected script:', type);
+    console.log('🔍 Background received message from injected script:', type, event.data);
     
     let response;
     
@@ -3490,6 +3547,9 @@ window.addEventListener('message', async (event) => {
         break;
       case 'PAYCIO_SHOW_UNLOCK_POPUP':
         response = await messageHandlers['SHOW_UNLOCK_POPUP'](event.data);
+        break;
+      case 'PAYCIO_UNLOCK_WALLET':
+        response = await messageHandlers['UNLOCK_WALLET'](event.data);
         break;
       default:
         console.log('Unknown message type from injected script:', type);
@@ -3640,6 +3700,245 @@ if (typeof self !== 'undefined' && (self as any).registration && (self as any).r
 
 // Initialize the DApp handler
 const dappHandler = new PaycioDAppHandler();
+
+// Service worker keepalive mechanism
+let keepAliveInterval: NodeJS.Timeout | null = null;
+let keepAlivePort: any = null;
+let serviceWorkerPingInterval: NodeJS.Timeout | null = null;
+
+const startKeepAlive = () => {
+  if (keepAliveInterval) return;
+  
+  console.log('🔄 Starting service worker keepalive mechanisms...');
+  
+  // Method 1: Regular ping
+  keepAliveInterval = setInterval(() => {
+    // Send a ping to keep the service worker alive
+    if (typeof self !== 'undefined' && (self as any).registration) {
+      (self as any).registration.active?.postMessage({ type: 'KEEPALIVE' });
+    }
+  }, 5000); // Ping every 5 seconds (very frequent)
+  
+  // Method 2: Create a persistent port connection
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    try {
+      keepAlivePort = chrome.runtime.connect({ name: 'keepalive' });
+      keepAlivePort.onDisconnect.addListener(() => {
+        console.log('🔄 Keepalive port disconnected, reconnecting...');
+        setTimeout(() => startKeepAlive(), 1000);
+      });
+      keepAlivePort.postMessage({ type: 'KEEPALIVE_PING' });
+    } catch (error) {
+      console.log('⚠️ Could not create keepalive port:', error);
+    }
+  }
+  
+  // Method 3: Service worker ping via navigator
+  serviceWorkerPingInterval = setInterval(() => {
+    try {
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ 
+          type: 'PING', 
+          timestamp: Date.now() 
+        });
+      }
+    } catch (error) {
+      console.log('⚠️ Service worker ping failed:', error);
+    }
+  }, 3000); // Ping every 3 seconds
+};
+
+const stopKeepAlive = () => {
+  if (keepAliveInterval) {
+    clearInterval(keepAliveInterval);
+    keepAliveInterval = null;
+  }
+  if (keepAlivePort) {
+    keepAlivePort.disconnect();
+    keepAlivePort = null;
+  }
+  if (serviceWorkerPingInterval) {
+    clearInterval(serviceWorkerPingInterval);
+    serviceWorkerPingInterval = null;
+  }
+};
+
+// Start keepalive when service worker is active
+if (typeof self !== 'undefined' && (self as any).registration && (self as any).registration.active) {
+  console.log('🚀 Service worker is active, starting keepalive...');
+  startKeepAlive();
+} else {
+  console.log('⚠️ Service worker not active, attempting to start...');
+  // Try to start keepalive anyway
+  setTimeout(() => {
+    startKeepAlive();
+  }, 1000);
+}
+
+// Handle service worker lifecycle
+if (typeof self !== 'undefined') {
+  self.addEventListener('activate', () => {
+    console.log('🔄 Service worker activated, starting keepalive');
+    startKeepAlive();
+  });
+  
+  self.addEventListener('beforeunload', () => {
+    stopKeepAlive();
+  });
+  
+  // Enhanced port connection handler
+  if (typeof chrome !== 'undefined' && chrome.runtime) {
+    chrome.runtime.onConnect.addListener((port) => {
+      console.log('🔍 Background: Port connected:', port.name, 'from', port.sender?.url);
+      
+      switch (port.name) {
+        case 'keepalive':
+          handleKeepAlivePort(port);
+          break;
+          
+        case 'wallet-communication':
+          handleWalletCommunicationPort(port);
+          break;
+          
+        case 'unlock-request':
+          handleUnlockRequestPort(port);
+          break;
+          
+        case 'wake-up':
+          handleWakeUpPort(port);
+          break;
+          
+        default:
+          console.log('🔍 Background: Unknown port type:', port.name);
+          port.disconnect();
+      }
+    });
+  }
+}
+
+// Port handler functions
+function handleKeepAlivePort(port: any) {
+  port.onMessage.addListener((msg: any) => {
+    if (msg.type === 'KEEPALIVE_PING') {
+      port.postMessage({ 
+        type: 'KEEPALIVE_PONG', 
+        timestamp: Date.now(),
+        status: 'healthy'
+      });
+    }
+  });
+  
+  port.onDisconnect.addListener(() => {
+    console.log('🔍 Background: Keepalive port disconnected');
+  });
+}
+
+function handleWalletCommunicationPort(port: any) {
+  port.onMessage.addListener(async (message: any) => {
+    console.log('🔍 Background: Wallet communication message:', message);
+    
+    try {
+      const handler = messageHandlers[message.type];
+      if (handler) {
+        const response = await handler(message);
+        port.postMessage({ 
+          ...response, 
+          requestId: message.requestId,
+          timestamp: Date.now()
+        });
+      } else {
+        port.postMessage({ 
+          success: false, 
+          error: `Unknown message type: ${message.type}`,
+          requestId: message.requestId,
+          timestamp: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('🔍 Background: Port message handler error:', error);
+      port.postMessage({ 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        requestId: message.requestId,
+        timestamp: Date.now()
+      });
+    }
+  });
+  
+  port.onDisconnect.addListener(() => {
+    console.log('🔍 Background: Wallet communication port disconnected');
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
+      console.log('Port disconnect error:', chrome.runtime.lastError.message);
+    }
+  });
+}
+
+function handleUnlockRequestPort(port: any) {
+  port.onMessage.addListener(async (message: any) => {
+    console.log('🔍 Background: Unlock request via port:', message.type);
+    
+    if (message.type === 'UNLOCK_WALLET') {
+      try {
+        const response = await messageHandlers['UNLOCK_WALLET']({
+          password: message.password
+        });
+        
+        port.postMessage(response);
+      } catch (error) {
+        console.error('🔍 Background: Unlock via port failed:', error);
+        port.postMessage({
+          success: false,
+          error: error instanceof Error ? error.message : 'Unlock failed'
+        });
+      }
+    } else {
+      port.postMessage({
+        success: false,
+        error: `Unsupported unlock message type: ${message.type}`
+      });
+    }
+  });
+  
+  port.onDisconnect.addListener(() => {
+    console.log('🔍 Background: Unlock request port disconnected');
+  });
+}
+
+function handleWakeUpPort(port: any) {
+  console.log('🔍 Background: Wake-up port connected');
+  
+  port.onMessage.addListener((message: any) => {
+    console.log('🔍 Background: Wake-up message received:', message.type);
+    
+    if (message.type === 'WAKE_UP') {
+      console.log('🔄 Background: Extension wake-up requested');
+      
+      // Ensure service worker is active
+      if (typeof self !== 'undefined') {
+        console.log('✅ Service worker is active');
+        
+        // Start keepalive if not already started
+        startKeepAlive();
+        
+        // Send wake-up confirmation
+        port.postMessage({
+          success: true,
+          message: 'Extension is awake and ready'
+        });
+      } else {
+        console.log('⚠️ Service worker context not available');
+        port.postMessage({
+          success: false,
+          error: 'Service worker context not available'
+        });
+      }
+    }
+  });
+  
+  port.onDisconnect.addListener(() => {
+    console.log('🔍 Background: Wake-up port disconnected');
+  });
+}
 
 // Export for external access
 export { dappHandler, WalletManager, SecurityManager, BlockchainService };

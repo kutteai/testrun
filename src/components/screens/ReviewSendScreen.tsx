@@ -301,7 +301,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         to: transactionDetails.toAddress,
         value: ethers.parseEther(transactionDetails.amount),
         gasLimit: BigInt(transactionDetails.gasLimit || '21000'),
-        gasPrice: ethers.parseUnits(transactionDetails.gasPrice || '20', 'gwei'),
+        gasPrice: ethers.parseUnits(transactionDetails.gasPrice || '0', 'gwei'),
         nonce: transactionDetails.nonce || 0
       };
 
@@ -345,7 +345,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   };
 
   const handleGasPreset = (preset: 'slow' | 'medium' | 'fast') => {
-    let newGasPrice = '20'; // Default in Gwei
+    let newGasPrice = '0'; // Default placeholder (gets overridden by real gas price)
     
     switch (preset) {
       case 'slow':

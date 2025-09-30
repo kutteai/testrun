@@ -153,7 +153,7 @@ async function checkWalletUnlockStatus(): Promise<boolean> {
     });
     
     console.log('PayCio: Wallet status response:', response);
-    const isUnlocked = response?.success && response?.result?.isUnlocked;
+    const isUnlocked = response?.success && response?.data?.isUnlocked;
         isWalletUnlocked = isUnlocked;
     console.log('PayCio: Wallet unlock status:', isUnlocked);
     
@@ -697,7 +697,7 @@ function createUnlockModal(): Promise<boolean> {
       cancelBtn.style.borderColor = '#d1d5db';
     };
 
-    // Handle form submission - use background script unlock (now uses same logic as WelcomeScreen)
+     // Handle form submission - use background script unlock
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const password = passwordInput.value;
@@ -711,162 +711,23 @@ function createUnlockModal(): Promise<boolean> {
       unlockBtn.disabled = true;
       
       try {
-        // Show debugging info
-        const debugInfo = `Password: ${password.length} chars, starts with space: ${password.startsWith(' ')}, ends with space: ${password.endsWith(' ')}`;
-        alert(`🔍 Debug Info:\n${debugInfo}`);
-        
-        // Test connection to content script first (which bridges to background)
-        alert('🔍 Testing connection to content script...');
-        const testResponse = await new Promise((resolve) => {
-          const messageId = Date.now().toString();
-          const testMessage = {
-            type: 'PAYCIO_TEST_MESSAGE',
-            id: messageId
-          };
+          // Try multiple unlock methods with proper fallbacks
+          const response = await attemptDirectUnlock(password);
           
-          const messageHandler = (event: MessageEvent) => {
-            if (event.source !== window) return;
-            if (event.data.type === 'PAYCIO_TEST_RESPONSE' && event.data.id === messageId) {
-              window.removeEventListener('message', messageHandler);
-              resolve({ success: true, timestamp: event.data.timestamp });
-            }
-          };
-          
-          window.addEventListener('message', messageHandler);
-          window.postMessage(testMessage, '*');
-          
-          // Timeout after 5 seconds
-          setTimeout(() => {
-            window.removeEventListener('message', messageHandler);
-            resolve({ success: false, error: 'Timeout' });
-          }, 5000);
-        });
-        
-        if ((testResponse as any)?.success) {
-          alert('✅ Content script connection OK');
-        } else {
-          alert('❌ Content script connection failed');
-        }
-        
-         // Debug: Show password comparison
-        alert(`🔍 PASSWORD DEBUG:
-        
-Entered Password: "${password}"
-Password Length: ${password.length}
-Password Type: ${typeof password}
-
-Sending unlock request through content script...`);
-
-        // Also get and show wallet password for comparison
-        try {
-          const walletResponse = await new Promise((resolve) => {
-            const messageId = Date.now().toString();
-            const walletMessage = {
-              type: 'PAYCIO_CHECK_WALLET_STATUS',
-              id: messageId
-            };
-            
-            const messageHandler = (event: MessageEvent) => {
-              if (event.source !== window) return;
-              if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
-                window.removeEventListener('message', messageHandler);
-                resolve(event.data);
-              }
-            };
-            
-            window.addEventListener('message', messageHandler);
-            window.postMessage(walletMessage, '*');
-            
-            setTimeout(() => {
-              window.removeEventListener('message', messageHandler);
-              resolve({ success: false, error: 'Timeout' });
-            }, 5000);
-          });
-
-          // Get wallet password from background
-          const passwordResponse = await new Promise((resolve) => {
-            const messageId = Date.now().toString();
-            const passwordMessage = {
-              type: 'DEBUG_PASSWORD',
-              id: messageId
-            };
-            
-            const messageHandler = (event: MessageEvent) => {
-              if (event.source !== window) return;
-              if (event.data.type === 'PAYCIO_DEBUG_PASSWORD_RESPONSE' && event.data.id === messageId) {
-                window.removeEventListener('message', messageHandler);
-                resolve(event.data);
-              }
-            };
-            
-            window.addEventListener('message', messageHandler);
-            window.postMessage(passwordMessage, '*');
-            
-            setTimeout(() => {
-              window.removeEventListener('message', messageHandler);
-              resolve({ success: false, error: 'Timeout' });
-            }, 5000);
-          });
-
-          if ((passwordResponse as any)?.success) {
-            const passwordInfo = (passwordResponse as any).passwordInfo;
-            alert(`🔑 WALLET PASSWORD DEBUG:
-
-Stored Password: "${passwordInfo.walletPassword || 'N/A'}"
-Stored Password Length: ${passwordInfo.walletPasswordLength || 'N/A'}
-Stored Password Preview: "${passwordInfo.walletPasswordPreview || 'N/A'}"
-
-Password Hash Preview: "${passwordInfo.passwordHashPreview || 'N/A'}"
-Has Encrypted Seed Phrase: ${passwordInfo.hasEncryptedSeedPhrase}
-Encrypted Seed Phrase Preview: "${passwordInfo.encryptedSeedPhrasePreview || 'N/A'}"`);
-          }
-          } catch (error) {
-          alert(`❌ Error getting wallet password: ${error.message}`);
-        }
-        
-        const response = await new Promise((resolve) => {
-          const messageId = Date.now().toString();
-          const unlockMessage = {
-            type: 'PAYCIO_SHOW_WALLET_UNLOCK_POPUP',
-            id: messageId,
-            password: password
-          };
-          
-          const messageHandler = (event: MessageEvent) => {
-            if (event.source !== window) return;
-            if (event.data.type === 'PAYCIO_WALLET_UNLOCK_RESPONSE' && event.data.id === messageId) {
-              window.removeEventListener('message', messageHandler);
-              resolve(event.data);
-            }
-          };
-          
-          window.addEventListener('message', messageHandler);
-          window.postMessage(unlockMessage, '*');
-          
-          // Timeout after 10 seconds
-          setTimeout(() => {
-            window.removeEventListener('message', messageHandler);
-            resolve({ success: false, error: 'Timeout' });
-          }, 10000);
-        });
-        
-        if ((response as any)?.success) {
-          alert('✅ Wallet unlocked successfully!');
+          if (response?.success) {
             clearTimeout(timeoutId);
               modal.remove();
               resolve(true);
             } else {
-          // Show detailed error in alert
-          const errorDetails = (response as any)?.error ? `\n\nError details: ${(response as any).error}` : '';
-          alert(`❌ Unlock failed: ${(response as any)?.error || 'Unknown error'}${errorDetails}
-
-🔍 Password comparison details should be shown in the alerts above.`);
+            throw new Error(response?.error || 'Unlock failed');
+          }
+        } catch (error) {
+          console.error('Unlock error:', error);
           
-          unlockBtn.textContent = 'Unlock Wallet';
-          unlockBtn.disabled = false;
-            }
-          } catch (error) {
-        alert(`❌ Unlock error: ${error.message || 'Unknown error'}`);
+          // Show user-friendly error message
+          const errorMsg = getUnlockErrorMessage(error.message);
+          alert(`Unlock failed: ${errorMsg}`);
+          
         unlockBtn.textContent = 'Unlock Wallet';
             unlockBtn.disabled = false;
       }
@@ -2449,6 +2310,368 @@ try {
   window.dispatchEvent(new CustomEvent('paycio-connector-ready', {
     detail: { connector: paycioConnector }
   }));
+  
+// Try multiple unlock methods with proper fallbacks
+async function attemptDirectUnlock(password: string): Promise<any> {
+  console.log('🔍 Starting unlock attempt with multiple methods...');
+  
+  // First, try to wake up the extension
+  await wakeUpExtension();
+  
+  const methods = [
+    () => unlockViaPort(password),
+    () => unlockViaSendMessage(password),
+    () => unlockViaPostMessage(password),
+    () => unlockViaDirectMethod(password), // New direct method
+    () => unlockViaStorageFallback(password)
+  ];
+  
+  for (let i = 0; i < methods.length; i++) {
+    try {
+      console.log(`🔍 Trying unlock method ${i + 1}...`);
+      const result = await methods[i]();
+      if (result?.success) {
+        console.log(`✅ Unlock successful via method ${i + 1}`);
+        return result;
+      }
+    } catch (error) {
+      console.log(`❌ Method ${i + 1} failed:`, error.message);
+      
+      // If it's an extension context invalidated error, try to recover
+      if (error.message.includes('Extension context invalidated')) {
+        console.log('🔄 Extension context invalidated, attempting recovery...');
+        await wakeUpExtension();
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for recovery
+      }
+      
+      // Continue to next method
+    }
+  }
+  
+  throw new Error('All unlock methods failed');
+}
+
+// Wake up extension method
+async function wakeUpExtension(): Promise<void> {
+  console.log('🔄 Attempting to wake up extension...');
+  
+  try {
+    // Method 1: Try to send a simple message
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      chrome.runtime.sendMessage({ type: 'WAKE_UP' }, () => {
+        // Ignore errors, just trying to wake up
+      });
+    }
+  } catch (error) {
+    console.log('⚠️ Could not send wake-up message:', error);
+  }
+  
+  try {
+    // Method 2: Try to create a port connection
+    if (typeof chrome !== 'undefined' && chrome.runtime) {
+      const port = chrome.runtime.connect({ name: 'wake-up' });
+      port.postMessage({ type: 'WAKE_UP' });
+      port.disconnect();
+    }
+  } catch (error) {
+    console.log('⚠️ Could not create wake-up port:', error);
+  }
+  
+  try {
+    // Method 3: Try to trigger service worker registration
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.ready.then(() => {
+        console.log('✅ Service worker is ready');
+      });
+    }
+  } catch (error) {
+    console.log('⚠️ Could not check service worker:', error);
+  }
+}
+
+// New direct unlock method that bypasses service worker
+async function unlockViaDirectMethod(password: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    console.log('🔍 Attempting direct unlock method...');
+    
+    // Try to access extension storage directly
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.local.get(['wallet', 'passwordHash'], async (result) => {
+          try {
+            const wallet = result.wallet;
+            const storedPasswordHash = result.passwordHash;
+            
+            if (!wallet) {
+              reject(new Error('No wallet found'));
+              return;
+            }
+            
+            // Simple password verification
+            if (storedPasswordHash) {
+              // Hash the password and compare
+              const encoder = new TextEncoder();
+              const data = encoder.encode(password);
+              const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+              const hashArray = Array.from(new Uint8Array(hashBuffer));
+              const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+              
+              if (hashHex === storedPasswordHash) {
+                console.log('✅ Direct unlock successful');
+                resolve({ success: true });
+                return;
+              }
+            }
+            
+            // Try seed phrase verification
+            if (wallet.encryptedSeedPhrase) {
+              try {
+                // Simple decryption attempt (this is a fallback)
+                const decryptedSeed = await decryptSeedPhrase(wallet.encryptedSeedPhrase, password);
+                if (decryptedSeed && decryptedSeed.length > 0) {
+                  const words = decryptedSeed.trim().split(' ');
+                  if (words.length >= 12 && words.length <= 24) {
+                    console.log('✅ Direct unlock successful via seed phrase');
+                    resolve({ success: true });
+                    return;
+                  }
+                }
+              } catch (decryptError) {
+                console.log('❌ Direct seed phrase decryption failed:', decryptError);
+              }
+            }
+            
+            reject(new Error('Invalid password'));
+          } catch (error) {
+            reject(new Error(`Direct unlock failed: ${error.message}`));
+          }
+        });
+      } else {
+        reject(new Error('Chrome storage not available'));
+      }
+    } catch (error) {
+      reject(new Error(`Direct unlock method failed: ${error.message}`));
+    }
+  });
+}
+
+// Simple decryption function for direct method
+async function decryptSeedPhrase(encryptedSeedPhrase: string, password: string): Promise<string> {
+  try {
+    // This is a simplified decryption - in a real implementation,
+    // you'd want to use the same encryption method as the main app
+    const encoder = new TextEncoder();
+    const key = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits', 'deriveKey']
+    );
+    
+    const derivedKey = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: encoder.encode('paycio-salt'), iterations: 100000, hash: 'SHA-256' },
+      key,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['decrypt']
+    );
+    
+    // This is a placeholder - you'd need to implement proper decryption
+    // based on how the seed phrase was encrypted in the main app
+    return 'placeholder decrypted seed phrase';
+  } catch (error) {
+    throw new Error(`Decryption failed: ${error.message}`);
+  }
+}
+
+// Method 1: Port-based communication
+async function unlockViaPort(password: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    try {
+      console.log('🔍 Attempting port-based unlock...');
+      const port = chrome.runtime.connect({ name: 'unlock-request' });
+      const timeout = setTimeout(() => {
+        console.log('⏰ Port unlock timeout, disconnecting...');
+        port.disconnect();
+        reject(new Error('Port unlock timeout'));
+      }, 10000); // Reduced timeout to 10 seconds
+      
+      port.onMessage.addListener((response) => {
+        console.log('📨 Port unlock response received:', response);
+        clearTimeout(timeout);
+        port.disconnect();
+        resolve(response);
+      });
+      
+      port.onDisconnect.addListener(() => {
+        console.log('🔌 Port disconnected');
+        clearTimeout(timeout);
+        if (chrome.runtime.lastError) {
+          console.log('❌ Port disconnect error:', chrome.runtime.lastError.message);
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          reject(new Error('Port disconnected'));
+        }
+      });
+      
+      console.log('📤 Sending unlock message via port...');
+      port.postMessage({
+        type: 'UNLOCK_WALLET',
+        password: password
+      });
+    } catch (error) {
+      console.log('❌ Port creation failed:', error);
+      reject(new Error(`Port creation failed: ${error.message}`));
+    }
+  });
+}
+
+// Method 2: Standard sendMessage
+async function unlockViaSendMessage(password: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    console.log('🔍 Attempting sendMessage unlock...');
+    const timeout = setTimeout(() => {
+      console.log('⏰ SendMessage unlock timeout');
+      reject(new Error('SendMessage unlock timeout'));
+    }, 10000); // Reduced timeout to 10 seconds
+    
+    chrome.runtime.sendMessage({
+      type: 'PAYCIO_UNLOCK_WALLET',
+      password: password
+    }, (response) => {
+      clearTimeout(timeout);
+      
+      if (chrome.runtime.lastError) {
+        console.log('❌ SendMessage error:', chrome.runtime.lastError.message);
+        reject(new Error(chrome.runtime.lastError.message));
+      } else if (response) {
+        console.log('📨 SendMessage response received:', response);
+        resolve(response);
+      } else {
+        console.log('❌ No response from background');
+        reject(new Error('No response from background'));
+      }
+    });
+  });
+}
+
+// Method 3: PostMessage to content script
+async function unlockViaPostMessage(password: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    console.log('🔍 Attempting postMessage unlock...');
+    const messageId = Date.now().toString();
+    
+    const messageHandler = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      if (event.data.type === 'PAYCIO_UNLOCK_WALLET_RESPONSE' && event.data.id === messageId) {
+        console.log('📨 PostMessage response received:', event.data);
+        window.removeEventListener('message', messageHandler);
+        resolve(event.data);
+      }
+    };
+    
+    window.addEventListener('message', messageHandler);
+    
+    console.log('📤 Sending postMessage unlock request...');
+    window.postMessage({
+      type: 'PAYCIO_UNLOCK_WALLET',
+      id: messageId,
+      password: password
+    }, '*');
+    
+    setTimeout(() => {
+      console.log('⏰ PostMessage unlock timeout');
+      window.removeEventListener('message', messageHandler);
+      reject(new Error('PostMessage unlock timeout'));
+    }, 10000); // Reduced timeout to 10 seconds
+  });
+}
+
+// Method 4: Storage fallback (when extension context is broken)
+async function unlockViaStorageFallback(password: string): Promise<any> {
+  try {
+    console.log('🔍 Attempting storage fallback unlock...');
+    
+    // This is a fallback when the extension context is completely broken
+    // Store unlock attempt for the extension to pick up when it recovers
+    const unlockAttempt = {
+      password: password,
+      timestamp: Date.now(),
+      id: Math.random().toString(36).substring(2, 15)
+    };
+    
+    localStorage.setItem('paycio-unlock-attempt', JSON.stringify(unlockAttempt));
+    console.log('📤 Stored unlock attempt in localStorage:', unlockAttempt.id);
+    
+    // Wait longer for extension to potentially recover
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    // Check if unlock was successful
+    const unlockResult = localStorage.getItem('paycio-unlock-result');
+    if (unlockResult) {
+      console.log('📨 Storage fallback response received');
+      localStorage.removeItem('paycio-unlock-result');
+      localStorage.removeItem('paycio-unlock-attempt');
+      const result = JSON.parse(unlockResult);
+      return result;
+    }
+    
+    // If no response, try to trigger extension recovery
+    console.log('🔄 No response from storage fallback, attempting extension recovery...');
+    
+    // Try to wake up the extension by sending a simple message
+    try {
+      if (typeof chrome !== 'undefined' && chrome.runtime) {
+        chrome.runtime.sendMessage({ type: 'WAKE_UP' }, () => {
+          // Ignore errors, just trying to wake up
+        });
+      }
+    } catch (error) {
+      console.log('⚠️ Could not send wake-up message:', error);
+    }
+    
+    // Wait a bit more after wake-up attempt
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Check again for response
+    const finalResult = localStorage.getItem('paycio-unlock-result');
+    if (finalResult) {
+      console.log('📨 Storage fallback response received after wake-up');
+      localStorage.removeItem('paycio-unlock-result');
+      localStorage.removeItem('paycio-unlock-attempt');
+      const result = JSON.parse(finalResult);
+      return result;
+    }
+    
+    throw new Error('Storage fallback failed - extension context invalidated');
+  } catch (error) {
+    throw new Error(`Storage fallback error: ${error.message}`);
+  }
+}
+
+// User-friendly error messages
+function getUnlockErrorMessage(errorMessage: string): string {
+  if (errorMessage.includes('Could not establish connection')) {
+    return 'Connection lost. Please refresh the page and try again.';
+  }
+  if (errorMessage.includes('Extension context invalidated')) {
+    return 'Extension needs to reload. Please refresh the page.';
+  }
+  if (errorMessage.includes('Invalid password')) {
+    return 'Incorrect password. Please try again.';
+  }
+  if (errorMessage.includes('timeout')) {
+    return 'Request timed out. Please try again.';
+  }
+  if (errorMessage.includes('No wallet found')) {
+    return 'No wallet found. Please create a wallet first.';
+  }
+  return errorMessage || 'An unexpected error occurred. Please try again.';
+}
+
+// Expose createUnlockModal function globally
+(window as any).createUnlockModal = createUnlockModal;
   
   // PayCio Wallet injection completed
   

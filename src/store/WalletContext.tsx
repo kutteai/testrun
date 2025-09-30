@@ -851,19 +851,50 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const { WalletManager } = await import('../core/wallet-manager');
       const walletManager = new WalletManager();
       
-      const walletData = await walletManager.createWallet({
+      const newWallet = await walletManager.createWallet({
         name,
         password, // Use the passed password directly
         network,
         accountCount: 1
       });
 
-      // Store wallet securely in WalletContext storage too for compatibility
-      await storeWallet(walletData);
+      // Set the new wallet as active
+      await walletManager.setActiveWallet(newWallet.id);
       
-      dispatch({ type: 'SET_WALLET', payload: walletData });
+      // Get all wallets to update the context
+      const allWallets = await walletManager.getAllWallets();
+      console.log('🔍 WalletContext: Total wallets after creation:', allWallets.length);
+      
+      // Store wallet securely in WalletContext storage too for compatibility
+      await storeWallet(newWallet);
+      
+      dispatch({ type: 'SET_WALLET', payload: newWallet });
       dispatch({ type: 'SET_WALLET_CREATED', payload: true });
       dispatch({ type: 'SET_HAS_WALLET', payload: true });
+      
+      // Dispatch events to notify all components
+      if (typeof window !== 'undefined') {
+        const walletEvent = new CustomEvent('walletChanged', {
+          detail: {
+            wallet: newWallet,
+            address: newWallet.address,
+            network: network,
+            walletId: newWallet.id
+          }
+        });
+        window.dispatchEvent(walletEvent);
+        
+        // Also dispatch wallet created event for specific handling
+        const walletCreatedEvent = new CustomEvent('walletCreated', {
+          detail: {
+            wallet: newWallet,
+            walletId: newWallet.id,
+            address: newWallet.address,
+            network: network
+          }
+        });
+        window.dispatchEvent(walletCreatedEvent);
+      }
     } catch (error) {
       console.error('Wallet creation failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create wallet';
@@ -902,18 +933,25 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
       console.log('🔍 WalletContext: WalletManager created');
       
       console.log('🔍 WalletContext: Calling walletManager.importWallet...');
-      const wallet = await walletManager.importWallet({
-      name: 'Imported Wallet',
+      const newWallet = await walletManager.importWallet({
+      name: `Wallet ${Date.now()}`, // Unique name for each wallet
         seedPhrase,
         password, // Use the passed password directly
         network,
         accountCount: 1
       });
-      console.log('🔍 WalletContext: Wallet imported successfully:', wallet.id);
+      console.log('🔍 WalletContext: Wallet imported successfully:', newWallet.id);
 
-      console.log('🔍 WalletContext: Storing wallet directly to Chrome storage...');
+      console.log('🔍 WalletContext: Setting new wallet as active...');
       
-      // Store wallet directly in Chrome storage (bypass storeWallet function)
+      // Set the new wallet as the active wallet
+      await walletManager.setActiveWallet(newWallet.id);
+      
+      // Get all wallets to update the context
+      const allWallets = await walletManager.getAllWallets();
+      console.log('🔍 WalletContext: Total wallets now:', allWallets.length);
+      
+      // Update wallet state to reflect the new active wallet
       const browserAPI = (() => {
         if (typeof browser !== 'undefined') return browser;
         if (typeof chrome !== 'undefined') return chrome;
@@ -921,18 +959,19 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
       })();
       
       await browserAPI.storage.local.set({ 
-        wallet: wallet,
+        wallet: newWallet, // Set as current active wallet
         walletState: {
           isWalletUnlocked: true,
           hasWallet: true,
           isWalletCreated: true,
-          lastUpdated: Date.now()
+          lastUpdated: Date.now(),
+          activeWalletId: newWallet.id
         }
       });
       
-      console.log('🔍 WalletContext: Wallet stored directly to Chrome storage successfully');
+      console.log('🔍 WalletContext: New wallet set as active successfully');
     
-    dispatch({ type: 'SET_WALLET', payload: wallet });
+    dispatch({ type: 'SET_WALLET', payload: newWallet });
     dispatch({ type: 'SET_WALLET_CREATED', payload: true });
     dispatch({ type: 'SET_HAS_WALLET', payload: true });
 
@@ -948,6 +987,30 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
       isEnabled: true
     };
     dispatch({ type: 'SET_CURRENT_NETWORK', payload: networkData });
+    
+    // Dispatch events to notify all components
+    if (typeof window !== 'undefined') {
+      const walletEvent = new CustomEvent('walletChanged', {
+        detail: {
+          wallet: newWallet,
+          address: newWallet.address,
+          network: network,
+          walletId: newWallet.id
+        }
+      });
+      window.dispatchEvent(walletEvent);
+      
+      // Also dispatch wallet imported event for specific handling
+      const walletImportedEvent = new CustomEvent('walletImported', {
+        detail: {
+          wallet: newWallet,
+          walletId: newWallet.id,
+          address: newWallet.address,
+          network: network
+        }
+      });
+      window.dispatchEvent(walletImportedEvent);
+    }
     
   } catch (error) {
       console.error('❌ WalletContext: Wallet import failed:', error);
@@ -1708,7 +1771,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
       // Dispatch network change event
       if (typeof window !== 'undefined') {
-        const event = new CustomEvent('networkChanged', {
+        const networkEvent = new CustomEvent('networkChanged', {
           detail: { 
             networkId, 
             address: newAddress, 
@@ -1716,7 +1779,18 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
             previousAddress: state.wallet.address
           }
         });
-        window.dispatchEvent(event);
+        window.dispatchEvent(networkEvent);
+        
+        // Also dispatch wallet changed event to notify all components
+        const walletEvent = new CustomEvent('walletChanged', {
+          detail: {
+            wallet: updatedWallet,
+            address: newAddress,
+            network: networkId,
+            previousAddress: state.wallet.address
+          }
+        });
+        window.dispatchEvent(walletEvent);
       }
 
       console.log(`✅ Successfully switched to ${network.name} (${newAddress})`);
@@ -1786,7 +1860,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // SHA-256 hash function
       const sha256 = async (data: string | Uint8Array): Promise<Uint8Array> => {
         const dataBuffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer as BufferSource);
         return new Uint8Array(hashBuffer);
       };
 
@@ -2015,9 +2089,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         
         dispatch({ type: 'SET_WALLET', payload: updatedWalletWithAddress });
         
-        // Dispatch custom event to notify all components
+        // Dispatch custom events to notify all components
         if (typeof window !== 'undefined') {
-          const event = new CustomEvent('accountSwitched', {
+          const accountEvent = new CustomEvent('accountSwitched', {
             detail: {
               wallet: updatedWalletWithAddress,
               accountId: accountId,
@@ -2025,7 +2099,18 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
               network: currentNetworkId
             }
           });
-          window.dispatchEvent(event);
+          window.dispatchEvent(accountEvent);
+          
+          // Also dispatch wallet changed event to notify all components
+          const walletEvent = new CustomEvent('walletChanged', {
+            detail: {
+              wallet: updatedWalletWithAddress,
+              address: accountAddress || updatedWallet.address,
+              network: currentNetworkId,
+              accountId: accountId
+            }
+          });
+          window.dispatchEvent(walletEvent);
         }
         
         console.log(`✅ Account switched to: ${accountId}, address: ${accountAddress || updatedWallet.address} on ${currentNetworkId}`);
@@ -2099,11 +2184,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       console.log('🔐 Attempting to add account with password length:', password?.length || 0);
       
-      const newAccount = await walletManager.addAccountToWallet(state.wallet.id, password, accountName);
+      const result = await walletManager.addAccountToWallet(state.wallet.id, password, accountName);
+      const newAccount = result.account;
+      const seedPhrase = result.seedPhrase;
       
       console.log('✅ New account created:', { 
         accountId: newAccount.id, 
-        addresses: newAccount.addresses 
+        addresses: newAccount.addresses,
+        hasSeedPhrase: !!seedPhrase
       });
     
     // Get the updated wallet with the new account
@@ -2121,13 +2209,63 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: freshWallet });
           // Also store the updated wallet to ensure persistence
           await storeWallet(freshWallet);
+          
+          // Dispatch events to notify all components
+          if (typeof window !== 'undefined') {
+            const walletEvent = new CustomEvent('walletChanged', {
+              detail: {
+                wallet: freshWallet,
+                address: freshWallet.address,
+                network: freshWallet.currentNetwork,
+                accountId: newAccount.id
+              }
+            });
+            window.dispatchEvent(walletEvent);
+            
+            // Also dispatch account added event for specific handling
+            const accountAddedEvent = new CustomEvent('accountAdded', {
+              detail: {
+                wallet: freshWallet,
+                account: newAccount,
+                accountId: newAccount.id,
+                address: newAccount.addresses?.[freshWallet.currentNetwork] || newAccount.addresses?.['ethereum'],
+                network: freshWallet.currentNetwork
+              }
+            });
+            window.dispatchEvent(accountAddedEvent);
+          }
         } else {
           dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
           // Also store the updated wallet to ensure persistence
           await storeWallet(updatedWallet);
+          
+          // Dispatch events to notify all components
+          if (typeof window !== 'undefined') {
+            const walletEvent = new CustomEvent('walletChanged', {
+              detail: {
+                wallet: updatedWallet,
+                address: updatedWallet.address,
+                network: updatedWallet.currentNetwork,
+                accountId: newAccount.id
+              }
+            });
+            window.dispatchEvent(walletEvent);
+            
+            // Also dispatch account added event for specific handling
+            const accountAddedEvent = new CustomEvent('accountAdded', {
+              detail: {
+                wallet: updatedWallet,
+                account: newAccount,
+                accountId: newAccount.id,
+                address: newAccount.addresses?.[updatedWallet.currentNetwork] || newAccount.addresses?.['ethereum'],
+                network: updatedWallet.currentNetwork
+              }
+            });
+            window.dispatchEvent(accountAddedEvent);
+          }
         }
         
-      return newAccount; // Return the created account
+      return { account: newAccount, seedPhrase: seedPhrase }; // Return the created account with seed phrase
       } else {
         throw new Error('Failed to retrieve updated wallet');
     }
@@ -2749,6 +2887,102 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     }
   }, [state.wallet]);
 
+  // Multi-wallet support functions
+  const getAllWallets = async (): Promise<any[]> => {
+    try {
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      return await walletManager.getAllWallets();
+    } catch (error) {
+      console.error('Failed to get all wallets:', error);
+      return [];
+    }
+  };
+
+  const switchWallet = async (walletId: string): Promise<void> => {
+    try {
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      // Set the new active wallet
+      await walletManager.setActiveWallet(walletId);
+      
+      // Get the wallet data
+      const wallet = await walletManager.getWallet(walletId);
+      if (!wallet) {
+        throw new Error('Wallet not found');
+      }
+      
+      // Update context state
+      dispatch({ type: 'SET_WALLET', payload: wallet });
+      
+      // Update storage
+      const browserAPI = (() => {
+        if (typeof browser !== 'undefined') return browser;
+        if (typeof chrome !== 'undefined') return chrome;
+        throw new Error('No browser API available');
+      })();
+      
+      await browserAPI.storage.local.set({ 
+        wallet: wallet,
+        walletState: {
+          isWalletUnlocked: true,
+          hasWallet: true,
+          isWalletCreated: true,
+          activeWalletId: walletId,
+          lastUpdated: Date.now()
+        }
+      });
+      
+      // Dispatch events to notify all components
+      if (typeof window !== 'undefined') {
+        const walletEvent = new CustomEvent('walletChanged', {
+          detail: {
+            wallet: wallet,
+            address: wallet.address,
+            network: wallet.currentNetwork,
+            walletId: walletId
+          }
+        });
+        window.dispatchEvent(walletEvent);
+        
+        // Also dispatch wallet switched event for specific handling
+        const walletSwitchedEvent = new CustomEvent('walletSwitched', {
+          detail: {
+            wallet: wallet,
+            walletId: walletId,
+            address: wallet.address,
+            network: wallet.currentNetwork
+          }
+        });
+        window.dispatchEvent(walletSwitchedEvent);
+      }
+      
+      console.log(`✅ Switched to wallet: ${walletId}`);
+    } catch (error) {
+      console.error('Failed to switch wallet:', error);
+      throw error;
+    }
+  };
+
+  const getActiveWallet = async (): Promise<any | null> => {
+    try {
+      const { WalletManager } = await import('../core/wallet-manager');
+      const walletManager = new WalletManager();
+      
+      // Get all wallets and find the most recently accessed one
+      const allWallets = await walletManager.getAllWallets();
+      if (allWallets.length === 0) return null;
+      
+      // Sort by lastAccessed and return the most recent
+      const sortedWallets = allWallets.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
+      return sortedWallets[0];
+    } catch (error) {
+      console.error('Failed to get active wallet:', error);
+      return null;
+    }
+  };
+
   const value: WalletContextType = {
     ...state,
     createWallet,
@@ -2780,7 +3014,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     debugSessionStatus,
     debugUnlockIssue,
     debugPassword,
-    debugStorage
+    debugStorage,
+    // Multi-wallet support functions
+    getAllWallets,
+    switchWallet,
+    getActiveWallet
   };
 
   return (

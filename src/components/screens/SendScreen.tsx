@@ -14,6 +14,7 @@ import { storage } from '../../utils/storage-utils';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
+import { resolveENS } from '../../utils/ens-utils';
 
 const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork, switchNetwork } = useWallet();
@@ -304,15 +305,29 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setIsAddressValid(isValid);
       
     } else if (addressType === 'ens') {
-      // ENS validation (only valid for Ethereum networks)
+      // ENS validation (supports multiple networks)
       const networkId = currentNetwork?.id || 'ethereum';
+      let isValid = false;
+      
       if (['ethereum', 'polygon', 'arbitrum', 'optimism'].includes(networkId)) {
+        // Ethereum-based networks support .eth domains
         const ensRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.eth$/;
-        setIsAddressValid(ensRegex.test(value.toLowerCase()));
-      } else {
-        // ENS not supported on this network
-        setIsAddressValid(false);
+        isValid = ensRegex.test(value.toLowerCase());
+      } else if (networkId === 'bsc' || networkId === 'binance') {
+        // BSC network supports .bnb domains (Space ID)
+        const bnbRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.bnb$/;
+        isValid = bnbRegex.test(value.toLowerCase());
+      } else if (networkId === 'polygon') {
+        // Polygon supports .polygon domains
+        const polygonRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.polygon$/;
+        isValid = polygonRegex.test(value.toLowerCase());
+      } else if (networkId === 'avalanche') {
+        // Avalanche supports .avax domains
+        const avaxRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.avax$/;
+        isValid = avaxRegex.test(value.toLowerCase());
       }
+      
+      setIsAddressValid(isValid);
       
     } else if (addressType === 'ucpi') {
       // UCPI ID validation (alphanumeric, 6-20 characters)
@@ -351,13 +366,37 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     return testAddressValidation(failingAddress);
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (isAddressValid && amount && parseFloat(amount) > 0 && fromAccount) {
+      let resolvedAddress = toAddress;
+      
+      // Resolve ENS/domain names to addresses
+      if (addressType === 'ens') {
+        try {
+          console.log('🔍 Resolving domain:', toAddress);
+          const networkId = currentNetwork?.id || 'ethereum';
+          const resolved = await resolveENS(toAddress, networkId);
+          
+          if (resolved) {
+            resolvedAddress = resolved;
+            console.log('✅ Domain resolved to:', resolved);
+          } else {
+            toast.error(`Could not resolve domain: ${toAddress}`);
+            return;
+          }
+        } catch (error) {
+          console.error('❌ Domain resolution failed:', error);
+          toast.error(`Failed to resolve domain: ${toAddress}`);
+          return;
+        }
+      }
+      
       // Save transaction data to session storage for ReviewSendScreen
       const transactionData = {
         amount: amount,
         currency: selectedCurrency,
-        toAddress: toAddress,
+        toAddress: resolvedAddress,
+        originalAddress: toAddress, // Keep original for display
         fromAccount: fromAccount.name || `Account ${fromAccount.id}`,
         fromAddress: fromAccount.address,
         network: currentNetwork?.name || 'Ethereum',
@@ -521,7 +560,10 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
               type="text"
               placeholder={
                 addressType === 'address' ? 'Enter wallet address' :
-                addressType === 'ens' ? 'Enter ENS domain (e.g., vitalik.eth)' :
+                addressType === 'ens' ? 
+                  (currentNetwork?.id === 'bsc' || currentNetwork?.id === 'binance') ? 
+                    'Enter BNB domain (e.g., example.bnb)' :
+                    'Enter ENS domain (e.g., vitalik.eth)' :
                 'Enter UCPI ID'
               }
               value={toAddress}

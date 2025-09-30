@@ -19,6 +19,8 @@ interface ExtensionResponse {
 class PaycioContentScript {
   private pendingRequests = new Map<string, (response: any) => void>();
   private connectedDApps = new Set<string>();
+  private communicationPort: chrome.runtime.Port | null = null;
+  private retryAttempts = 3;
   private currentState = {
     isConnected: false,
     accounts: [] as string[],
@@ -37,6 +39,9 @@ class PaycioContentScript {
 
     // Set up message listeners
     this.setupMessageListeners();
+
+    // Set up enhanced keepalive with multiple fallbacks
+    this.setupEnhancedKeepAlive();
 
     // Get initial wallet state
     await this.updateWalletState();
@@ -113,22 +118,68 @@ class PaycioContentScript {
   }
 
   private async handlePageMessage(event: MessageEvent) {
-    if (event.source !== window || !event.data.type?.startsWith('PAYCIO_EXTENSION_')) {
+    if (event.source !== window || !event.data.type?.startsWith('PAYCIO_')) {
       return;
     }
 
-    const { type, method, params, requestId } = event.data;
+    const { type, method, params, requestId, id } = event.data;
+    console.log('🔍 Content script received message:', type, event.data);
 
-    if (type === 'PAYCIO_EXTENSION_REQUEST') {
-      try {
-        const response = await this.forwardToExtension(method, params);
+    try {
+      let response;
+      
+      if (type === 'PAYCIO_EXTENSION_REQUEST') {
+        response = await this.forwardToExtension(method, params);
         this.sendResponseToPage(requestId, response);
-      } catch (error) {
-        this.sendResponseToPage(requestId, {
+      } else if (type.startsWith('PAYCIO_') && (requestId || id)) {
+        response = await this.forwardToBackgroundScript(type, event.data);
+        this.sendResponseToPage(requestId || id, response, type);
+      }
+    } catch (error) {
+      console.error('Error handling page message:', error);
+      
+      // Try recovery for connection errors
+      if (error.message.includes('Could not establish connection') ||
+          error.message.includes('Extension context invalidated') ||
+          error.message.includes('Receiving end does not exist')) {
+        
+        try {
+          const response = await this.recoverFromConnectionError(event.data, error.message);
+          this.sendResponseToPage(requestId || id, response, type);
+        } catch (recoveryError) {
+          this.sendResponseToPage(requestId || id, {
+            success: false,
+            error: `Connection failed: ${recoveryError.message}. Please refresh the page and try again.`
+          }, type);
+        }
+      } else {
+        this.sendResponseToPage(requestId || id, {
           success: false,
           error: error.message || 'Request failed'
-        });
+        }, type);
       }
+    }
+  }
+
+  // Enhanced error recovery mechanism
+  private async recoverFromConnectionError(originalMessage: any, originalError: string): Promise<any> {
+    console.log('🔧 Attempting connection recovery...');
+    
+    // Wait for potential service worker restart
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Try to re-establish communication port
+    if (!this.communicationPort) {
+      this.createCommunicationPort();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    
+    // Retry the original message
+    try {
+      return await this.forwardToBackgroundScript(originalMessage.type, originalMessage);
+    } catch (error) {
+      console.error('🔧 Connection recovery failed:', error);
+      throw new Error(`Connection recovery failed: ${error.message}`);
     }
   }
 
@@ -220,14 +271,175 @@ class PaycioContentScript {
     });
   }
 
-  private sendResponseToPage(requestId: string, response: any) {
+  private async forwardToBackgroundScript(messageType: string, data: any): Promise<any> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Background script request timeout'));
+      }, 30000);
+
+      // Method 1: Try port communication first
+      if (this.communicationPort) {
+        try {
+          const requestId = this.generateRequestId();
+          this.pendingRequests.set(requestId, (response) => {
+            clearTimeout(timeout);
+            if (response.success) {
+              resolve(response);
+            } else {
+              reject(new Error(response.error || 'Request failed'));
+            }
+          });
+          
+          this.communicationPort.postMessage({
+            type: messageType,
+            requestId,
+            ...data
+          });
+          return;
+        } catch (error) {
+          console.warn('Port communication failed, falling back to sendMessage:', error);
+        }
+      }
+
+      // Method 2: Fallback to sendMessage with retry logic
+      const sendMessageWithRetry = (retryCount = 0) => {
+        const message = {
+          type: messageType,
+          ...data
+        };
+
+        if (typeof chrome !== 'undefined' && chrome.runtime) {
+          chrome.runtime.sendMessage(message, (response) => {
+            clearTimeout(timeout);
+            
+            if (chrome.runtime.lastError) {
+              const error = chrome.runtime.lastError.message;
+              console.log(`❌ sendMessage error (attempt ${retryCount + 1}):`, error);
+              
+              // Retry on specific errors
+              if ((error.includes('Extension context invalidated') || 
+                   error.includes('Receiving end does not exist') ||
+                   error.includes('Could not establish connection')) && 
+                   retryCount < this.retryAttempts) {
+                
+                console.log(`🔄 Retrying message (attempt ${retryCount + 2}/${this.retryAttempts + 1})...`);
+                setTimeout(() => sendMessageWithRetry(retryCount + 1), 1000 * (retryCount + 1));
+              } else {
+                reject(new Error(error));
+              }
+            } else if (response) {
+              resolve(response);
+            } else {
+              if (retryCount < this.retryAttempts) {
+                console.log(`🔄 No response, retrying (attempt ${retryCount + 2}/${this.retryAttempts + 1})...`);
+                setTimeout(() => sendMessageWithRetry(retryCount + 1), 1000 * (retryCount + 1));
+              } else {
+                reject(new Error('No response from background script after retries'));
+              }
+            }
+          });
+        } else {
+          clearTimeout(timeout);
+          reject(new Error('Chrome runtime not available'));
+        }
+      };
+
+      sendMessageWithRetry();
+    });
+  }
+
+  private generateRequestId(): string {
+    return Math.random().toString(36).substring(2, 15) + 
+           Math.random().toString(36).substring(2, 15);
+  }
+
+  private sendResponseToPage(requestId: string, response: any, originalType?: string) {
+    const responseType = originalType ? `${originalType}_RESPONSE` : 'PAYCIO_EXTENSION_RESPONSE';
     window.postMessage({
-      type: 'PAYCIO_EXTENSION_RESPONSE',
+      type: responseType,
       requestId,
+      id: requestId, // Also include id for compatibility
       success: response.success,
       data: response.data,
       error: response.error
     }, '*');
+  }
+
+  private setupEnhancedKeepAlive() {
+    // Method 1: Port-based keepalive
+    this.createCommunicationPort();
+    
+    // Method 2: Periodic message keepalive
+    setInterval(() => {
+      this.sendKeepAliveMessage();
+    }, 15000);
+    
+    // Method 3: Service worker ping
+    setInterval(() => {
+      this.pingServiceWorker();
+    }, 25000);
+  }
+
+  private createCommunicationPort() {
+    try {
+      this.communicationPort = chrome.runtime.connect({ name: 'wallet-communication' });
+      
+      this.communicationPort.onMessage.addListener((message) => {
+        const callback = this.pendingRequests.get(message.requestId);
+        if (callback) {
+          this.pendingRequests.delete(message.requestId);
+          callback(message);
+        }
+      });
+      
+      this.communicationPort.onDisconnect.addListener(() => {
+        console.log('🔄 Communication port disconnected, reconnecting...');
+        if (chrome.runtime.lastError) {
+          console.log('Port disconnect error:', chrome.runtime.lastError.message);
+        }
+        
+        // Retry after delay
+        setTimeout(() => {
+          this.createCommunicationPort();
+        }, 2000);
+      });
+      
+      console.log('✅ Communication port established');
+    } catch (error) {
+      console.warn('Failed to create communication port:', error);
+      // Will fall back to sendMessage
+    }
+  }
+
+  private sendKeepAliveMessage() {
+    try {
+      if (chrome.runtime && chrome.runtime.id) {
+        chrome.runtime.sendMessage({ type: 'KEEPALIVE_PING' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.log('Keep-alive failed:', chrome.runtime.lastError.message);
+            // Try to reconnect communication port
+            if (!this.communicationPort) {
+              this.createCommunicationPort();
+            }
+          } else {
+            console.log('✅ Keep-alive successful');
+          }
+        });
+      }
+    } catch (error) {
+      console.warn('Keep-alive error:', error);
+    }
+  }
+
+  private pingServiceWorker() {
+    try {
+      // Try to wake up the service worker
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'PING' });
+      }
+    } catch (error) {
+      console.warn('Service worker ping failed:', error);
+    }
   }
 
   private notifyPageOfAccountsChange(accounts: string[]) {
@@ -284,22 +496,22 @@ class PaycioContentScript {
   private announceProvider() {
     // Wait a bit for the provider script to load
     setTimeout(() => {
-      // Dispatch events to let DApps know Paycio is available
-      window.dispatchEvent(new Event('ethereum#initialized'));
-      
-      // Custom event for Paycio
-      window.dispatchEvent(new CustomEvent('paycio#initialized', {
-        detail: {
-          isPaycio: true,
+    // Dispatch events to let DApps know Paycio is available
+    window.dispatchEvent(new Event('ethereum#initialized'));
+    
+    // Custom event for Paycio
+    window.dispatchEvent(new CustomEvent('paycio#initialized', {
+      detail: {
+        isPaycio: true,
           version: '2.0.0',
-          supportedNetworks: [
-            'ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism',
-            'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
-          ]
-        }
-      }));
+        supportedNetworks: [
+          'ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism',
+          'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
+        ]
+      }
+    }));
 
-      console.log('Paycio wallet announced to page');
+    console.log('Paycio wallet announced to page');
     }, 100);
   }
 

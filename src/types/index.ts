@@ -85,6 +85,7 @@ export interface WalletAccount {
   createdAt: number;
   encryptedSeedPhrase: string;
   isActive: boolean;
+  accountType?: 'seed-phrase' | 'private-key' | 'hardware'; // Type of account
 }
 
 export interface WalletData {
@@ -101,6 +102,7 @@ export interface WalletData {
   balance: string;
   createdAt: number;
   lastUsed: number;
+  lastAccessed?: number; // Add lastAccessed property for multi-wallet support
   decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
 }
 
@@ -268,7 +270,7 @@ export interface WalletContextType {
   initializeWallet: () => Promise<void>;
   addHardwareWallet: (type: 'ledger' | 'trezor', address: string, derivationPath: string) => Promise<void>;
   switchAccount: (accountId: string) => Promise<void>;
-  addAccount: (password: string, accountName?: string) => Promise<any>;
+  addAccount: (password: string, accountName?: string) => Promise<{account: any, seedPhrase: string}>;
   addAccountFromSeedPhrase: (seedPhrase: string, password: string, accountName?: string) => Promise<any>;
   addAccountFromPrivateKey: (privateKey: string, password: string, accountName?: string) => Promise<any>;
   removeAccount: (accountId: string) => Promise<void>;
@@ -287,6 +289,10 @@ export interface WalletContextType {
   debugPassword: (testPassword: string) => Promise<boolean>;
   debugUnlockIssue: (testPassword: string) => Promise<void>;
   debugStorage: () => Promise<boolean>;
+  // Multi-wallet support functions
+  getAllWallets: () => Promise<any[]>;
+  switchWallet: (walletId: string) => Promise<void>;
+  getActiveWallet: () => Promise<any | null>;
 }
 
 export interface SecurityContextType {

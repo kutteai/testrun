@@ -46,6 +46,7 @@ import { useNFT } from '../../store/NFTContext';
 import { handleError } from '../../utils/error-handler';
 import { navigateWithHistory, goBackWithHistory } from '../../utils/navigation-utils';
 import { ScreenProps, Transaction } from '../../types';
+import SeedPhraseModal from '../modals/SeedPhraseModal';
 import NetworkSwitcherModal from '../common/NetworkSwitcherModal';
 import { storage } from '../../utils/storage-utils';
 
@@ -69,6 +70,11 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [error, setError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [ucpiId, setUcpiId] = useState('');
+  
+  // Seed phrase modal state
+  const [showSeedPhraseModal, setShowSeedPhraseModal] = useState(false);
+  const [generatedSeedPhrase, setGeneratedSeedPhrase] = useState('');
+  const [generatedAccountName, setGeneratedAccountName] = useState('');
   const [recentTxHistory, setRecentTxHistory] = useState<Transaction[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [showNetworkDropdown, setShowNetworkDropdown] = useState(false);
@@ -436,11 +442,18 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const password = await wallet.getPassword?.();
       if (!password) return;
       
-      const newAccount = await wallet.addAccount?.(password);
-      if (newAccount) {
-      setAccounts(prev => [...prev, newAccount]);
-      setShowCreateAccountModal(false);
-      setNewAccountName('');
+      const result = await wallet.addAccount?.(password, newAccountName.trim());
+      if (result) {
+        setAccounts(prev => [...prev, result.account]);
+        setShowCreateAccountModal(false);
+        setNewAccountName('');
+        
+        // Show seed phrase modal if seed phrase was generated
+        if (result.seedPhrase) {
+          setShowSeedPhraseModal(true);
+          setGeneratedSeedPhrase(result.seedPhrase);
+          setGeneratedAccountName(newAccountName.trim());
+        }
       }
     } catch (error) {
       console.error('Failed to create account:', error);
@@ -1204,6 +1217,19 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           </button>
         </div>
       )}
+
+      {/* Seed Phrase Modal */}
+      <SeedPhraseModal
+        isOpen={showSeedPhraseModal}
+        onClose={() => setShowSeedPhraseModal(false)}
+        seedPhrase={generatedSeedPhrase}
+        onConfirm={() => {
+          setShowSeedPhraseModal(false);
+          setGeneratedSeedPhrase('');
+          setGeneratedAccountName('');
+        }}
+        accountName={generatedAccountName}
+      />
     </motion.div>
   );
 };
