@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { getGasPrice, estimateGas, sendRawTransaction, getTransactionReceipt } from './web3-utils';
+import { nonEVMTransactionManager } from './non-evm-transaction-manager';
 
 export interface Transaction {
   id: string;
@@ -63,7 +64,7 @@ export class TransactionManager {
     return this.providers.get(network)!;
   }
 
-  // Send transaction with real implementation
+  // Send transaction with real implementation (EVM and Non-EVM support)
   async sendTransaction(
     fromAddress: string,
     toAddress: string,
@@ -74,6 +75,53 @@ export class TransactionManager {
     options: TransactionOptions = {}
   ): Promise<Transaction> {
     try {
+      // Check if this is a non-EVM chain
+      const nonEVMChains = ['bitcoin', 'solana', 'tron', 'ton', 'xrp'];
+      const isNonEVM = nonEVMChains.includes(network.toLowerCase());
+
+      if (isNonEVM) {
+        // Handle non-EVM transaction
+        const amount = parseFloat(value) || 0;
+        const result = await nonEVMTransactionManager.sendTransaction(
+          network,
+          fromAddress,
+          toAddress,
+          amount,
+          privateKey,
+          options.network || 'mainnet'
+        );
+
+        if (!result.success) {
+          throw new Error(result.error || 'Non-EVM transaction failed');
+        }
+
+        // Create transaction object for non-EVM
+        const transaction: Transaction = {
+          id: `${network}-${result.txHash}`,
+          hash: result.txHash,
+          from: fromAddress,
+          to: toAddress,
+          value: value,
+          data: '0x', // Non-EVM chains don't use data field
+          gasLimit: '0', // Non-EVM chains don't use gas
+          gasPrice: '0', // Non-EVM chains don't use gas
+          nonce: 0, // Non-EVM chains don't use nonce
+          network: network,
+          status: 'pending',
+          confirmations: 0,
+          timestamp: Date.now()
+        };
+
+        // Store transaction
+        this.transactions.set(transaction.id, transaction);
+
+        // Start monitoring
+        this.monitorTransaction(transaction);
+
+        return transaction;
+      }
+
+      // Handle EVM transaction (existing logic)
       const provider = this.getProvider(network);
       const wallet = new ethers.Wallet(privateKey, provider);
 

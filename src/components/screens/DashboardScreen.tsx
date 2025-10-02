@@ -1196,7 +1196,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       />
 
       {/* Debug Info */}
-      {process.env.NODE_ENV === 'development' && (
+      {(import.meta as any).env?.DEV && (
         <div className="fixed bottom-4 right-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs max-w-xs">
           <div><strong>Network Debug:</strong></div>
           <div>Current: {typeof currentNetwork === 'object' ? currentNetwork?.id : currentNetwork || 'None'}</div>

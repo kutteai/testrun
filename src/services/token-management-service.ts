@@ -37,7 +37,13 @@ export class TokenManagementService {
     try {
       const result = await storage.get([this.STORAGE_KEY]);
       const allAccountTokens = result[this.STORAGE_KEY] || {};
-      return allAccountTokens[accountId] || null;
+      const accountData = allAccountTokens[accountId] || null;
+      
+      console.log('🔍 TokenManagementService: Getting tokens for account:', accountId);
+      console.log('🔍 Available accounts:', Object.keys(allAccountTokens));
+      console.log('🔍 Account data:', accountData);
+      
+      return accountData;
     } catch (error) {
       console.error('Failed to get account tokens:', error);
       return null;
@@ -116,6 +122,12 @@ export class TokenManagementService {
       await this.saveAccountTokens(accountId, accountData);
       
       console.log(`✅ Added token ${token.symbol} to account ${accountId} on ${network}`);
+      console.log('🔍 TokenManagementService: Saved token data:', {
+        accountId,
+        network,
+        tokenAddress: token.address,
+        tokenSymbol: token.symbol
+      });
     } catch (error) {
       console.error('Failed to add token to account:', error);
       throw error;

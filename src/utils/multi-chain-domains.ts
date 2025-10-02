@@ -139,7 +139,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'ethereum',
           service: 'ENS',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -221,7 +224,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'bsc',
           service: 'Space ID',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -263,7 +269,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'ethereum',
           service: 'Unstoppable Domains',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -299,7 +308,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'polygon',
           service: 'Polygon Name Service',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -334,7 +346,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'arbitrum',
           service: 'Arbitrum Name Service',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -369,7 +384,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'avalanche',
           service: 'Avvy Domains',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -404,7 +422,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'tron',
           service: 'TRON Name Service',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -439,7 +460,10 @@ export class MultiChainDomainResolver {
           domain,
           network: 'solana',
           service: 'Solana Name Service',
-          isValid: true
+          isValid: true,
+          success: true,
+          isGlobal: true,
+          isLocal: false
         };
       }
       
@@ -496,6 +520,9 @@ export class MultiChainDomainResolver {
           network: 'unknown',
           service: 'Unknown',
           isValid: false,
+          success: false,
+          isGlobal: false,
+          isLocal: false,
           error: result.reason?.message || 'Resolution failed'
         };
       }

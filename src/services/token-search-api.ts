@@ -429,9 +429,37 @@ export class TokenSearchAPI {
     }
 
     try {
-      // This would integrate with your account system
-      // For now, return empty array - implement based on your account structure
-      return [];
+      // Real implementation: Get tokens from account storage
+      const { TokenManagementService } = await import('./token-management-service');
+      const tokenService = new TokenManagementService();
+      
+      // Get enabled tokens for this account and network
+      const enabledTokens = await tokenService.getEnabledTokens(accountId, network);
+      
+      // Convert to TokenSearchResult format
+      const tokens: TokenSearchResult[] = enabledTokens.map(token => ({
+        id: token.id,
+        symbol: token.token.symbol,
+        name: token.token.name,
+        address: token.token.address,
+        network: token.network,
+        logo: token.token.logo,
+        decimals: token.token.decimals,
+        price: token.token.price,
+        marketCap: token.token.marketCap,
+        volume24h: token.token.volume24h,
+        isVerified: false,
+        tags: token.token.tags || [],
+        chainType: token.token.chainType || 'evm'
+      }));
+      
+      // Cache the results
+      this.cache.set(cacheKey, {
+        data: tokens,
+        expiry: Date.now() + (5 * 60 * 1000) // 5 minutes
+      });
+      
+      return tokens;
     } catch (error) {
       console.error('Failed to get account tokens:', error);
       return [];

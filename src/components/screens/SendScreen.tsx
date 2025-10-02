@@ -232,7 +232,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     setIsAddressValid(false); // Reset validation
   };
 
-  // Enhanced gas fee calculation
+  // Enhanced gas fee calculation with real-time pricing
   const calculateGasFee = async (amount: string, toAddress: string) => {
     try {
       const networkId = currentNetwork?.id || 'ethereum';
@@ -242,8 +242,28 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         throw new Error(`Unsupported network: ${networkId}`);
       }
 
-      // Get current gas price from multiple sources
-      const gasPrice = await getGasPrice(networkId);
+      console.log(`🔍 Calculating gas fee for ${networkId}...`);
+
+      // Try real-time gas service first
+      let gasPriceData;
+      try {
+        const { realTimeGasService } = await import('../../utils/real-time-gas-prices');
+        gasPriceData = await realTimeGasService.getGasPrices(networkId);
+        console.log(`✅ Real-time gas price: ${gasPriceData.gasPrice} Gwei`);
+      } catch (realTimeError) {
+        console.warn('Real-time gas service failed, using RPC fallback:', realTimeError);
+        // Fallback to RPC
+        const gasPrice = await getGasPrice(networkId);
+        const gasPriceGwei = Number(BigInt(gasPrice)) / 1e9;
+        gasPriceData = {
+          gasPrice: gasPriceGwei,
+          slow: gasPriceGwei * 0.8,
+          standard: gasPriceGwei,
+          fast: gasPriceGwei * 1.2
+        };
+      }
+
+      // Estimate gas limit
       const gasLimit = await estimateGas(
         fromAccount?.address || fromAccount?.addresses?.[networkId],
         toAddress,
@@ -252,17 +272,26 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         networkId
       );
 
-      // Calculate fee in network's native token
-      const gasPriceWei = BigInt(gasPrice);
+      // Calculate fee using standard gas price
+      const gasPriceWei = ethers.parseUnits(gasPriceData.standard.toString(), 'gwei');
       const gasLimitBigInt = BigInt(gasLimit);
       const totalFeeWei = gasPriceWei * gasLimitBigInt;
       const totalFeeEth = ethers.formatEther(totalFeeWei);
 
+      console.log(`💰 Gas fee calculation:`, {
+        gasPrice: `${gasPriceData.standard} Gwei`,
+        gasLimit: gasLimit,
+        totalFee: `${totalFeeEth} ${networkConfig.symbol}`
+      });
+
       return {
-        gasPrice: gasPrice,
+        gasPrice: gasPriceWei.toString(),
         gasLimit: gasLimit,
         totalFee: totalFeeEth,
-        networkSymbol: networkConfig.symbol
+        networkSymbol: networkConfig.symbol,
+        gasPriceGwei: gasPriceData.standard,
+        slowGasPrice: gasPriceData.slow,
+        fastGasPrice: gasPriceData.fast
       };
     } catch (error) {
       console.error('Gas fee calculation failed:', error);
@@ -270,7 +299,10 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         gasPrice: '0',
         gasLimit: '21000',
         totalFee: '0',
-        networkSymbol: 'ETH'
+        networkSymbol: 'ETH',
+        gasPriceGwei: 0,
+        slowGasPrice: 0,
+        fastGasPrice: 0
       };
     }
   };
@@ -777,7 +809,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         </motion.div>
 
         {/* Debug Info */}
-        {process.env.NODE_ENV === 'development' && (
+        {(import.meta as any).env?.DEV && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
             <div><strong>Debug Info:</strong></div>
             <div>Wallet: {wallet ? '✅' : '❌'}</div>

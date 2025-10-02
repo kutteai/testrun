@@ -1,34 +1,65 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { 
   Plus, 
   Search, 
-  Settings, 
   Eye, 
   EyeOff, 
   Trash2, 
   ExternalLink,
-  TrendingUp,
   DollarSign,
-  Network
+  Star,
+  TrendingUp,
+  X,
+  Check
 } from 'lucide-react';
 import { useTokenManagement } from '../../hooks/useTokenManagement';
 import TokenSearchModal from './TokenSearchModal';
 
+// Helper function to get explorer URL for different networks
+const getExplorerUrl = (network: string, address: string): string => {
+  const explorers: Record<string, string> = {
+    'ethereum': `https://etherscan.io/token/${address}`,
+    'bsc': `https://bscscan.com/token/${address}`,
+    'polygon': `https://polygonscan.com/token/${address}`,
+    'arbitrum': `https://arbiscan.io/token/${address}`,
+    'optimism': `https://optimistic.etherscan.io/token/${address}`,
+    'avalanche': `https://snowtrace.io/token/${address}`,
+    'base': `https://basescan.org/token/${address}`,
+    'fantom': `https://ftmscan.com/token/${address}`,
+    'bitcoin': `https://blockstream.info/address/${address}`,
+    'solana': `https://solscan.io/token/${address}`,
+    'tron': `https://tronscan.org/#/token/${address}`,
+    'ton': `https://tonscan.org/address/${address}`,
+    'xrp': `https://xrpscan.com/account/${address}`,
+    'litecoin': `https://blockchair.com/litecoin/address/${address}`
+  };
+  return explorers[network.toLowerCase()] || `https://etherscan.io/token/${address}`;
+};
+
 interface TokenManagementPanelProps {
   accountId: string;
   currentNetwork: string;
-  onNetworkChange?: (network: string) => void;
 }
 
 const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
   accountId,
-  currentNetwork,
-  onNetworkChange
+  currentNetwork
 }) => {
   const [showSearchModal, setShowSearchModal] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showCustomTokenModal, setShowCustomTokenModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [popularTokens, setPopularTokens] = useState<any[]>([]);
+  const [loadingPopular, setLoadingPopular] = useState(false);
+  
+  // Custom token form state
+  const [customToken, setCustomToken] = useState({
+    address: '',
+    symbol: '',
+    name: '',
+    decimals: 18
+  });
+  const [addingCustomToken, setAddingCustomToken] = useState(false);
 
   const {
     tokens,
@@ -38,39 +69,47 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
     getEnabledTokensForNetwork,
     setTokenEnabled,
     removeToken,
-    getTokenStats
+    addToken,
+    refreshTokens
   } = useTokenManagement(accountId);
 
-  const [stats, setStats] = useState({
-    totalTokens: 0,
-    networksCount: 0,
-    enabledTokens: 0,
-    networks: {} as Record<string, { total: number; enabled: number }>
-  });
-
-  // Get supported networks
-  const supportedNetworks = [
-    'ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism', 'avalanche',
-    'bitcoin', 'solana', 'tron', 'ton', 'xrp', 'litecoin'
-  ];
-
-  // Get tokens for current network
+  // Get tokens for current network only
   const networkTokens = getTokensForNetwork(currentNetwork);
   const enabledTokens = getEnabledTokensForNetwork(currentNetwork);
+  
+  // Simple search filter
   const filteredTokens = networkTokens.filter(token => 
     searchQuery === '' || 
     token.token.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     token.token.symbol.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Load stats
-  React.useEffect(() => {
-    const loadStats = async () => {
-      const tokenStats = await getTokenStats();
-      setStats(tokenStats);
+  // Load popular tokens for the current network (only when network changes)
+  useEffect(() => {
+    const loadPopularTokens = async () => {
+      setLoadingPopular(true);
+      try {
+        const { getPopularTokens } = await import('../../utils/token-search-utils');
+        const popular = await getPopularTokens(currentNetwork);
+        setPopularTokens(popular.slice(0, 10)); // Show top 10 popular tokens
+      } catch (error) {
+        console.error('Failed to load popular tokens:', error);
+        setPopularTokens([]);
+      } finally {
+        setLoadingPopular(false);
+      }
     };
-    loadStats();
-  }, [getTokenStats, tokens]);
+
+    loadPopularTokens();
+  }, [currentNetwork]); // Only depend on currentNetwork
+
+  // Refresh tokens when account changes
+  useEffect(() => {
+    if (accountId) {
+      console.log('🔄 TokenManagementPanel: Account changed, refreshing tokens for account:', accountId);
+      refreshTokens();
+    }
+  }, [accountId, refreshTokens]);
 
   const handleTokenToggle = async (tokenAddress: string, enabled: boolean) => {
     try {
@@ -88,6 +127,78 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
         console.error('Failed to remove token:', error);
       }
     }
+  };
+
+  const handleAddPopularToken = async (token: any) => {
+    try {
+      await addToken(currentNetwork, {
+        symbol: token.symbol,
+        name: token.name,
+        address: token.address,
+        network: currentNetwork,
+        logo: token.logo,
+        decimals: token.decimals,
+        price: token.price,
+        marketCap: token.marketCap,
+        isVerified: token.isVerified || false,
+        chainType: token.chainType || 'evm'
+      });
+      
+      // Refresh tokens to update the UI
+      await refreshTokens();
+    } catch (error) {
+      console.error('Failed to add popular token:', error);
+    }
+  };
+
+  const handleAddCustomToken = async () => {
+    if (!customToken.address || !customToken.symbol || !customToken.name) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    setAddingCustomToken(true);
+    try {
+      await addToken(currentNetwork, {
+        symbol: customToken.symbol,
+        name: customToken.name,
+        address: customToken.address,
+        network: currentNetwork,
+        decimals: customToken.decimals,
+        isVerified: false, // Custom tokens are not verified
+        chainType: 'evm'
+      });
+      
+      // Refresh tokens to update the UI
+      await refreshTokens();
+      
+      // Reset form and close modal
+      setCustomToken({ address: '', symbol: '', name: '', decimals: 18 });
+      setShowCustomTokenModal(false);
+    } catch (error) {
+      console.error('Failed to add custom token:', error);
+      alert('Failed to add custom token. Please check the contract address.');
+    } finally {
+      setAddingCustomToken(false);
+    }
+  };
+
+  const handleCustomTokenInputChange = (field: string, value: string | number) => {
+    setCustomToken(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  // Filter popular tokens to exclude already added tokens
+  const getFilteredPopularTokens = () => {
+    const userTokenAddresses = networkTokens.map(token => 
+      token.token.address.toLowerCase()
+    );
+    
+    return popularTokens.filter(token => 
+      !userTokenAddresses.includes(token.address.toLowerCase())
+    );
   };
 
   const formatPrice = (price?: number) => {
@@ -108,11 +219,11 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
     <div className="bg-white rounded-xl shadow-lg overflow-hidden">
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Token Management</h2>
+            <h2 className="text-xl font-bold text-gray-900">Tokens</h2>
             <p className="text-gray-600 text-sm">
-              Manage tokens for {currentNetwork.charAt(0).toUpperCase() + currentNetwork.slice(1)}
+              {currentNetwork.charAt(0).toUpperCase() + currentNetwork.slice(1)} • {networkTokens.length} tokens
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -120,61 +231,17 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
               onClick={() => setShowSearchModal(true)}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
             >
+              <Search className="w-4 h-4" />
+              <span>Search</span>
+            </button>
+            <button
+              onClick={() => setShowCustomTokenModal(true)}
+              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors flex items-center space-x-2"
+            >
               <Plus className="w-4 h-4" />
-              <span>Add Token</span>
-            </button>
-            <button
-              onClick={() => setShowSettings(!showSettings)}
-              className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Settings className="w-4 h-4" />
+              <span>Custom</span>
             </button>
           </div>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center space-x-2">
-              <Network className="w-4 h-4 text-blue-600" />
-              <span className="text-sm font-medium text-gray-700">Networks</span>
-            </div>
-            <p className="text-lg font-bold text-gray-900">{stats.networksCount}</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center space-x-2">
-              <DollarSign className="w-4 h-4 text-green-600" />
-              <span className="text-sm font-medium text-gray-700">Total Tokens</span>
-            </div>
-            <p className="text-lg font-bold text-gray-900">{stats.totalTokens}</p>
-          </div>
-          <div className="bg-gray-50 rounded-lg p-3">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="w-4 h-4 text-purple-600" />
-              <span className="text-sm font-medium text-gray-700">Enabled</span>
-            </div>
-            <p className="text-lg font-bold text-gray-900">{stats.enabledTokens}</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Network Selector */}
-      <div className="p-4 border-b border-gray-200">
-        <div className="flex items-center space-x-2 overflow-x-auto">
-          <span className="text-sm font-medium text-gray-700 whitespace-nowrap">Networks:</span>
-          {supportedNetworks.map((network) => (
-            <button
-              key={network}
-              onClick={() => onNetworkChange?.(network)}
-              className={`px-3 py-1 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
-                currentNetwork === network
-                  ? 'bg-blue-100 text-blue-700'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {network.charAt(0).toUpperCase() + network.slice(1)}
-            </button>
-          ))}
         </div>
       </div>
 
@@ -186,11 +253,84 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search tokens..."
+            placeholder="Search your tokens..."
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
         </div>
       </div>
+
+      {/* Popular Tokens Section */}
+      {searchQuery === '' && (
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center space-x-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-blue-600" />
+            <h3 className="font-semibold text-gray-900">Popular Tokens</h3>
+          </div>
+          
+          {loadingPopular ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Loading popular tokens...</span>
+            </div>
+          ) : getFilteredPopularTokens().length === 0 ? (
+            <div className="text-center py-8">
+              <Check className="w-12 h-12 text-green-500 mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">All popular tokens added!</p>
+              <p className="text-gray-500 text-sm mt-1">
+                You've added all the popular tokens for this network.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {getFilteredPopularTokens().map((token, index) => (
+                <motion.div
+                  key={`${token.address}_${index}`}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
+                  onClick={() => handleAddPopularToken(token)}
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
+                      {token.logo ? (
+                        <img
+                          src={token.logo}
+                          alt={token.symbol}
+                          className="w-6 h-6 rounded-full"
+                        />
+                      ) : (
+                        <span className="text-gray-500 font-semibold text-xs">
+                          {token.symbol.charAt(0)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900 text-sm">
+                          {token.symbol}
+                        </span>
+                        {token.isVerified && (
+                          <Star className="w-3 h-3 text-green-500" />
+                        )}
+                      </div>
+                      <p className="text-gray-500 text-xs truncate">
+                        {token.name}
+                      </p>
+                      {token.price && (
+                        <p className="text-green-600 text-xs font-medium">
+                          ${token.price.toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                    <Plus className="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors" />
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Token List */}
       <div className="max-h-96 overflow-y-auto">
@@ -296,7 +436,10 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
                   <Trash2 className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => window.open(`https://etherscan.io/token/${token.token.address}`, '_blank')}
+                  onClick={() => {
+                    const explorerUrl = getExplorerUrl(currentNetwork, token.token.address);
+                    window.open(explorerUrl, '_blank');
+                  }}
                   className="p-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
                   title="View on explorer"
                 >
@@ -314,10 +457,110 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
         onClose={() => setShowSearchModal(false)}
         accountId={accountId}
         network={currentNetwork}
-        onTokenAdded={() => {
-          // Token will be automatically refreshed by the hook
+        onTokenAdded={async (token) => {
+          // Refresh tokens to update the UI
+          await refreshTokens();
         }}
       />
+
+      {/* Custom Token Modal */}
+      {showCustomTokenModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 max-h-[80vh] overflow-hidden flex flex-col"
+          >
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">Add Custom Token</h3>
+                <button
+                  onClick={() => setShowCustomTokenModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Contract Address *
+                  </label>
+                  <input
+                    type="text"
+                    value={customToken.address}
+                    onChange={(e) => handleCustomTokenInputChange('address', e.target.value)}
+                    placeholder="0x..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Token Symbol *
+                  </label>
+                  <input
+                    type="text"
+                    value={customToken.symbol}
+                    onChange={(e) => handleCustomTokenInputChange('symbol', e.target.value)}
+                    placeholder="e.g., USDC"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Token Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={customToken.name}
+                    onChange={(e) => handleCustomTokenInputChange('name', e.target.value)}
+                    placeholder="e.g., USD Coin"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Decimals
+                  </label>
+                  <input
+                    type="number"
+                    value={customToken.decimals}
+                    onChange={(e) => handleCustomTokenInputChange('decimals', parseInt(e.target.value) || 18)}
+                    placeholder="18"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowCustomTokenModal(false)}
+                  className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddCustomToken}
+                  disabled={addingCustomToken}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                >
+                  {addingCustomToken ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Adding...</span>
+                    </>
+                  ) : (
+                    <span>Add Token</span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 };

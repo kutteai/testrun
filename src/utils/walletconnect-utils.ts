@@ -62,11 +62,16 @@ export class WalletConnectManager {
   private connectionTimeout: number = 30000; // 30 seconds
   private sessionHealthCheckInterval: NodeJS.Timeout | null = null;
   private cleanupTimeouts: Set<NodeJS.Timeout> = new Set();
+  private sessionStorageKey = 'walletconnect_session';
+  private proposalStorageKey = 'walletconnect_proposal';
 
   constructor() {
     // Get project ID from config system or use a working default
     const config = getConfig();
     this.projectId = config.WALLETCONNECT_PROJECT_ID || '4f7e02b6d85b4e24bf2f2f2b2f2f2f2f';
+    
+    // Load persisted session on initialization
+    this.loadPersistedSession();
   }
 
   // Event emitter methods
@@ -108,6 +113,57 @@ export class WalletConnectManager {
       this.cleanupTimeouts.forEach(timeout => clearTimeout(timeout));
       this.cleanupTimeouts.clear();
     });
+  }
+
+  // Session persistence methods
+  private saveSession(session: WalletConnectSession): void {
+    try {
+      localStorage.setItem(this.sessionStorageKey, JSON.stringify(session));
+    } catch (error) {
+      console.warn('Failed to save session:', error);
+    }
+  }
+
+  private loadPersistedSession(): void {
+    try {
+      const savedSession = localStorage.getItem(this.sessionStorageKey);
+      if (savedSession) {
+        this.session = JSON.parse(savedSession);
+        console.log('Restored WalletConnect session:', this.session);
+      }
+    } catch (error) {
+      console.warn('Failed to load persisted session:', error);
+      this.clearPersistedSession();
+    }
+  }
+
+  private clearPersistedSession(): void {
+    try {
+      localStorage.removeItem(this.sessionStorageKey);
+      localStorage.removeItem(this.proposalStorageKey);
+    } catch (error) {
+      console.warn('Failed to clear persisted session:', error);
+    }
+  }
+
+  private saveProposal(proposal: WalletConnectProposal): void {
+    try {
+      localStorage.setItem(this.proposalStorageKey, JSON.stringify(proposal));
+    } catch (error) {
+      console.warn('Failed to save proposal:', error);
+    }
+  }
+
+  private loadPersistedProposal(): WalletConnectProposal | null {
+    try {
+      const savedProposal = localStorage.getItem(this.proposalStorageKey);
+      if (savedProposal) {
+        return JSON.parse(savedProposal);
+      }
+    } catch (error) {
+      console.warn('Failed to load persisted proposal:', error);
+    }
+    return null;
   }
 
   // Initialize WalletConnect client
@@ -180,6 +236,17 @@ export class WalletConnectManager {
       this.session = null;
       this.cleanup();
     });
+  }
+
+  private removeEventListeners(): void {
+    if (!this.client) return;
+
+    // Remove all event listeners to prevent memory leaks
+    this.client.removeAllListeners('session_proposal');
+    this.client.removeAllListeners('session_request');
+    this.client.removeAllListeners('session_event');
+    this.client.removeAllListeners('session_update');
+    this.client.removeAllListeners('session_delete');
   }
 
   // Connect to WalletConnect (initiate connection)
@@ -302,7 +369,7 @@ export class WalletConnectManager {
     }
   }
 
-  // Approve session proposal with wallet lock handling
+  // Approve session proposal with MetaMask-style flow
   async approveSession(proposal: WalletConnectProposal): Promise<void> {
     if (!this.client) return;
 
@@ -312,11 +379,66 @@ export class WalletConnectManager {
       // Check if wallet is unlocked before proceeding
       const walletStatus = await this.checkWalletStatus();
       if (!walletStatus.isUnlocked) {
-        console.log('Wallet is locked, requesting unlock...');
-        const unlocked = await this.requestWalletUnlock();
+        console.log('Wallet is locked, triggering unlock flow...');
+        // Emit unlock event to trigger WalletUnlockModal
+        this.emit('wallet_locked', {
+          dAppName: proposal.params.proposer.metadata.name,
+          dAppUrl: proposal.params.proposer.metadata.url,
+          dAppIcon: proposal.params.proposer.metadata.icons?.[0]
+        });
+        
+        // Wait for unlock to complete
+        const unlockPromise = new Promise<boolean>((resolve) => {
+          const handleUnlock = (success: boolean) => {
+            this.off('wallet_unlocked', handleUnlock);
+            resolve(success);
+          };
+          this.on('wallet_unlocked', handleUnlock);
+        });
+        
+        const unlocked = await unlockPromise;
         if (!unlocked) {
           throw new Error('Wallet unlock required for session approval');
         }
+      }
+
+      // Show connection confirmation modal
+      const dAppInfo = {
+        name: proposal.params.proposer.metadata.name,
+        url: proposal.params.proposer.metadata.url,
+        icon: proposal.params.proposer.metadata.icons?.[0],
+        description: proposal.params.proposer.metadata.description
+      };
+
+      const requestedPermissions = {
+        accounts: true,
+        balance: true,
+        transactions: true,
+        signing: true
+      };
+
+      const requestedChains = Object.keys(proposal.params.requiredNamespaces || {});
+      
+      // Emit connection confirmation event
+      this.emit('connection_request', {
+        dAppInfo,
+        requestedPermissions,
+        requestedChains,
+        proposal
+      });
+
+      // Wait for user confirmation
+      const confirmationPromise = new Promise<boolean>((resolve) => {
+        const handleConfirmation = (approved: boolean) => {
+          this.off('connection_confirmed', handleConfirmation);
+          resolve(approved);
+        };
+        this.on('connection_confirmed', handleConfirmation);
+      });
+
+      const approved = await confirmationPromise;
+      if (!approved) {
+        throw new Error('Connection rejected by user');
       }
 
       // Get real accounts from wallet
@@ -338,6 +460,30 @@ export class WalletConnectManager {
       });
 
       console.log('Session approved:', topic);
+      
+      // Save session for persistence
+      this.session = {
+        topic,
+        chainId: 1,
+        accounts,
+        connected: true,
+        namespaces: {
+          eip155: {
+            methods: ['eth_sendTransaction', 'eth_signTransaction', 'personal_sign'],
+            chains: ['eip155:1'],
+            events: ['chainChanged', 'accountsChanged'],
+            accounts: accounts.map(acc => `eip155:1:${acc}`)
+          }
+        },
+        clientMeta: {
+          name: 'PayCio Wallet',
+          description: 'PayCio Multi-Chain Wallet',
+          url: 'https://paycio.com',
+          icons: ['https://paycio.com/icon.png']
+        }
+      };
+      
+      this.saveSession(this.session);
     } catch (error) {
       console.error('Failed to approve session:', error);
       throw error;

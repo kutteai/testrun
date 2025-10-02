@@ -1460,9 +1460,10 @@ async function searchCoinGeckoV3(query: string, networks: string[]): Promise<Tok
 
     if (isValidContractAddress(query)) {
       // Direct contract lookup
-      for (const network of networks) {
+      // Use Promise.all for parallel API calls instead of sequential
+      const networkPromises = networks.map(async (network) => {
         const platformId = getCoinGeckoPlatformId(network);
-        if (!platformId) continue;
+        if (!platformId) return [];
 
         const response = await fetch(
           `https://api.coingecko.com/api/v3/coins/${platformId}/contract/${query}`,
@@ -1475,7 +1476,7 @@ async function searchCoinGeckoV3(query: string, networks: string[]): Promise<Tok
 
         if (response.ok) {
           const data = await response.json();
-          results.push({
+          return [{
             symbol: data.symbol?.toUpperCase() || '',
             name: data.name || '',
             address: query,
@@ -1487,8 +1488,17 @@ async function searchCoinGeckoV3(query: string, networks: string[]): Promise<Tok
             marketCap: data.market_data?.market_cap?.usd,
             verified: true,
             tags: ['coingecko-verified']
-          });
+          }];
         }
+        return [];
+      });
+
+      // Wait for all network requests to complete
+      const networkResults = await Promise.all(networkPromises);
+      
+      // Flatten results
+      for (const networkResult of networkResults) {
+        results.push(...networkResult);
       }
     } else {
       // Search by name/symbol

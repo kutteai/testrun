@@ -1,8 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, Plus, Check, ExternalLink, Star, TrendingUp } from 'lucide-react';
+import { Search, X, Plus, Check, ExternalLink, Star, TrendingUp, Copy, AlertTriangle } from 'lucide-react';
 import { useTokenManagement } from '../../hooks/useTokenManagement';
 import { TokenSearchResult } from '../../services/token-search-api';
+
+// Helper function to get chain ID for network
+const getChainId = (network: string): string => {
+  const chainIds: Record<string, string> = {
+    'ethereum': '1',
+    'bsc': '56',
+    'polygon': '137',
+    'arbitrum': '42161',
+    'optimism': '10',
+    'avalanche': '43114',
+    'base': '8453',
+    'fantom': '250',
+    'bitcoin': '0',
+    'solana': '101',
+    'tron': '728',
+    'ton': '607',
+    'xrp': '144'
+  };
+  return chainIds[network.toLowerCase()] || 'Unknown';
+};
 
 interface TokenSearchModalProps {
   isOpen: boolean;
@@ -52,9 +72,13 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
     try {
       await addToken(network, selectedToken);
       onTokenAdded?.(selectedToken);
+      // Reset state and close modal
+      setQuery('');
+      setSelectedToken(null);
       onClose();
     } catch (error) {
       console.error('Failed to add token:', error);
+      // Don't close modal on error so user can try again
     }
   };
 
@@ -72,7 +96,7 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col"
       >
         {/* Header */}
         <div className="p-6 border-b border-gray-200">
@@ -109,7 +133,7 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto max-h-96">
           {error && (
             <div className="p-4 bg-red-50 border-l-4 border-red-400">
               <p className="text-red-700 text-sm">{error}</p>
@@ -143,8 +167,9 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
             </div>
           )}
 
-          <AnimatePresence>
-            {searchResults.map((token, index) => (
+          <div className="max-h-64 overflow-y-auto">
+            <AnimatePresence>
+              {searchResults.map((token, index) => (
               <motion.div
                 key={`${token.address}_${token.network}`}
                 initial={{ opacity: 0, y: 20 }}
@@ -188,11 +213,46 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
                         <Check className="w-4 h-4 text-green-500" />
                       )}
                     </div>
-                    <p className="text-gray-500 text-sm truncate">
-                      {token.address}
-                    </p>
+                    
+                    {/* Contract Address */}
+                    <div className="flex items-center space-x-2 mt-1">
+                      <span className="text-gray-500 text-xs font-mono">
+                        {token.address}
+                      </span>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(token.address)}
+                        className="p-1 hover:bg-gray-100 rounded"
+                        title="Copy address"
+                      >
+                        <Copy className="w-3 h-3 text-gray-400" />
+                      </button>
+                    </div>
+
+                    {/* Token Validation Details */}
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Network:</span>
+                        <span className="font-medium text-gray-700 capitalize">{token.network}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Decimals:</span>
+                        <span className="font-medium text-gray-700">{token.decimals || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-500">Chain ID:</span>
+                        <span className="font-medium text-gray-700">{getChainId(token.network)}</span>
+                      </div>
+                      {token.chainType && (
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-gray-500">Type:</span>
+                          <span className="font-medium text-gray-700 uppercase">{token.chainType}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Price Information */}
                     {token.price && (
-                      <div className="flex items-center space-x-2 mt-1">
+                      <div className="flex items-center space-x-2 mt-2">
                         <span className="text-green-600 text-sm font-medium">
                           ${token.price.toFixed(6)}
                         </span>
@@ -201,6 +261,18 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
                             MC: ${(token.marketCap / 1000000).toFixed(1)}M
                           </span>
                         )}
+                      </div>
+                    )}
+
+                    {/* Security Warning for Unverified Tokens */}
+                    {!token.isVerified && (
+                      <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <div className="flex items-center space-x-2">
+                          <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                          <span className="text-yellow-800 text-xs font-medium">
+                            Unverified Token - Verify contract address before importing
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -226,7 +298,8 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
                 </div>
               </motion.div>
             ))}
-          </AnimatePresence>
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Footer */}

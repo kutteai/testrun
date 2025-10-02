@@ -158,7 +158,7 @@ export class ErrorHandler {
     this.errorLog.push(errorDetails);
 
     // Log to console in development
-    if (process.env.NODE_ENV === 'development') {
+    if ((import.meta as any).env?.DEV) {
       console.error('App Error:', {
         message: error.message,
         code: error.code,
