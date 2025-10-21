@@ -23,7 +23,7 @@ const iconSizes = [
   { size: 16, name: 'icon16.png' },
   { size: 32, name: 'icon32.png' },
   { size: 48, name: 'icon48.png' },
-  { size: 128, name: 'icon128.png' }
+  { size: 128, name: 'icon128.png' },
 ];
 
 async function generateIcons() {
@@ -40,20 +40,22 @@ async function generateIcons() {
 
     // Read the original logo
     const logoBuffer = fs.readFileSync(logoPath);
-    
+
     // Generate each icon size
     for (const { size, name } of iconSizes) {
       const outputPath = path.join(outputDir, name);
-      
+
       try {
         await sharp(logoBuffer)
           .resize(size, size, {
             fit: 'contain',
-            background: { r: 0, g: 0, b: 0, alpha: 0 } // Transparent background
+            background: {
+              r: 0, g: 0, b: 0, alpha: 0,
+            }, // Transparent background
           })
           .png()
           .toFile(outputPath);
-        
+
         console.log(`✅ Generated ${name} (${size}x${size})`);
       } catch (error) {
         console.error(`❌ Failed to generate ${name}:`, error.message);
@@ -74,7 +76,6 @@ async function generateIcons() {
     console.log('1. The manifest files will be updated automatically');
     console.log('2. Rebuild your extension');
     console.log('3. Test the icons in your browser');
-
   } catch (error) {
     console.error('❌ Error generating icons:', error.message);
     process.exit(1);

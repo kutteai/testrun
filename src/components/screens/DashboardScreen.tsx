@@ -224,8 +224,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Listen for wallet changes (network switches, address updates, etc.)
   useEffect(() => {
     const handleWalletChanged = async (event: CustomEvent) => {
-      console.log('🔄 Dashboard: Wallet changed event received:', event.detail);
-      
+
       // Reload dashboard data to reflect the changes
       try {
         // Small delay to ensure WalletManager has saved changes
@@ -240,16 +239,17 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         
         // Account data loaded successfully
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to reload dashboard data:', error);
       }
     };
 
     const handleAccountSwitched = async (event: CustomEvent) => {
-      console.log('🔄 Dashboard: Account switched event received:', event.detail);
-      
+
       try {
         // Account switch handled
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to update dashboard after account switch:', error);
       }
     };
@@ -303,6 +303,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         // For now, use empty array until transaction history is implemented
         setRecentTxHistory([]);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load transaction history:', error);
       } finally {
         setIsLoadingHistory(false);
@@ -329,6 +330,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         );
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error updating crypto assets:', error);
       setCryptoAssets([]);
     }
@@ -348,7 +350,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         timeoutId = setTimeout(() => {
           if (isMountedRef.current) {
             setIsLoadingHistory(false);
-            console.log('⏰ Transaction loading timeout');
+
           }
         }, 5000);
 
@@ -358,6 +360,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           // Get current account address
           const currentAccount = await (wallet?.getCurrentAccount?.() || Promise.resolve(null));
           if (!currentAccount?.address) {
+            // eslint-disable-next-line no-console
             console.warn('No current account address available');
             return;
           }
@@ -388,6 +391,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             setIsLoadingHistory(false);
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Error loading transaction history:', error);
           if (isMountedRef.current) {
             setRecentTxHistory([]);
@@ -396,6 +400,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
         } catch (error) {
         if (isMountedRef.current) {
+          // eslint-disable-next-line no-console
           console.error('Error loading transaction history:', error);
           setRecentTxHistory([]);
           setIsLoadingHistory(false);
@@ -425,6 +430,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setIsLoading(true);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error refreshing dashboard:', error);
       setError('Failed to refresh data');
     } finally {
@@ -456,6 +462,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to create account:', error);
       setError('Failed to create account');
     }
@@ -466,15 +473,15 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     if (!wallet || !networkToSwitch) return;
 
     try {
-      console.log('🔄 Switching to network:', networkToSwitch.id);
-      
+
       // Switch in both contexts to ensure consistency
       await network.switchNetwork(networkToSwitch.id);
       await wallet.switchNetwork?.(networkToSwitch.id);
       
       setShowNetworkDropdown(false);
-      console.log('✅ Network switched successfully to:', networkToSwitch.id);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to switch network:', error);
       setError('Failed to switch network');
     }
@@ -507,6 +514,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const result = await storage.get(['addressBook']);
       setAddressBookContacts(result.addressBook || []);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load address book contacts:', error);
     }
   };
@@ -1204,11 +1212,8 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div>Networks: {network?.networks?.length || 0}</div>
           <button 
             onClick={() => {
-              console.log('🔍 Network Switching Debug:');
-              console.log('  - showNetworkSwitcher:', showNetworkSwitcher);
-              console.log('  - currentNetwork:', currentNetwork);
-              console.log('  - availableNetworks:', network?.networks);
-              console.log('  - wallet:', wallet);
+
+
               setShowNetworkSwitcher(true);
             }}
             className="mt-2 px-2 py-1 bg-blue-500 text-white rounded text-xs"

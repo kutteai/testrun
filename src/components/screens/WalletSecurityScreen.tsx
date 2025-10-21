@@ -38,6 +38,7 @@ const WalletSecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           setAutoLockEnabled(minutes > 0);
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load auto-lock settings:', error);
       }
     };
@@ -53,6 +54,7 @@ const WalletSecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setLockTime(result.autoLockTime);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load auto-lock time:', error);
     }
   };
@@ -77,6 +79,7 @@ const WalletSecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       await storage.set({ autoLockTime: newLockTime });
       toast.success('Auto-lock time updated');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save auto-lock time:', error);
       toast.error('Failed to update auto-lock time');
     }

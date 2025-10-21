@@ -38,6 +38,7 @@ export class NetworkManager {
         this.currentNetwork = result.currentNetwork;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load networks:', error);
     }
   }
@@ -50,6 +51,7 @@ export class NetworkManager {
         currentNetwork: this.currentNetwork
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save networks:', error);
     }
   }
@@ -139,6 +141,7 @@ export class NetworkManager {
     try {
       return await getBalance(address, network);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting balance:', error);
       return '0x0';
     }
@@ -149,6 +152,7 @@ export class NetworkManager {
     try {
       return await getGasPrice(network);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting gas price:', error);
       return '0x0';
     }
@@ -165,6 +169,7 @@ export class NetworkManager {
         network
       );
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error estimating gas:', error);
       return '0x5208'; // Default gas limit
     }
@@ -193,6 +198,7 @@ export class NetworkManager {
       const data = await response.json();
       return !data.error;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Connection test failed for ${network.name}:`, error);
       return false;
     }

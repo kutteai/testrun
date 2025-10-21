@@ -58,6 +58,7 @@ export async function getCurrentGasPrices(rpcUrl: string, network?: string): Pro
           gasPrice: ethers.parseUnits(gasData.gasPrice.toString(), 'gwei').toString()
         };
       } catch (realTimeError) {
+        // eslint-disable-next-line no-console
         console.warn('Real-time gas service failed, falling back to RPC:', realTimeError);
       }
     }
@@ -72,6 +73,7 @@ export async function getCurrentGasPrices(rpcUrl: string, network?: string): Pro
       gasPrice: feeData.gasPrice?.toString() || '0'
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching gas prices:', error);
     // Throw error instead of returning fallback values - no mock data
     throw new Error(`Failed to fetch gas prices: ${error instanceof Error ? error.message : 'Unknown error'}. Real gas price API integration required.`);
@@ -99,6 +101,7 @@ export async function estimateGasLimit(
     const buffer = gasLimit * 120n / 100n;
     return buffer.toString();
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error estimating gas limit:', error);
     return '21000'; // Default gas limit for simple transfers
   }
@@ -149,8 +152,9 @@ export function applyGasSettings(
 export async function saveGasSettings(gasSettings: GasSettings): Promise<void> {
   try {
     await storage.set({ gasSettings });
-    console.log('✅ Gas settings saved');
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error saving gas settings:', error);
     throw error;
   }
@@ -162,6 +166,7 @@ export async function loadGasSettings(): Promise<GasSettings> {
     const result = await storage.get(['gasSettings']);
     return result.gasSettings || DEFAULT_GAS_SETTINGS;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error loading gas settings:', error);
     return DEFAULT_GAS_SETTINGS;
   }
@@ -171,8 +176,9 @@ export async function loadGasSettings(): Promise<GasSettings> {
 export async function saveTransactionSettings(settings: TransactionSettings): Promise<void> {
   try {
     await storage.set({ transactionSettings: settings });
-    console.log('✅ Transaction settings saved');
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error saving transaction settings:', error);
     throw error;
   }
@@ -188,6 +194,7 @@ export async function loadTransactionSettings(): Promise<TransactionSettings> {
       sessionTimeout: 15 // 15 minutes default
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error loading transaction settings:', error);
     return {
       gasSettings: DEFAULT_GAS_SETTINGS,
@@ -196,7 +203,5 @@ export async function loadTransactionSettings(): Promise<TransactionSettings> {
     };
   }
 }
-
-
 
 

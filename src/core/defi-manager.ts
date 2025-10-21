@@ -44,6 +44,7 @@ export class DeFiManager {
         this.protocols = result.defiProtocols;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load DeFi data:', error);
     }
   }
@@ -56,6 +57,7 @@ export class DeFiManager {
         defiProtocols: this.protocols
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save DeFi data:', error);
     }
   }
@@ -181,12 +183,14 @@ export class DeFiManager {
           
           position.timestamp = Date.now();
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`Failed to update position ${position.id}:`, error);
         }
       }
       
       await this.saveDeFiData();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to refresh DeFi positions:', error);
     }
   }

@@ -61,27 +61,26 @@ const ImportSeedPhraseScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
     if (validateSeedPhrase()) {
       try {
         const seedPhraseString = seedPhrase.slice(0, wordCount).join(' ');
-        console.log('🔍 ImportSeedPhraseScreen: Starting wallet import...');
+
+        // eslint-disable-next-line no-console
         console.log('🔍 ImportSeedPhraseScreen: Seed phrase length:', seedPhraseString.split(' ').length);
         
         // Get the stored password from the import flow
         const password = await storageUtils.getPassword();
-        console.log('🔍 ImportSeedPhraseScreen: Password found:', !!password);
-        
+
         if (!password) {
           setErrorMessage('Password not found. Please restart the import process.');
           setShowError(true);
           return;
         }
-        
-        console.log('🔍 ImportSeedPhraseScreen: Calling importWallet...');
+
         // Import the wallet
         await importWallet(seedPhraseString, 'ethereum', password);
-        console.log('🔍 ImportSeedPhraseScreen: Wallet imported successfully!');
-        
+
         // Navigate directly to UCPI creation
         onNavigate('create-ucpi');
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ ImportSeedPhraseScreen: Error importing wallet:', error);
         setErrorMessage(`Failed to import wallet: ${error.message || 'Please check your seed phrase.'}`);
         setShowError(true);

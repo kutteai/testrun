@@ -1,14 +1,14 @@
-const express = require('express');
-const cors = require('cors');
-const helmet = require('helmet');
-const compression = require('compression');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
+import rateLimit from 'express-rate-limit';
+import 'dotenv/config';
 
-const tokenRoutes = require('./routes/tokens');
-const balanceRoutes = require('./routes/balances');
-const priceRoutes = require('./routes/prices');
-const networkRoutes = require('./routes/networks');
+import tokenRoutes from './routes/tokens';
+import balanceRoutes from './routes/balances';
+import priceRoutes from './routes/prices';
+import networkRoutes from './routes/networks';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -23,16 +23,16 @@ app.use(cors({
     /^chrome-extension:\/\/.*$/,
     /^moz-extension:\/\/.*$/,
     'http://localhost:3000',
-    'https://localhost:3000'
+    'https://localhost:3000',
   ],
-  credentials: true
+  credentials: true,
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW) || 60000, // 1 minute
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW, 10) || 60000, // 1 minute
+  max: parseInt(process.env.RATE_LIMIT_MAX, 10) || 100, // limit each IP to 100 requests per windowMs
+  message: 'Too many requests from this IP, please try again later.',
 });
 app.use(limiter);
 
@@ -42,10 +42,10 @@ app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+  res.json({
+    status: 'OK',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
@@ -56,13 +56,13 @@ app.use('/api/prices', priceRoutes);
 app.use('/api/networks', networkRoutes);
 
 // Error handling middleware
-app.use((error, req, res, next) => {
+app.use((error, req, res, _next) => {
   console.error('Error:', error);
   res.status(error.status || 500).json({
     error: {
       message: error.message || 'Internal server error',
-      status: error.status || 500
-    }
+      status: error.status || 500,
+    },
   });
 });
 
@@ -71,8 +71,8 @@ app.use('*', (req, res) => {
   res.status(404).json({
     error: {
       message: 'Endpoint not found',
-      status: 404
-    }
+      status: 404,
+    },
   });
 });
 
@@ -83,4 +83,4 @@ app.listen(PORT, () => {
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
 });
 
-module.exports = app;
+export default app;

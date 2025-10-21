@@ -50,6 +50,7 @@ export class SecurityManager {
         this.state.isWalletUnlocked = result.isWalletUnlocked;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading security settings:', error);
     }
   }
@@ -62,6 +63,7 @@ export class SecurityManager {
         isWalletUnlocked: this.state.isWalletUnlocked
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error saving security settings:', error);
     }
   }
@@ -70,6 +72,7 @@ export class SecurityManager {
     try {
       await storage.set({ encryptedPassword });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save encrypted password:', error);
     }
   }
@@ -79,6 +82,7 @@ export class SecurityManager {
       const result = await storage.get(['encryptedPassword']);
       return result.encryptedPassword || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get encrypted password:', error);
       return null;
     }
@@ -110,6 +114,7 @@ export class SecurityManager {
         return false;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Authentication error:', error);
       return false;
     }
@@ -202,6 +207,7 @@ export class SecurityManager {
       // Store encrypted password in secure storage
       await this.saveEncryptedPassword(encryptedPassword);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error storing password:', error);
       throw error;
     }
@@ -223,6 +229,7 @@ export class SecurityManager {
       
       return decryptedPassword;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting stored password:', error);
       return null;
     }
@@ -239,6 +246,7 @@ export class SecurityManager {
       
       return masterKey;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting master key:', error);
       throw error;
     }

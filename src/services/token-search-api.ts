@@ -102,6 +102,7 @@ export class TokenSearchAPI {
       return finalResults;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Token search failed:', error);
       return this.getPopularTokens(network, limit);
     }
@@ -144,6 +145,7 @@ export class TokenSearchAPI {
 
       return results;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('CoinGecko search failed:', error);
       return [];
     }
@@ -187,6 +189,7 @@ export class TokenSearchAPI {
 
       return results;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('DexScreener search failed:', error);
       return [];
     }
@@ -205,6 +208,7 @@ export class TokenSearchAPI {
       const apiKey = config.MORALIS_API_KEY;
       
       if (!apiKey) {
+        // eslint-disable-next-line no-console
         console.warn('Moralis API key not configured');
         return [];
       }
@@ -239,6 +243,7 @@ export class TokenSearchAPI {
 
       return results;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Moralis search failed:', error);
       return [];
     }
@@ -257,6 +262,7 @@ export class TokenSearchAPI {
       const apiKey = config.COINMARKETCAP_API_KEY;
       
       if (!apiKey) {
+        // eslint-disable-next-line no-console
         console.warn('CoinMarketCap API key not configured');
         return [];
       }
@@ -292,6 +298,7 @@ export class TokenSearchAPI {
 
       return results;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('CoinMarketCap search failed:', error);
       return [];
     }
@@ -313,6 +320,7 @@ export class TokenSearchAPI {
       const tokenInfo = await this.fetchTokenFromExplorer(query, network);
       return tokenInfo ? [tokenInfo] : [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Address search failed:', error);
       return [];
     }
@@ -366,6 +374,7 @@ export class TokenSearchAPI {
 
       return results;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch popular tokens:', error);
       return [];
     }
@@ -383,6 +392,7 @@ export class TokenSearchAPI {
       const apiKey = config.ETHERSCAN_API_KEY;
       
       if (!apiKey) {
+        // eslint-disable-next-line no-console
         console.warn('Etherscan API key not configured');
         return null;
       }
@@ -402,7 +412,7 @@ export class TokenSearchAPI {
           name: token.name,
           address: token.contractAddress,
           network: network,
-          decimals: parseInt(token.divisor) || 18,
+          decimals: parseInt(token.divisor, 10) || 18,
           isVerified: true,
           chainType: this.getChainTypeForNetwork(network)
         };
@@ -410,6 +420,7 @@ export class TokenSearchAPI {
 
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Explorer fetch failed:', error);
       return null;
     }
@@ -461,6 +472,7 @@ export class TokenSearchAPI {
       
       return tokens;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get account tokens:', error);
       return [];
     }
@@ -476,8 +488,9 @@ export class TokenSearchAPI {
   ): Promise<void> {
     try {
       // Implement token saving to account
-      console.log(`Saving token ${token.symbol} to account ${accountId} on ${network}`);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save token to account:', error);
       throw error;
     }
@@ -493,8 +506,9 @@ export class TokenSearchAPI {
   ): Promise<void> {
     try {
       // Implement token removal from account
-      console.log(`Removing token ${tokenAddress} from account ${accountId} on ${network}`);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to remove token from account:', error);
       throw error;
     }

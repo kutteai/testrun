@@ -363,6 +363,7 @@ export class NonEVMTokenManager {
       return { isValid: false };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Non-EVM token validation failed:', error);
       return { isValid: false };
     }
@@ -581,6 +582,7 @@ export class NonEVMTokenManager {
       };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('XRP token balance fetch failed:', error);
       // Return zero balance on error
       return {
@@ -643,12 +645,12 @@ if (typeof window !== 'undefined') {
   
   // Quick test function
   (window as any).testNonEVMTokens = () => {
-    console.log('🧪 Testing non-EVM token support...');
-    
+
     const networks = ['bitcoin', 'solana', 'tron', 'ton', 'xrp'];
     
     networks.forEach(network => {
       const tokens = nonEVMTokenUtils.getNetworkTokens(network);
+      // eslint-disable-next-line no-console
       console.log(`${network.toUpperCase()}: ${tokens.length} tokens`, tokens);
     });
   };

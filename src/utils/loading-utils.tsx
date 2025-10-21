@@ -191,12 +191,12 @@ export const useLoadingState = (
 };
 
 // Async operation wrapper
-export const withLoading = async <T>(
+export const withLoading = async <T,>(
   operation: () => Promise<T>,
   setLoading: (loading: boolean) => void,
   setError: (error: string) => void,
   setData: (data: T) => void,
-  options: { timeout?: number } = {}
+  options: { timeout?: number} = {}
 ): Promise<T | null> => {
   const { timeout = 30000 } = options;
 
@@ -224,7 +224,7 @@ export const withLoading = async <T>(
 };
 
 // Non-blocking operation wrapper
-export const withNonBlockingLoading = async <T>(
+export const withNonBlockingLoading = async <T,>(
   operation: () => Promise<T>,
   setLoading: (loading: boolean) => void,
   setError: (error: string) => void,

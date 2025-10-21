@@ -38,6 +38,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           setSearchHistory(result.ucpiSearchHistory);
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load initial data:', error);
       }
     };
@@ -51,6 +52,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const result = await storage.get(['ucpiSearchHistory']);
       return result.ucpiSearchHistory || [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load search history:', error);
       return [];
     }
@@ -62,6 +64,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const result = await storage.get(['ucpiIds']);
       return result.ucpiIds || [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load UCPI IDs:', error);
       return [];
     }
@@ -72,6 +75,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       await storage.set({ ucpiSearchHistory: history });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save search history:', error);
     }
   };
@@ -84,6 +88,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         ucpiTimestamp: Date.now()
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save UCPI data:', error);
     }
   };
@@ -161,6 +166,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return true;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to check UCPI ID availability:', error);
       // Fallback to basic validation
       return id.length >= 3 && id.length <= 20;
@@ -244,6 +250,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       });
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Search failed:', error);
       toast.error('Failed to check UCPI ID availability');
       setIsAvailable(false);
@@ -271,6 +278,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         const pricing = await ensRegistrationService.getRegistrationPricing(ucpiId, 1);
         setEnsPricing(pricing);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to get ENS pricing:', error);
         toast.error('Failed to get ENS pricing information');
       }
@@ -308,6 +316,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to create UCPI ID:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       toast.error(`Failed to create UCPI ID: ${errorMessage}`, { 
@@ -348,6 +357,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS registration failed:', error);
       toast.error(`ENS registration failed: ${error.message}`, { 
         id: 'ens-registration',
@@ -366,8 +376,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const handleSkip = async () => {
-    console.log('🔍 User chose to skip UCPI creation');
-    
+
     // Clear any error state that might cause "something went wrong"
     try {
       // Access clearError function if available

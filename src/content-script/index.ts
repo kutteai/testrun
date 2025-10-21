@@ -1,5 +1,4 @@
 // main-content-script.ts - Bridge between web pages and wallet extension
-console.log('Paycio wallet content script loaded');
 
 // Interface for communication with background script
 interface ExtensionMessage {
@@ -36,18 +35,18 @@ class PaycioContentScript {
   private async initialize() {
     // Inject the provider script into the page
     this.injectProviderScript();
-
-    // Set up message listeners
-    this.setupMessageListeners();
-
+      
+      // Set up message listeners
+      this.setupMessageListeners();
+      
     // Set up enhanced keepalive with multiple fallbacks
     this.setupEnhancedKeepAlive();
 
-    // Get initial wallet state
-    await this.updateWalletState();
+      // Get initial wallet state
+      await this.updateWalletState();
 
-    // Notify page that Paycio is available
-    this.announceProvider();
+      // Notify page that Paycio is available
+      this.announceProvider();
   }
 
   private injectProviderScript() {
@@ -55,24 +54,27 @@ class PaycioContentScript {
       // Get the extension ID
       const extensionId = this.getExtensionId();
       if (!extensionId) {
+        // eslint-disable-next-line no-console
         console.error('Extension ID not found');
         return;
       }
-
+      
       // Create script element to load external provider file
       const script = document.createElement('script');
       script.src = `chrome-extension://${extensionId}/injected/provider.js`;
       script.onload = () => {
-        console.log('Paycio provider script loaded successfully');
+
         script.remove();
       };
       script.onerror = (error) => {
+        // eslint-disable-next-line no-console
         console.error('Failed to load provider script:', error);
         script.remove();
       };
       
       (document.head || document.documentElement).appendChild(script);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to inject provider script:', error);
     }
   }
@@ -99,6 +101,7 @@ class PaycioContentScript {
       
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting extension ID:', error);
       return null;
     }
@@ -123,7 +126,6 @@ class PaycioContentScript {
     }
 
     const { type, method, params, requestId, id } = event.data;
-    console.log('🔍 Content script received message:', type, event.data);
 
     try {
       let response;
@@ -136,6 +138,7 @@ class PaycioContentScript {
         this.sendResponseToPage(requestId || id, response, type);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error handling page message:', error);
       
       // Try recovery for connection errors
@@ -163,7 +166,6 @@ class PaycioContentScript {
 
   // Enhanced error recovery mechanism
   private async recoverFromConnectionError(originalMessage: any, originalError: string): Promise<any> {
-    console.log('🔧 Attempting connection recovery...');
     
     // Wait for potential service worker restart
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -178,6 +180,7 @@ class PaycioContentScript {
     try {
       return await this.forwardToBackgroundScript(originalMessage.type, originalMessage);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('🔧 Connection recovery failed:', error);
       throw new Error(`Connection recovery failed: ${error.message}`);
     }
@@ -297,6 +300,7 @@ class PaycioContentScript {
           });
           return;
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn('Port communication failed, falling back to sendMessage:', error);
         }
       }
@@ -393,9 +397,9 @@ class PaycioContentScript {
       });
       
       this.communicationPort.onDisconnect.addListener(() => {
-        console.log('🔄 Communication port disconnected, reconnecting...');
+
         if (chrome.runtime.lastError) {
-          console.log('Port disconnect error:', chrome.runtime.lastError.message);
+
         }
         
         // Retry after delay
@@ -404,8 +408,8 @@ class PaycioContentScript {
         }, 2000);
       });
       
-      console.log('✅ Communication port established');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to create communication port:', error);
       // Will fall back to sendMessage
     }
@@ -416,17 +420,18 @@ class PaycioContentScript {
       if (chrome.runtime && chrome.runtime.id) {
         chrome.runtime.sendMessage({ type: 'KEEPALIVE_PING' }, (response) => {
           if (chrome.runtime.lastError) {
-            console.log('Keep-alive failed:', chrome.runtime.lastError.message);
+
             // Try to reconnect communication port
             if (!this.communicationPort) {
               this.createCommunicationPort();
             }
           } else {
-            console.log('✅ Keep-alive successful');
+
           }
         });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Keep-alive error:', error);
     }
   }
@@ -438,6 +443,7 @@ class PaycioContentScript {
         navigator.serviceWorker.controller.postMessage({ type: 'PING' });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Service worker ping failed:', error);
     }
   }
@@ -489,29 +495,28 @@ class PaycioContentScript {
         };
       }
     } catch (error) {
-      console.log('Failed to update wallet state:', error);
+
     }
   }
 
   private announceProvider() {
     // Wait a bit for the provider script to load
     setTimeout(() => {
-    // Dispatch events to let DApps know Paycio is available
-    window.dispatchEvent(new Event('ethereum#initialized'));
-    
-    // Custom event for Paycio
-    window.dispatchEvent(new CustomEvent('paycio#initialized', {
-      detail: {
-        isPaycio: true,
+      // Dispatch events to let DApps know Paycio is available
+      window.dispatchEvent(new Event('ethereum#initialized'));
+      
+      // Custom event for Paycio
+      window.dispatchEvent(new CustomEvent('paycio#initialized', {
+        detail: {
+          isPaycio: true,
           version: '2.0.0',
-        supportedNetworks: [
-          'ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism',
-          'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
-        ]
-      }
-    }));
-
-    console.log('Paycio wallet announced to page');
+          supportedNetworks: [
+            'ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism',
+            'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'
+          ]
+        }
+      }));
+      
     }, 100);
   }
 
@@ -527,7 +532,6 @@ class DAppConnectionManager {
 
   static async handleDAppRequest(method: string, params: any[] = []): Promise<any> {
     try {
-      console.log(`DApp request: ${method}`);
 
       // Send request to background script
       const response = await this.sendToBackground('DAPP_REQUEST', {
@@ -555,13 +559,13 @@ class DAppConnectionManager {
       return response.data;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('DApp request failed:', error);
       throw error;
     }
   }
 
   private static async handleUnlockRequirement(data: any, method: string, params: any[]): Promise<any> {
-    console.log('Wallet unlock required for DApp request');
 
     // Store the pending request
     const requestId = data.requestId || Date.now().toString();
@@ -579,6 +583,7 @@ class DAppConnectionManager {
           window.open(popupUrl, '_blank', 'width=400,height=600');
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Failed to open extension popup:', error);
       }
 
@@ -723,6 +728,5 @@ class DAppConnectionManager {
 
 // Initialize the content script
 new PaycioContentScript();
-
 // Expose DApp connection manager to window for provider access
 (window as any).DAppConnectionManager = DAppConnectionManager;

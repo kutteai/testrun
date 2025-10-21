@@ -41,6 +41,7 @@ const AddCustomNetworkScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
           onNavigate('manage-networks');
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error saving custom network:', error);
         toast.error('Failed to save custom network. Please try again.');
       }
@@ -102,6 +103,7 @@ const AddCustomNetworkScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
       toast.success(`Network data imported for ${chainData.name}!`);
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Chainlist import error:', error);
       toast.error(`Failed to import from Chainlist: ${error.message}`);
     } finally {

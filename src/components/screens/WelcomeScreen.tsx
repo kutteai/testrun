@@ -33,24 +33,20 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
     setIsLoading(true);
     try {
-      console.log('🔍 Starting unlock process...');
-      console.log('🔍 Password length:', password.length);
-      
+
+
       const success = await unlockWallet(password);
-      console.log('🔍 Unlock result:', success);
-      
+
       if (success) {
         // Don't navigate manually - let App.tsx handle auto-navigation
         // when isWalletUnlocked state updates
-        console.log('✅ Wallet unlocked successfully - App.tsx will handle navigation');
+
         toast.success('Wallet unlocked successfully!');
       } else {
-        console.log('❌ Wallet unlock failed - invalid password');
-        
+
         // Check if password hash is missing and try to recreate it
         try {
-          console.log('🔍 Checking if password hash is missing...');
-          
+
           // Import browser API
           const browserAPI = (() => {
             if (typeof browser !== 'undefined') return browser;
@@ -59,15 +55,9 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
           })();
           
           const stored = await browserAPI.storage.local.get(['wallet', 'passwordHash']);
-          console.log('🔍 Storage check:', {
-            hasWallet: !!stored.wallet,
-            hasPasswordHash: !!stored.passwordHash,
-            passwordHashLength: stored.passwordHash?.length || 0
-          });
-          
+
           if (stored.wallet && !stored.passwordHash) {
-            console.log('🔧 Password hash is missing! Attempting to recreate...');
-            
+
             // Try to decrypt the seed phrase with the provided password
             // If successful, it means the password is correct and we can recreate the hash
             if (stored.wallet.encryptedSeedPhrase) {
@@ -78,12 +68,10 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                 
                 // Generate new password hash
                 const newHash = await hybridAPI.generatePasswordHash(password);
-                console.log('🔧 Generated new password hash');
-                
+
                 // Store the new hash (newHash is already a string)
                 await browserAPI.storage.local.set({ passwordHash: newHash });
-                console.log('🔧 Password hash recreated and stored');
-                
+
                 // Try unlock again
                 toast.loading('Password hash recreated, trying unlock again...');
                 const retrySuccess = await unlockWallet(password);
@@ -97,6 +85,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                   toast.error('Password hash recreated but unlock still failed');
                 }
               } catch (recreateError) {
+                // eslint-disable-next-line no-console
                 console.error('❌ Failed to recreate password hash:', recreateError);
                 toast.error('Failed to recreate password hash');
               }
@@ -110,17 +99,19 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
             unlockAttempt: true,
             timestamp: new Date().toISOString()
           });
-          console.log('🔍 Detailed password diagnosis:', diagnosis);
+
         } catch (diagError) {
-          console.log('⚠️ Diagnosis failed:', diagError);
+
         }
         
         toast.error('Invalid password. Please check your password and try again.');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Failed to unlock wallet:', error);
       
       // Enhanced error logging
+      // eslint-disable-next-line no-console
       console.log('🔍 Unlock error details:', {
         message: error.message,
         passwordLength: password.length,

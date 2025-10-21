@@ -89,7 +89,7 @@ class SecurityManager {
     return crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt: salt,
+        salt: new Uint8Array(salt),
         iterations: 100000,
         hash: 'SHA-256'
       },
@@ -203,9 +203,9 @@ class WalletManager {
       let passwordHash: string;
       try {
         passwordHash = await this.generatePasswordHashViaServerless(password);
-        console.log('Password hash generated via serverless');
+
       } catch (serverlessError) {
-        console.log('Serverless hash generation failed, using local method');
+
         passwordHash = await SecurityManager.hashPassword(password);
       }
       
@@ -233,10 +233,9 @@ class WalletManager {
 
       const verifyResult = await storage.local.get(['passwordHash']);
       if (!verifyResult.passwordHash) {
+        // eslint-disable-next-line no-console
         console.error('Password hash was not stored properly during wallet creation');
         throw new Error('Failed to store password hash');
-      } else {
-        console.log('Password hash verified and stored successfully');
       }
 
       return { success: true, walletId: wallet.id };
@@ -247,8 +246,7 @@ class WalletManager {
 
   static async generateAddressesFromSeed(seedPhrase: string): Promise<Record<string, string>> {
     try {
-      console.log('Using secure deterministic address generation');
-      
+
       const addresses: Record<string, string> = {};
       
       // Generate addresses for all supported networks
@@ -270,6 +268,7 @@ class WalletManager {
       return addresses;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Address generation failed:', error);
       throw new Error(`Address generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -312,8 +311,7 @@ class WalletManager {
 
   static async generateLitecoinAddress(seedPhrase: string): Promise<string> {
     try {
-      console.log('Generating Litecoin Address using proven algorithm...');
-      
+
       const hexToBytes = (hex: string): Uint8Array => {
         const bytes = [];
         for (let i = 0; i < hex.length; i += 2) {
@@ -330,7 +328,7 @@ class WalletManager {
 
       const sha256Local = async (data: string | Uint8Array): Promise<Uint8Array> => {
         const dataBuffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new Uint8Array(dataBuffer));
         return new Uint8Array(hashBuffer);
       };
 
@@ -396,8 +394,7 @@ class WalletManager {
       const privateKey = await generatePrivateKeyFromSeed(seedPhrase);
       const publicKey = await generatePublicKey(privateKey);
       const address = await generateAddress(publicKey);
-      
-      console.log('Litecoin address generated:', address);
+
       return address;
       
     } catch (error) {
@@ -534,8 +531,7 @@ class WalletManager {
     }
 
     try {
-      console.log('🔍 Starting wallet unlock verification');
-      
+
       const result = await storage.local.get(['wallet', 'passwordHash']);
       const wallet = result.wallet;
       const storedPasswordHash = result.passwordHash;
@@ -551,7 +547,7 @@ class WalletManager {
         const generatedHash = await SecurityManager.hashPassword(password);
         if (generatedHash === storedPasswordHash) {
           unlockSuccess = true;
-          console.log('✅ Password hash verification successful');
+
         }
       }
       
@@ -563,18 +559,16 @@ class WalletManager {
             const words = decryptedSeed.trim().split(' ');
             if (words.length >= 12 && words.length <= 24) {
               unlockSuccess = true;
-              console.log('✅ Seed phrase verification successful');
-              
+
               // Regenerate password hash if missing
               if (!storedPasswordHash) {
                 const newHash = await SecurityManager.hashPassword(password);
                 await storage.local.set({ passwordHash: newHash });
-                console.log('✅ Password hash regenerated');
               }
             }
           }
         } catch (decryptError) {
-          console.log('❌ Seed phrase decryption failed');
+          // Decryption failed, try next encryption attempt
         }
       }
 
@@ -590,14 +584,14 @@ class WalletManager {
             tempPassword: password
           }
         });
-        
-        console.log('✅ Background: Wallet unlocked and session created with persistence');
+
         return { success: true };
       } else {
         throw new Error('Invalid password');
       }
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Wallet unlock failed:', error);
       throw error;
     }
@@ -605,8 +599,7 @@ class WalletManager {
 
   static async lockWallet(): Promise<{success: boolean}> {
     try {
-      console.log('🔒 Background: Locking wallet...');
-      
+
       // Clear persistent session data (password, session info)
       await SecureSessionManager.destroySession();
       
@@ -618,11 +611,11 @@ class WalletManager {
           tempPassword: null
         }
       });
-      
-      console.log('✅ Background: Wallet locked - session cleared, wallet data preserved');
+
       return { success: true };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Background: Failed to lock wallet:', error);
       throw error;
     }
@@ -631,8 +624,7 @@ class WalletManager {
   // Enhanced network switching with proper address derivation
   static async switchNetwork(networkId: string): Promise<{success: boolean, data: any}> {
     try {
-      console.log(`Switching to network: ${networkId}`);
-      
+
       const result = await storage.local.get(['wallet', 'walletState']);
       const wallet = result.wallet;
       const walletState = result.walletState;
@@ -697,15 +689,14 @@ class WalletManager {
       }
       
       await storage.local.set({ wallet: updatedWallet });
-      
-      console.log(`✅ Network switched successfully: ${networkId} -> ${newAddress}`);
-      
+
       return { 
         success: true, 
         data: { networkId, address: newAddress } 
       };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Network switch failed:`, error);
       throw error;
     }
@@ -713,28 +704,25 @@ class WalletManager {
 
   static async getAccounts(): Promise<any[]> {
     try {
-      console.log('WalletManager.getAccounts() called');
       const result = await storage.local.get(['wallet', 'walletState']);
       const wallet = result.wallet;
       const walletState = result.walletState;
 
-      console.log('Wallet exists:', !!wallet);
-      console.log('Wallet unlocked:', walletState?.isWalletUnlocked);
 
       if (!wallet) {
-        console.log('No wallet found');
+
         return [];
       }
 
       if (!walletState?.isWalletUnlocked) {
-        console.log('Wallet is locked');
+
         throw new Error('Wallet is locked');
       }
 
       const accounts = [];
       
       if (wallet.addresses && typeof wallet.addresses === 'object') {
-        console.log('Using new format with multiple addresses:', wallet.addresses);
+
         for (const [network, address] of Object.entries(wallet.addresses)) {
           accounts.push({
             id: `${wallet.id}_${network}`,
@@ -744,7 +732,7 @@ class WalletManager {
           });
         }
       } else if (wallet.address) {
-        console.log('Using legacy format with single address:', wallet.address);
+
         accounts.push({
           id: `${wallet.id}_ethereum`,
           name: wallet.name || 'Main Account',
@@ -753,9 +741,9 @@ class WalletManager {
         });
       }
 
-      console.log('Returning accounts:', accounts);
       return accounts;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('getAccounts error:', error);
       throw new Error(`Failed to get accounts: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -789,6 +777,7 @@ class WalletManager {
 
       return data.result.hash;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Serverless password hash generation error:', error);
       throw error;
     }
@@ -817,6 +806,7 @@ class WalletManager {
 
       return data.result;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Serverless password verification error:', error);
       throw error;
     }
@@ -841,6 +831,7 @@ class WalletManager {
       const data = await response.json();
       return data.success ? data.result : { error: data.error };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Serverless password diagnosis error:', error);
       return { error: error instanceof Error ? error.message : 'Unknown error' };
     }
@@ -899,6 +890,7 @@ class AddressDerivationService {
         return await this.deriveNonEvmAddress(seedPhrase, network, accountIndex);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Address derivation failed for ${networkId}:`, error);
       throw new Error(`Failed to derive ${networkId} address: ${error.message}`);
     }
@@ -932,7 +924,6 @@ class AddressDerivationService {
         throw new Error('Generated invalid address format');
       }
 
-      console.log(`✅ Derived EVM address: ${address}`);
       return address;
     } catch (error) {
       throw new Error(`EVM address derivation failed: ${error.message}`);
@@ -990,7 +981,7 @@ class AddressDerivationService {
       
       const sha256 = async (data: string | Uint8Array): Promise<Uint8Array> => {
         const dataBuffer = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-        const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+        const hashBuffer = await crypto.subtle.digest('SHA-256', new Uint8Array(dataBuffer));
         return new Uint8Array(hashBuffer);
       };
 
@@ -1229,6 +1220,7 @@ class AddressDerivationService {
       try {
         addresses[network] = await this.deriveAddress(seedPhrase, network, accountIndex);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Failed to derive ${network} address:`, error);
         addresses[network] = `Error: ${error.message}`;
       }
@@ -1301,8 +1293,7 @@ class BlockchainService {
 
     for (const rpcUrl of rpcUrls) {
       try {
-        console.log(`Trying RPC ${rpcUrl} for ${network}`);
-        
+
         const response = await fetch(rpcUrl, {
           method: 'POST',
           headers: { 
@@ -1332,9 +1323,9 @@ class BlockchainService {
           throw new Error('No result in RPC response');
         }
 
-        console.log(`✅ Success with RPC ${rpcUrl}`);
         return data.result;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn(`❌ RPC ${rpcUrl} failed:`, error.message);
         lastError = error instanceof Error ? error : new Error(String(error));
         continue;
@@ -1353,6 +1344,7 @@ class BlockchainService {
       const balance = await this.makeRpcRequestWithFallbacks(network, 'eth_getBalance', [address, 'latest']);
       return balance;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Failed to get balance for ${address} on ${network}:`, error);
       throw error;
     }
@@ -1367,6 +1359,7 @@ class BlockchainService {
       const nonce = await this.makeRpcRequestWithFallbacks(network, 'eth_getTransactionCount', [address, 'latest']);
       return nonce;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Failed to get transaction count for ${address} on ${network}:`, error);
       throw error;
     }
@@ -1377,6 +1370,7 @@ class BlockchainService {
       const gasPrice = await this.makeRpcRequestWithFallbacks(network, 'eth_gasPrice', []);
       return gasPrice;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Failed to get gas price for ${network}:`, error);
       // Return fallback gas price
       return '0x2540be400'; // 10 gwei
@@ -1394,6 +1388,7 @@ class BlockchainService {
       const data = await response.json();
       return data.balance.toString();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get Bitcoin balance:', error);
       return '0';
     }
@@ -1423,6 +1418,7 @@ class BlockchainService {
 
       return data.result?.value?.toString() || '0';
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get Solana balance:', error);
       return '0';
     }
@@ -1444,10 +1440,12 @@ class BlockchainService {
         case 'avalanche':
           return await this.getBalance(address, network);
         default:
+          // eslint-disable-next-line no-console
           console.warn(`Unsupported network: ${network}`);
           return '0';
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Failed to get balance for ${network}:`, error);
       return '0';
     }
@@ -1515,6 +1513,7 @@ class BlockchainService {
       return txHash;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Transaction failed:', error);
       throw new Error(`Transaction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1644,17 +1643,19 @@ class BlockchainService {
       const wallet = ethers.Wallet.fromPhrase(seedPhrase);
       
       switch (method) {
-        case 'personal_sign':
+        case 'personal_sign': {
           const message = params[0];
           const signature = await wallet.signMessage(message);
           return signature;
-          
+        }
+
         case 'eth_signTypedData':
-        case 'eth_signTypedData_v4':
+        case 'eth_signTypedData_v4': {
           const typedData = params[1];
           const typedSignature = await wallet.signTypedData(typedData.domain, typedData.types, typedData.message);
           return typedSignature;
-          
+        }
+
         default:
           throw new Error(`Unsupported signing method: ${method}`);
       }
@@ -1778,8 +1779,6 @@ class PaycioDAppHandler {
       return;
     }
 
-    console.log(`Processing DApp request: ${message.method} from ${origin}`);
-
     try {
       const response = await this.processRequest({
         ...message,
@@ -1852,6 +1851,7 @@ class PaycioDAppHandler {
           throw new Error(`Unsupported method: ${method}`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Error processing ${method}:`, error);
       return {
         success: false,
@@ -2035,6 +2035,7 @@ class PaycioDAppHandler {
 
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting wallet state:', error);
       return null;
     }
@@ -2108,6 +2109,7 @@ class PaycioDAppHandler {
         this.connectedSites = new Map(Object.entries(sites));
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading connected sites:', error);
     }
   }
@@ -2117,6 +2119,7 @@ class PaycioDAppHandler {
       const sites = Object.fromEntries(this.connectedSites);
       await storage.local.set({ connectedSites: JSON.stringify(sites) });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error saving connected sites:', error);
     }
   }
@@ -2638,6 +2641,7 @@ class PaycioDAppHandler {
       const result = await storage.local.get(['currentWallet']);
       return result.currentWallet || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting current wallet:', error);
       return null;
     }
@@ -2647,6 +2651,7 @@ class PaycioDAppHandler {
     try {
       await storage.local.set({ currentChainId: chainId });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error switching chain:', error);
       throw error;
     }
@@ -2659,6 +2664,7 @@ class PaycioDAppHandler {
       customChains.push(chainParams);
       await storage.local.set({ customChains });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error adding custom chain:', error);
       throw error;
     }
@@ -2679,6 +2685,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       const status = await WalletManager.getWalletStatus();
       return { success: true, data: status };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('GET_WALLET_STATUS error:', error);
       return { success: false, error: error.message };
     }
@@ -2693,6 +2700,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
         return { success: false, error: 'No wallet address found' };
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('GET_WALLET_ADDRESS error:', error);
       return { success: false, error: error.message };
     }
@@ -2702,9 +2710,10 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
     try {
       // This would typically show the unlock popup
       // For now, return success to indicate the popup was shown
-      console.log('🔍 SHOW_UNLOCK_POPUP handler called');
+
       return { success: true, result: { popupShown: true } };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('SHOW_UNLOCK_POPUP error:', error);
       return { success: false, error: error.message };
     }
@@ -2721,6 +2730,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       const result = await WalletManager.createWallet(password, seedPhrase, name);
       return { success: true, data: result };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('CREATE_WALLET error:', error);
       return { success: false, error: error.message };
     }
@@ -2728,18 +2738,16 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
   'UNLOCK_WALLET': async (message) => {
     try {
-              console.log('🔍 UNLOCK_WALLET handler called - ensuring service worker is active...');
-              
+
               // Aggressively wake up service worker
               if (typeof self !== 'undefined') {
-                console.log('🔄 Service worker is active, processing unlock...');
+                // Service worker context
               } else {
-                console.log('⚠️ Service worker context not available');
+                // Regular context
               }
               
       const { password } = message;
-      console.log('🔍 UNLOCK_WALLET handler called with password length:', password?.length);
-      
+
       if (!password) {
         throw new Error('Password is required');
       }
@@ -2748,12 +2756,6 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       const result = await storage.local.get(['wallet', 'passwordHash']);
       const wallet = result.wallet;
       const storedPasswordHash = result.passwordHash;
-      
-      console.log('🔍 Storage check:', {
-        hasWallet: !!wallet,
-        hasPasswordHash: !!storedPasswordHash,
-        walletId: wallet?.id
-      });
 
       if (!wallet) {
         throw new Error('No wallet found');
@@ -2763,45 +2765,41 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
       // Method 1: Hash verification
       if (storedPasswordHash) {
-        console.log('🔍 Attempting hash verification...');
+
         try {
           const generatedHash = await SecurityManager.hashPassword(password);
           if (generatedHash === storedPasswordHash) {
             unlockSuccess = true;
-            console.log('✅ Hash verification successful');
-          } else {
-            console.log('❌ Hash verification failed');
           }
         } catch (hashError) {
-          console.log('❌ Hash generation error:', hashError);
+          // Hash comparison failed
         }
       }
 
       // Method 2: Seed phrase decryption verification
       if (!unlockSuccess && wallet.encryptedSeedPhrase) {
-        console.log('🔍 Attempting seed phrase verification...');
+
         try {
           const decryptedSeed = await SecurityManager.decrypt(wallet.encryptedSeedPhrase, password);
           if (decryptedSeed && decryptedSeed.length > 0) {
             const words = decryptedSeed.trim().split(' ');
             if (words.length >= 12 && words.length <= 24) {
               unlockSuccess = true;
-              console.log('✅ Seed phrase verification successful');
-              
+
               // Regenerate password hash
               if (!storedPasswordHash) {
                 try {
                   const newHash = await SecurityManager.hashPassword(password);
                   await storage.local.set({ passwordHash: newHash });
-                  console.log('✅ Password hash regenerated');
+
                 } catch (hashError) {
-                  console.log('⚠️ Could not regenerate password hash:', hashError);
+                  // Failed to regenerate password hash
                 }
               }
             }
           }
         } catch (decryptError) {
-          console.log('❌ Seed phrase decryption failed:', decryptError);
+          // Decryption verification failed
         }
       }
 
@@ -2814,14 +2812,14 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
             tempPassword: password
           }
         });
-        
-        console.log('✅ Wallet unlocked successfully');
+
         return { success: true };
       } else {
         throw new Error('Invalid password');
       }
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('UNLOCK_WALLET error:', error);
       return { success: false, error: error.message };
     }
@@ -2838,6 +2836,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       });
       return { success: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('LOCK_WALLET error:', error);
       return { success: false, error: error.message };
     }
@@ -2848,6 +2847,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       const accounts = await WalletManager.getAccounts();
       return { success: true, data: accounts };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('GET_ACCOUNTS error:', error);
       return { success: false, error: error.message };
     }
@@ -2857,8 +2857,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
     const { password } = message;
     
     try {
-      console.log('=== COMPREHENSIVE PASSWORD DIAGNOSIS START ===');
-      
+
       const result = await storage.local.get(['wallet', 'passwordHash', 'walletState']);
       const wallet = result.wallet;
       const storedPasswordHash = result.passwordHash;
@@ -2906,12 +2905,11 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
           };
         }
       }
-      
-      console.log('=== COMPREHENSIVE PASSWORD DIAGNOSIS END ===');
-      
+
       return { success: true, data: diagnosis };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Password diagnosis failed:', error);
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
@@ -2920,8 +2918,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
   'SWITCH_NETWORK': async (message) => {
     try {
       const { networkId } = message;
-      console.log(`🔍 SWITCH_NETWORK handler called for: ${networkId}`);
-      
+
       if (!networkId) {
         throw new Error('Network ID is required');
       }
@@ -2930,6 +2927,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       return result;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`SWITCH_NETWORK error for ${message.networkId}:`, error);
       return { success: false, error: error.message };
     }
@@ -2937,14 +2935,13 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
   'PAYCIO_SWITCH_TO_TON': async (message) => {
     try {
-      console.log('🔍 PAYCIO_SWITCH_TO_TON handler called');
-      
+
       const result = await WalletManager.switchNetwork('ton');
-      console.log('✅ TON network switch result:', result);
-      
+
       return { success: true, result };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('PAYCIO_SWITCH_TO_TON error:', error);
       return { success: false, error: error.message };
     }
@@ -2952,14 +2949,13 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
   'PAYCIO_SWITCH_TO_ETHEREUM': async (message) => {
     try {
-      console.log('🔍 PAYCIO_SWITCH_TO_ETHEREUM handler called');
-      
+
       const result = await WalletManager.switchNetwork('ethereum');
-      console.log('✅ Ethereum network switch result:', result);
-      
+
       return { success: true, result };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('PAYCIO_SWITCH_TO_ETHEREUM error:', error);
       return { success: false, error: error.message };
     }
@@ -2968,8 +2964,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
   'PAYCIO_SWITCH_NETWORK': async (message) => {
     try {
       const { chainId } = message;
-      console.log(`🔍 PAYCIO_SWITCH_NETWORK handler called for chainId: ${chainId}`);
-      
+
       if (!chainId) {
         throw new Error('Chain ID is required');
       }
@@ -2990,6 +2985,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       return { success: true, result };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('PAYCIO_SWITCH_NETWORK error:', error);
       return { success: false, error: error.message };
     }
@@ -2998,17 +2994,17 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
   'PAYCIO_ADD_NETWORK': async (message) => {
     try {
       const { networkInfo } = message;
-      console.log('🔍 PAYCIO_ADD_NETWORK handler called for:', networkInfo);
-      
+
       if (!networkInfo) {
         throw new Error('Network info is required');
       }
 
       // For now, just return success - network addition logic can be implemented later
-      console.log('✅ Network addition request received:', networkInfo.chainName);
+
       return { success: true, result: { added: true } };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('PAYCIO_ADD_NETWORK error:', error);
       return { success: false, error: error.message };
     }
@@ -3026,6 +3022,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       return { success: true, data: { balance } };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('GET_BALANCE error:', error);
       return { success: false, error: error.message };
     }
@@ -3043,6 +3040,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       return { success: true, data: { txHash } };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('SEND_TRANSACTION error:', error);
       return { success: false, error: error.message };
     }
@@ -3052,16 +3050,13 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
   'DAPP_REQUEST': async (message) => {
     try {
       const { method, params = [], origin } = message;
-      
-      console.log(`DApp request from ${origin}: ${method}`);
-      
+
       if (!method) {
         throw new Error('Method is required');
       }
 
       // Get wallet status
       const walletStatus = await WalletManager.getWalletStatus();
-      console.log('Wallet status for DApp request:', walletStatus);
 
       // Handle case when no wallet exists
       if (!walletStatus.hasWallet) {
@@ -3085,7 +3080,6 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 
       // Handle wallet locked scenarios
       if (!walletStatus.isUnlocked) {
-        console.log(`Wallet locked for ${method} request`);
 
         // Account connection requests when locked
         if (method === 'eth_requestAccounts' || method === 'eth_accounts') {
@@ -3155,6 +3149,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       return await handleUnlockedWalletRequest(method, params, origin);
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('DAPP_REQUEST error:', error);
       return {
         success: false,
@@ -3174,8 +3169,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
     }
 
     try {
-      console.log(`Enhanced derive network address for: ${networkId}`);
-      
+
       const result = await storage.local.get(['wallet', 'walletState']);
       const wallet = result.wallet;
       const walletState = result.walletState;
@@ -3189,7 +3183,7 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       }
 
       if (wallet.addresses && wallet.addresses[networkId]) {
-        console.log(`Found existing ${networkId} address:`, wallet.addresses[networkId]);
+
         return { success: true, data: { address: wallet.addresses[networkId] } };
       }
 
@@ -3226,39 +3220,42 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
           address = '1' + btcAddressBody;
           break;
           
-        case 'litecoin':
-          console.log('Using working Litecoin address generation algorithm...');
+        case 'litecoin': {
           address = await WalletManager.generateLitecoinAddress(seedPhrase);
-          console.log(`Generated Litecoin address using algorithm: ${address}`);
           break;
-          
-        case 'solana':
+        }
+
+        case 'solana': {
           address = hash.slice(0, 32).map(b => base58Chars[b % base58Chars.length]).join('').slice(0, 44);
           break;
-          
-        case 'tron':
+        }
+
+        case 'tron': {
           const tronAddressBody = hash.slice(0, 20).map(b => base58Chars[b % base58Chars.length]).join('').slice(0, 33);
           address = 'T' + tronAddressBody;
           break;
-          
-        case 'ton':
+        }
+
+        case 'ton': {
           const base64urlChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
           const addressBytes = hash.slice(0, 32);
           const checksumBytes = hash.slice(30, 32);
           const fullBytes = [...addressBytes, ...checksumBytes];
-          
+
           address = 'EQ';
           for (let i = 0; i < 46; i++) {
             const index = fullBytes[i % fullBytes.length] % base64urlChars.length;
             address += base64urlChars[index];
           }
           break;
-          
-        case 'xrp':
+        }
+
+        case 'xrp': {
           const xrpAddressBody = hash.slice(0, 20).map(b => base58Chars[b % base58Chars.length]).join('').slice(0, 24);
           address = 'r' + xrpAddressBody;
           break;
-          
+        }
+
         default:
           address = '0x' + hash.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
       }
@@ -3297,8 +3294,6 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
         throw new Error(`Generated invalid address for ${networkId}: ${address}`);
       }
 
-      console.log(`Generated valid ${networkId} address: ${address}`);
-
       const updatedAddresses = { ...wallet.addresses, [networkId]: address };
       const updatedWallet = { ...wallet, addresses: updatedAddresses };
       
@@ -3312,12 +3307,11 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       }
       
       await storage.local.set({ wallet: updatedWallet });
-      
-      console.log(`Stored ${networkId} address: ${address}`);
 
       return { success: true, data: { address } };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Enhanced derive network address failed:`, error);
       throw new Error(`Failed to generate valid address for ${networkId}. ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -3327,15 +3321,17 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
 // Helper function for public methods that don't require wallet unlock
 async function handlePublicMethod(method: string, params: any[]): Promise<any> {
   switch (method) {
-    case 'eth_chainId':
+    case 'eth_chainId': {
       // Return current chain ID or default to Ethereum
       const chainIds = { ethereum: '0x1', bsc: '0x38', polygon: '0x89' };
       return { success: true, data: chainIds['ethereum'] };
-      
-    case 'net_version':
+    }
+
+    case 'net_version': {
       const versions = { ethereum: '1', bsc: '56', polygon: '137' };
       return { success: true, data: versions['ethereum'] };
-      
+    }
+
     case 'eth_blockNumber':
       try {
         const blockNumber = await BlockchainService.makeRpcRequestWithFallbacks('ethereum', 'eth_blockNumber', []);
@@ -3363,11 +3359,12 @@ async function handleUnlockedWalletRequest(method: string, params: any[], origin
         data: accounts.map(acc => acc.address) 
       };
 
-    case 'eth_getBalance':
+    case 'eth_getBalance': {
       const address = params[0] || accounts[0]?.address;
       if (!address) throw new Error('No address available');
       const balance = await BlockchainService.getBalance(address);
       return { success: true, data: balance };
+    }
 
     case 'eth_sendTransaction':
       // This would typically show a transaction confirmation popup
@@ -3396,8 +3393,9 @@ async function addConnectedSite(origin: string, addresses: string[]): Promise<vo
     };
     
     await storage.local.set({ connectedSites });
-    console.log(`Site connected: ${origin}`);
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to store connected site:', error);
   }
 }
@@ -3427,13 +3425,11 @@ async function handleSigningRequest(method: string, params: any[], origin: strin
 // ============================================================================
 
 browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log('🔍 Background script received message:', message.type, message);
-  
   // Aggressively wake up service worker on every message
   if (typeof self !== 'undefined') {
-    console.log('🔄 Service worker is active for message:', message.type);
+    // Service worker context
   } else {
-    console.log('⚠️ Service worker context not available for message:', message.type);
+    // Regular context
   }
   
   // Return true immediately to keep the message channel open for async responses
@@ -3456,12 +3452,10 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       // Handle special wake-up message
       if (message.type === 'WAKE_UP') {
-        console.log('🔄 Background: Wake-up message received');
-        
+
         // Ensure service worker is active
         if (typeof self !== 'undefined') {
-          console.log('✅ Service worker is active');
-          
+
           // Start keepalive if not already started
           startKeepAlive();
           
@@ -3470,7 +3464,7 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
             message: 'Extension is awake and ready'
           });
         } else {
-          console.log('⚠️ Service worker context not available');
+
           sendResponse({
             success: false,
             error: 'Service worker context not available'
@@ -3499,6 +3493,7 @@ browserAPI.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const response = await handler(message);
       sendResponse(response);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Background message handler error:', error);
       sendResponse({
         success: false,
@@ -3522,8 +3517,7 @@ window.addEventListener('message', async (event) => {
   if (!type || !id) return;
   
   try {
-    console.log('🔍 Background received message from injected script:', type, event.data);
-    
+
     let response;
     
     switch (type) {
@@ -3552,7 +3546,7 @@ window.addEventListener('message', async (event) => {
         response = await messageHandlers['UNLOCK_WALLET'](event.data);
         break;
       default:
-        console.log('Unknown message type from injected script:', type);
+
         return;
     }
     
@@ -3564,6 +3558,7 @@ window.addEventListener('message', async (event) => {
     }, '*');
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error handling injected script message:', error);
     window.postMessage({
       type: `${type}_RESPONSE`,
@@ -3591,20 +3586,21 @@ setInterval(async () => {
       
       if (inactiveTime > autoLockTimeout) {
         await WalletManager.lockWallet();
-        console.log('Paycio: Wallet auto-locked due to inactivity');
+
       }
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Paycio: Auto-lock check failed:', error);
   }
 }, 60000);
 
 browserAPI.runtime.onInstalled.addListener((details) => {
-  console.log('Paycio installed/updated:', details.reason);
+
 });
 
 browserAPI.runtime.onStartup.addListener(() => {
-  console.log('Paycio extension startup');
+
 });
 
 // ============================================================================
@@ -3616,13 +3612,11 @@ let heartbeatInterval: NodeJS.Timeout | null = null;
 let isServiceWorkerActive = false;
 
 function initializeServiceWorker() {
-  console.log('Paycio: Initializing service worker...');
-  
+
   isServiceWorkerActive = true;
   startHeartbeat();
   setupKeepaliveAlarm();
 
-  console.log('Paycio Secure Background Script Ready');
 }
 
 function startHeartbeat() {
@@ -3632,10 +3626,14 @@ function startHeartbeat() {
   
   heartbeatInterval = setInterval(() => {
     if (isServiceWorkerActive) {
+      // eslint-disable-next-line no-console
       console.log('Paycio: Service worker heartbeat -', new Date().toISOString());
       storage.local.get(['heartbeat']).then(() => {
         storage.local.set({ heartbeat: Date.now() });
-      }).catch(console.warn);
+      }).catch((err) => {
+        // eslint-disable-next-line no-console
+        console.warn(err);
+      });
     }
   }, HEARTBEAT_INTERVAL);
 }
@@ -3649,13 +3647,14 @@ function setupKeepaliveAlarm() {
     
     browserAPI.alarms?.onAlarm.addListener((alarm) => {
       if (alarm.name === 'paycio-keepalive') {
-        console.log('Paycio: Keepalive alarm triggered');
+
         storage.local.get(['keepalive']).then(() => {
           storage.local.set({ keepalive: Date.now() });
         });
       }
     });
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('Paycio: Could not set up keepalive alarm:', error);
   }
 }
@@ -3663,20 +3662,20 @@ function setupKeepaliveAlarm() {
 // Service worker lifecycle handlers
 if (typeof self !== 'undefined') {
   self.addEventListener('install', (event: any) => {
-    console.log('Paycio: Service worker installing...');
+
     event.waitUntil(
       Promise.resolve().then(() => {
-        console.log('Paycio: Service worker installed');
+
         return (self as any).skipWaiting();
       })
     );
   });
 
   self.addEventListener('activate', (event: any) => {
-    console.log('Paycio: Service worker activating...');
+
     event.waitUntil(
       Promise.resolve().then(() => {
-        console.log('Paycio: Service worker activated');
+
         initializeServiceWorker();
         return (self as any).clients.claim();
       })
@@ -3684,10 +3683,12 @@ if (typeof self !== 'undefined') {
   });
 
   self.addEventListener('error', (event: ErrorEvent) => {
+    // eslint-disable-next-line no-console
     console.error('Paycio: Service worker error:', event.error);
   });
 
   self.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+    // eslint-disable-next-line no-console
     console.error('Paycio: Unhandled promise rejection:', event.reason);
     event.preventDefault();
   });
@@ -3708,9 +3709,7 @@ let serviceWorkerPingInterval: NodeJS.Timeout | null = null;
 
 const startKeepAlive = () => {
   if (keepAliveInterval) return;
-  
-  console.log('🔄 Starting service worker keepalive mechanisms...');
-  
+
   // Method 1: Regular ping
   keepAliveInterval = setInterval(() => {
     // Send a ping to keep the service worker alive
@@ -3724,12 +3723,12 @@ const startKeepAlive = () => {
     try {
       keepAlivePort = chrome.runtime.connect({ name: 'keepalive' });
       keepAlivePort.onDisconnect.addListener(() => {
-        console.log('🔄 Keepalive port disconnected, reconnecting...');
+        // Reconnect on disconnect
         setTimeout(() => startKeepAlive(), 1000);
       });
       keepAlivePort.postMessage({ type: 'KEEPALIVE_PING' });
     } catch (error) {
-      console.log('⚠️ Could not create keepalive port:', error);
+      // Failed to start keep alive
     }
   }
   
@@ -3737,13 +3736,13 @@ const startKeepAlive = () => {
   serviceWorkerPingInterval = setInterval(() => {
     try {
       if (navigator.serviceWorker && navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ 
-          type: 'PING', 
-          timestamp: Date.now() 
+        navigator.serviceWorker.controller.postMessage({
+          type: 'PING',
+          timestamp: Date.now()
         });
       }
     } catch (error) {
-      console.log('⚠️ Service worker ping failed:', error);
+      // Service worker ping failed
     }
   }, 3000); // Ping every 3 seconds
 };
@@ -3765,10 +3764,10 @@ const stopKeepAlive = () => {
 
 // Start keepalive when service worker is active
 if (typeof self !== 'undefined' && (self as any).registration && (self as any).registration.active) {
-  console.log('🚀 Service worker is active, starting keepalive...');
+
   startKeepAlive();
 } else {
-  console.log('⚠️ Service worker not active, attempting to start...');
+
   // Try to start keepalive anyway
   setTimeout(() => {
     startKeepAlive();
@@ -3778,7 +3777,7 @@ if (typeof self !== 'undefined' && (self as any).registration && (self as any).r
 // Handle service worker lifecycle
 if (typeof self !== 'undefined') {
   self.addEventListener('activate', () => {
-    console.log('🔄 Service worker activated, starting keepalive');
+
     startKeepAlive();
   });
   
@@ -3789,8 +3788,7 @@ if (typeof self !== 'undefined') {
   // Enhanced port connection handler
   if (typeof chrome !== 'undefined' && chrome.runtime) {
     chrome.runtime.onConnect.addListener((port) => {
-      console.log('🔍 Background: Port connected:', port.name, 'from', port.sender?.url);
-      
+
       switch (port.name) {
         case 'keepalive':
           handleKeepAlivePort(port);
@@ -3809,7 +3807,7 @@ if (typeof self !== 'undefined') {
           break;
           
         default:
-          console.log('🔍 Background: Unknown port type:', port.name);
+
           port.disconnect();
       }
     });
@@ -3829,14 +3827,13 @@ function handleKeepAlivePort(port: any) {
   });
   
   port.onDisconnect.addListener(() => {
-    console.log('🔍 Background: Keepalive port disconnected');
+
   });
 }
 
 function handleWalletCommunicationPort(port: any) {
   port.onMessage.addListener(async (message: any) => {
-    console.log('🔍 Background: Wallet communication message:', message);
-    
+
     try {
       const handler = messageHandlers[message.type];
       if (handler) {
@@ -3855,6 +3852,7 @@ function handleWalletCommunicationPort(port: any) {
         });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('🔍 Background: Port message handler error:', error);
       port.postMessage({ 
         success: false, 
@@ -3866,17 +3864,16 @@ function handleWalletCommunicationPort(port: any) {
   });
   
   port.onDisconnect.addListener(() => {
-    console.log('🔍 Background: Wallet communication port disconnected');
+
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.lastError) {
-      console.log('Port disconnect error:', chrome.runtime.lastError.message);
+
     }
   });
 }
 
 function handleUnlockRequestPort(port: any) {
   port.onMessage.addListener(async (message: any) => {
-    console.log('🔍 Background: Unlock request via port:', message.type);
-    
+
     if (message.type === 'UNLOCK_WALLET') {
       try {
         const response = await messageHandlers['UNLOCK_WALLET']({
@@ -3885,6 +3882,7 @@ function handleUnlockRequestPort(port: any) {
         
         port.postMessage(response);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('🔍 Background: Unlock via port failed:', error);
         port.postMessage({
           success: false,
@@ -3900,23 +3898,19 @@ function handleUnlockRequestPort(port: any) {
   });
   
   port.onDisconnect.addListener(() => {
-    console.log('🔍 Background: Unlock request port disconnected');
+
   });
 }
 
 function handleWakeUpPort(port: any) {
-  console.log('🔍 Background: Wake-up port connected');
-  
+
   port.onMessage.addListener((message: any) => {
-    console.log('🔍 Background: Wake-up message received:', message.type);
-    
+
     if (message.type === 'WAKE_UP') {
-      console.log('🔄 Background: Extension wake-up requested');
-      
+
       // Ensure service worker is active
       if (typeof self !== 'undefined') {
-        console.log('✅ Service worker is active');
-        
+
         // Start keepalive if not already started
         startKeepAlive();
         
@@ -3926,7 +3920,7 @@ function handleWakeUpPort(port: any) {
           message: 'Extension is awake and ready'
         });
       } else {
-        console.log('⚠️ Service worker context not available');
+
         port.postMessage({
           success: false,
           error: 'Service worker context not available'
@@ -3936,7 +3930,7 @@ function handleWakeUpPort(port: any) {
   });
   
   port.onDisconnect.addListener(() => {
-    console.log('🔍 Background: Wake-up port disconnected');
+
   });
 }
 

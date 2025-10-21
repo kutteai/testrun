@@ -63,6 +63,7 @@ export class TransactionManager {
         this.transactions = result.transactions;
       }
     } catch (error) {
+       
       // console.error('Failed to load transactions:', error);
     }
   }
@@ -72,6 +73,7 @@ export class TransactionManager {
     try {
       await storage.set({ transactions: this.transactions });
     } catch (error) {
+       
       // console.error('Failed to save transactions:', error);
     }
   }
@@ -88,6 +90,7 @@ export class TransactionManager {
       }
       return null;
     } catch (error) {
+       
       // console.error('Failed to get wallet from storage:', error);
       return null;
     }
@@ -196,6 +199,7 @@ export class TransactionManager {
         transaction: pendingTx
       };
     } catch (error) {
+       
       // console.error('Transaction failed:', error);
       return {
         success: false,
@@ -224,6 +228,7 @@ export class TransactionManager {
           await this.saveTransactions();
         }
       } catch (error) {
+         
         // console.error('Failed to update transaction status:', error);
       }
     }
@@ -280,7 +285,7 @@ export class TransactionManager {
     data: string = '0x', 
     network: string
   ): Promise<string> {
-    try {
+    try { // TODO: Review useless catch block
       const networkConfig = NETWORKS[network];
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${network}`);
@@ -305,6 +310,7 @@ export class TransactionManager {
 
       return estimatedGas;
     } catch (error) {
+       
       // console.error('Failed to estimate gas:', error);
       throw error;
     }
@@ -312,10 +318,11 @@ export class TransactionManager {
 
   // Get gas price for a network
   async getGasPrice(network: string): Promise<string> {
-    try {
+    try { // TODO: Review useless catch block
       const { getGasPrice } = await import('../utils/web3-utils');
       return await getGasPrice(network);
     } catch (error) {
+       
       // console.error('Failed to get gas price:', error);
       throw error;
     }
@@ -323,11 +330,12 @@ export class TransactionManager {
 
   // Get transaction count (nonce) for an address
   async getTransactionCount(address: string, network: string): Promise<number> {
-    try {
+    try { // TODO: Review useless catch block
       const { getTransactionCount } = await import('../utils/web3-utils');
       const nonceString = await getTransactionCount(address, network);
       return parseInt(nonceString, 16);
     } catch (error) {
+       
       // console.error('Failed to get transaction count:', error);
       throw error;
     }
@@ -335,10 +343,11 @@ export class TransactionManager {
 
   // Sign a transaction
   async signTransaction(transaction: any, privateKey: string, network: string): Promise<string> {
-    try {
+    try { // TODO: Review useless catch block
       const { signTransaction } = await import('../utils/web3-utils');
       return await signTransaction(transaction, privateKey, network);
     } catch (error) {
+       
       // console.error('Failed to sign transaction:', error);
       throw error;
     }
@@ -346,10 +355,11 @@ export class TransactionManager {
 
   // Send a signed transaction
   async sendSignedTransaction(signedTx: string, network: string): Promise<string> {
-    try {
+    try { // TODO: Review useless catch block
       const { sendSignedTransaction } = await import('../utils/web3-utils');
       return await sendSignedTransaction(signedTx, network);
     } catch (error) {
+       
       // console.error('Failed to send signed transaction:', error);
       throw error;
     }
@@ -357,10 +367,11 @@ export class TransactionManager {
 
   // Get transaction receipt
   async getTransactionReceipt(hash: string, network: string): Promise<any> {
-    try {
+    try { // TODO: Review useless catch block
       const { getTransactionReceipt } = await import('../utils/web3-utils');
       return await getTransactionReceipt(hash, network);
     } catch (error) {
+       
       // console.error('Failed to get transaction receipt:', error);
       throw error;
     }
@@ -368,10 +379,11 @@ export class TransactionManager {
 
   // Get balance for an address
   async getBalance(address: string, network: string): Promise<string> {
-    try {
+    try { // TODO: Review useless catch block
       const { getRealBalance } = await import('../utils/web3-utils');
       return await getRealBalance(address, network);
     } catch (error) {
+       
       // console.error('Failed to get balance:', error);
       throw error;
     }

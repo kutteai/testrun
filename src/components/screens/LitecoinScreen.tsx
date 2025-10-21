@@ -53,6 +53,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
             throw new Error('Failed to derive Litecoin address');
           }
         } catch (derivationError) {
+          // eslint-disable-next-line no-console
           console.error('Litecoin address derivation failed:', derivationError);
           setError(`Failed to derive Litecoin address: ${derivationError.message}`);
           return;
@@ -68,6 +69,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       ]);
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load Litecoin data:', error);
       setError(`Failed to load Litecoin data: ${error.message}`);
     } finally {
@@ -81,6 +83,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const balance = await litecoinUtils.getBalance(address, 'mainnet');
       setLitecoinBalance(balance.confirmed.toString());
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load Litecoin balance:', error);
       setLitecoinBalance('0');
     }
@@ -92,6 +95,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const txs = await litecoinUtils.getTransactions(address, network);
       setTransactions(txs);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load Litecoin transactions:', error);
       setTransactions([]);
     }
@@ -109,6 +113,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       ]);
       toast.success('Litecoin data refreshed');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to refresh Litecoin data:', error);
       toast.error('Failed to refresh data');
     } finally {
@@ -124,6 +129,7 @@ const LitecoinScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       toast.success('Address copied to clipboard');
       setTimeout(() => setCopied(null), 2000);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to copy to clipboard:', error);
       toast.error('Failed to copy address');
     }

@@ -15,8 +15,6 @@ import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
 import './index.css';
 
-console.log('🚀 PayCio Wallet Expanded View Initializing...');
-
 // Initialize the React app
 const container = document.getElementById('root');
 if (container) {
@@ -52,21 +50,22 @@ if (container) {
       </ErrorBoundary>
     </React.StrictMode>
   );
-  console.log('✅ PayCio Wallet Expanded View Loaded');
+
 } else {
+  // eslint-disable-next-line no-console
   console.error('❌ Root container not found');
 }
 
 // Handle window events
 window.addEventListener('beforeunload', () => {
-  console.log('🔄 PayCio Wallet Expanded View Closing...');
+
 });
 
 // Handle extension context
 if (typeof chrome !== 'undefined' && chrome.runtime) {
-  console.log('✅ Chrome extension context available');
+
 } else if (typeof browser !== 'undefined' && browser.runtime) {
-  console.log('✅ Firefox extension context available');
+
 } else {
-  console.log('⚠️ No extension context - running in standalone mode');
+
 }

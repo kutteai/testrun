@@ -172,6 +172,7 @@ export class DeFiManager {
       
       return yields.sort((a, b) => b.apy - a.apy);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching yield opportunities:', error);
       return [];
     }
@@ -206,6 +207,7 @@ export class DeFiManager {
         risk: 'medium'
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Uniswap V3 yields:', error);
       return [];
     }
@@ -244,6 +246,7 @@ export class DeFiManager {
         risk: 'low'
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Aave yields:', error);
       return [];
     }
@@ -277,6 +280,7 @@ export class DeFiManager {
         risk: 'low'
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Compound yields:', error);
       return [];
     }
@@ -300,6 +304,7 @@ export class DeFiManager {
           risk: 'medium'
         }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Curve yields:', error);
       return [];
     }
@@ -499,6 +504,7 @@ export class DeFiManager {
     try {
       await storage.set({ defiPositions: JSON.stringify(positions) });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save DeFi positions:', error);
     }
   };
@@ -512,6 +518,7 @@ export class DeFiManager {
       }
       return [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load DeFi positions:', error);
       return [];
     }

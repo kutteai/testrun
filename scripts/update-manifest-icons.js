@@ -5,22 +5,22 @@ const path = require('path');
 
 const manifestFiles = [
   'manifest.json',
-  'src/manifest-v3.json'
+  'src/manifest-v3.json',
 ];
 
 const iconConfig = {
-  "16": "assets/icon16.png",
-  "32": "assets/icon32.png", 
-  "48": "assets/icon48.png",
-  "128": "assets/icon128.png"
+  16: 'assets/icon16.png',
+  32: 'assets/icon32.png',
+  48: 'assets/icon48.png',
+  128: 'assets/icon128.png',
 };
 
 function updateManifestIcons() {
   console.log('🔧 Updating manifest files with new icon configuration...');
 
-  manifestFiles.forEach(manifestPath => {
+  manifestFiles.forEach((manifestPath) => {
     const fullPath = path.join(__dirname, '..', manifestPath);
-    
+
     if (!fs.existsSync(fullPath)) {
       console.log(`⚠️  Manifest file not found: ${manifestPath}`);
       return;
@@ -41,7 +41,6 @@ function updateManifestIcons() {
       // Write back to file
       fs.writeFileSync(fullPath, JSON.stringify(manifest, null, 2));
       console.log(`✅ Updated ${manifestPath}`);
-
     } catch (error) {
       console.error(`❌ Failed to update ${manifestPath}:`, error.message);
     }

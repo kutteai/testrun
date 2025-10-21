@@ -56,6 +56,7 @@ export async function generateHDWallet(
       network: _network
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error generating HD wallet:', error);
     throw error;
   }
@@ -121,6 +122,7 @@ export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: 
       // For non-EVM networks, use proper address generation
       const networkAddress = await generateNetworkAddress(seedPhrase, derivationPath, network || 'unknown');
       
+      // eslint-disable-next-line no-console
       console.log(`🔧 Generated ${network || 'unknown'} address: ${networkAddress} (from path: ${derivationPath})`);
       
       // For Solana and other non-EVM networks, we need to generate the proper private key
@@ -159,6 +161,7 @@ export async function deriveAccountFromSeed(seedPhrase: string, derivationPath: 
       }
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to derive account:', error);
     throw new Error(`Failed to derive account: ${error}`);
   }
@@ -194,6 +197,7 @@ export async function generateMultipleAccounts(
     
     return accounts;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to generate multiple accounts:', error);
     throw new Error(`Failed to generate accounts: ${error}`);
   }
@@ -371,7 +375,7 @@ export function validateDerivationPath(path: string): boolean {
         const num = parseInt(part.slice(0, -1));
         if (isNaN(num) || num < 0 || num > 0x7fffffff) return false;
       } else {
-        const num = parseInt(part);
+        const num = parseInt(part, 10);
         if (isNaN(num) || num < 0 || num > 0x7fffffff) return false;
       }
     }

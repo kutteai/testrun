@@ -98,6 +98,7 @@ export async function deriveBitcoinAccount(
       balance: '0'
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error deriving Bitcoin account:', error);
     throw new Error(`Failed to derive Bitcoin account: ${error.message}`);
   }
@@ -122,6 +123,7 @@ export async function getBitcoinBalance(
     
     return balanceBTC.toFixed(8);
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Bitcoin balance:', error);
     return '0';
   }
@@ -157,6 +159,7 @@ export async function getBitcoinTransactions(
       address
     }));
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Bitcoin transactions:', error);
     return [];
   }
@@ -231,6 +234,7 @@ export async function createBitcoinTransaction(
     return txid;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error creating Bitcoin transaction:', error);
     throw new Error(`Failed to create Bitcoin transaction: ${error.message}`);
   }
@@ -253,6 +257,7 @@ async function fetchUTXOs(address: string, network: 'mainnet' | 'testnet'): Prom
       scriptPubKey: utxo.scriptpubkey
     }));
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching UTXOs:', error);
     return [];
   }
@@ -271,6 +276,7 @@ async function getFeeRate(network: 'mainnet' | 'testnet'): Promise<number> {
     // Return fee for 6 blocks confirmation (medium priority)
     return feeEstimates['6'] || 10; // Default to 10 sat/vB
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching fee rate:', error);
     return 10; // Default fee rate
   }
@@ -298,6 +304,7 @@ async function broadcastTransaction(txHex: string, network: 'mainnet' | 'testnet
     const txid = await response.text();
     return txid;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error broadcasting transaction:', error);
     throw new Error(`Failed to broadcast transaction: ${error.message}`);
   }
@@ -329,6 +336,7 @@ export async function getBitcoinFeeEstimate(
     // Return fee for 1 block confirmation (sat/vB)
     return (feeEstimates['1'] || 10) / 100000000; // Convert to BTC
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Bitcoin fee estimate:', error);
     return 0.001; // Default fee
   }
@@ -398,6 +406,7 @@ export const bitcoinUtils = {
         createdAt: Date.now()
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error generating Bitcoin wallet:', error);
       throw new Error(`Failed to generate Bitcoin wallet: ${error.message}`);
     }
@@ -412,6 +421,7 @@ export const bitcoinUtils = {
         unconfirmed: '0'
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting Bitcoin balance:', error);
       return { confirmed: '0', unconfirmed: '0' };
     }
@@ -422,6 +432,7 @@ export const bitcoinUtils = {
     try {
       return await getBitcoinTransactions(address, network);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting Bitcoin transactions:', error);
       return [];
     }

@@ -54,6 +54,7 @@ const DAppUnlockPopup: React.FC<DAppUnlockPopupProps> = ({
         setPassword('');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Unlock failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to unlock wallet');
       setPassword('');
@@ -291,7 +292,5 @@ export const useDAppUnlock = () => {
 };
 
 export default DAppUnlockPopup;
-
-
 
 

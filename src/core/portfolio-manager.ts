@@ -58,6 +58,7 @@ export class PortfolioManager {
         this.history = result.portfolioHistory;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load portfolio data:', error);
     }
   }
@@ -70,6 +71,7 @@ export class PortfolioManager {
         portfolioHistory: this.history
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save portfolio data:', error);
     }
   }
@@ -104,6 +106,7 @@ export class PortfolioManager {
             });
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`Failed to get balance for ${network}:`, error);
           // No fallback data - just skip this network
         }
@@ -116,6 +119,7 @@ export class PortfolioManager {
       try {
         prices = await getMultipleTokenPrices(tokenIds);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Failed to get real prices:', error);
         // No fallback prices - return empty portfolio if prices can't be fetched
         throw new Error('Unable to fetch token prices');
@@ -135,6 +139,7 @@ export class PortfolioManager {
       try {
         priceChanges = await this.get24hPriceChanges(tokenIds);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Failed to get real price changes:', error);
         // No fallback price changes - use 0% change if can't fetch
         tokenIds.forEach(id => {
@@ -179,6 +184,7 @@ export class PortfolioManager {
     await this.savePortfolioData();
     return this.portfolioValue;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update portfolio:', error);
       // Return empty portfolio if real data can't be fetched
       return {
@@ -223,6 +229,7 @@ export class PortfolioManager {
 
       return changes;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting 24h price changes:', error);
       return {};
     }
@@ -234,6 +241,7 @@ export class PortfolioManager {
       const result = await storage.get(['wallet']);
       return result.wallet || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get wallet from storage:', error);
       return null;
     }

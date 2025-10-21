@@ -258,6 +258,7 @@ export class AddressBook {
         return ensName;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('ENS lookup failed:', error);
     }
 
@@ -283,6 +284,7 @@ export class AddressBook {
         }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Domain resolution failed:', error);
     }
 
@@ -329,6 +331,7 @@ export class AddressBook {
         });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load contacts from storage:', error);
     }
   }
@@ -339,6 +342,7 @@ export class AddressBook {
     try {
       await storage.set({ addressBook: JSON.stringify(contacts) });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save contacts to storage:', error);
     }
   }

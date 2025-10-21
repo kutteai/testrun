@@ -96,6 +96,7 @@ const NetworkSwitcherModal: React.FC<NetworkSwitcherModalProps> = ({ isOpen, onC
       // Success toast is handled by WalletContext
       onClose();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Network switch error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to switch to ${networkId}: ${errorMessage}`);
@@ -173,6 +174,7 @@ const NetworkSwitcherModal: React.FC<NetworkSwitcherModalProps> = ({ isOpen, onC
         throw new Error('Invalid RPC response format');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Auto-discovery failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`❌ Auto-discovery failed: ${errorMessage}. Please enter manually.`, { id: 'auto-discover' });
@@ -208,6 +210,7 @@ const NetworkSwitcherModal: React.FC<NetworkSwitcherModalProps> = ({ isOpen, onC
           await switchNetwork(networkId);
           toast.success(`✅ Custom network added and address generated!`, { id: 'custom-network-address' });
         } catch (addressError) {
+          // eslint-disable-next-line no-console
           console.warn('Failed to generate address for custom network:', addressError);
           toast.success(`✅ Custom network added (address generation failed)`, { id: 'custom-network-address' });
         }
@@ -225,6 +228,7 @@ const NetworkSwitcherModal: React.FC<NetworkSwitcherModalProps> = ({ isOpen, onC
       });
       setShowAddNetwork(false);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Add custom network error:', error);
       toast.error('Failed to add custom network');
     }

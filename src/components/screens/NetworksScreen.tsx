@@ -190,8 +190,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       }
 
       const chainId = chainIdMatch[1];
-      console.log('Importing chain with ID:', chainId);
-      
+
       // Try multiple chainlist API endpoints
       let chainData = null;
       const apiEndpoints = [
@@ -202,25 +201,26 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       
       for (const endpoint of apiEndpoints) {
         try {
-          console.log('Trying endpoint:', endpoint);
+
           const response = await fetch(endpoint);
           
           if (response.ok) {
             if (endpoint.includes('chains.json')) {
               // Handle the chains.json format
               const chains = await response.json();
-              chainData = chains.find((chain: any) => chain.chainId === parseInt(chainId));
+              chainData = chains.find((chain: any) => chain.chainId === parseInt(chainId, 10));
             } else {
               // Handle direct chain endpoint
               chainData = await response.json();
             }
             
             if (chainData) {
-              console.log('Found chain data:', chainData);
+
               break;
             }
           }
         } catch (endpointError) {
+          // eslint-disable-next-line no-console
           console.warn('Endpoint failed:', endpoint, endpointError);
           continue;
         }
@@ -252,7 +252,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       }
 
       // Test the RPC URL before adding
-      console.log('Testing RPC URL:', newNetwork.rpcUrl);
+
       try {
         const testResponse = await fetch(newNetwork.rpcUrl, {
           method: 'POST',
@@ -268,10 +268,11 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         if (testResponse.ok) {
           const testData = await testResponse.json();
           if (testData.result) {
-            console.log('RPC test successful, chain ID:', testData.result);
+
           }
         }
       } catch (rpcError) {
+        // eslint-disable-next-line no-console
         console.warn('RPC test failed, but continuing:', rpcError);
       }
 
@@ -282,6 +283,7 @@ const NetworksScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setChainlistUrl('');
       setIsAddingCustom(false);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Chainlist import failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to import from chainlist.org');
     } finally {

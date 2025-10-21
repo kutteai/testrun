@@ -5,6 +5,7 @@ import * as bcrypt from 'bcryptjs';
 
 // Ensure BIP39 wordlist is properly loaded
 if (typeof bip39.wordlists === 'undefined' || !bip39.wordlists.english) {
+  // eslint-disable-next-line no-console
   console.warn('BIP39 wordlist not properly loaded');
 }
 
@@ -63,13 +64,13 @@ export function generateBIP39SeedPhraseWithWordCount(wordCount: WordCount): stri
     throw new Error(`Invalid word count: ${wordCount}. Supported: ${Object.values(BIP39_ENTROPY_LENGTHS).join(', ')}`);
   }
   
-  return bip39.generateMnemonic(parseInt(entropyLength) as EntropyLength);
+  return bip39.generateMnemonic(parseInt(entropyLength, 10) as EntropyLength);
 }
 
 // Get entropy length from word count
 export function getEntropyFromWordCount(wordCount: number): EntropyLength | null {
   const entropyLength = Object.entries(BIP39_ENTROPY_LENGTHS).find(([_, count]) => count === wordCount)?.[0];
-  return entropyLength ? (parseInt(entropyLength) as EntropyLength) : null;
+  return entropyLength ? (parseInt(entropyLength, 10) as EntropyLength) : null;
 }
 
 // Get word count from entropy length
@@ -88,6 +89,7 @@ export function validateBIP39SeedPhrase(seedPhrase: string): boolean {
     const supportedWordCounts = Object.values(BIP39_ENTROPY_LENGTHS);
     const isSupportedLength = supportedWordCounts.includes(wordCount as WordCount);
     
+    // eslint-disable-next-line no-console
     console.log('BIP39 validation:', {
       original: seedPhrase,
       trimmed: trimmed,
@@ -100,6 +102,7 @@ export function validateBIP39SeedPhrase(seedPhrase: string): boolean {
     
     return isValid && isSupportedLength;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Seed phrase validation error:', error);
     return false;
   }
@@ -150,12 +153,12 @@ export function validateBIP39SeedPhraseWithFeedback(seedPhrase: string): {
     }
     
     // Validate with BIP39
-    console.log('🔍 validateBIP39SeedPhraseWithFeedback: Validating seed phrase:', trimmed);
+
+    // eslint-disable-next-line no-console
     console.log('🔍 validateBIP39SeedPhraseWithFeedback: BIP39 wordlists available:', Object.keys(bip39.wordlists || {}));
-    console.log('🔍 validateBIP39SeedPhraseWithFeedback: English wordlist length:', bip39.wordlists?.english?.length || 'undefined');
+
     const isValid = bip39.validateMnemonic(trimmed);
-    console.log('🔍 validateBIP39SeedPhraseWithFeedback: BIP39 validation result:', isValid);
-    
+
     if (!isValid) {
       // Try to provide more specific feedback
       try {
@@ -173,6 +176,7 @@ export function validateBIP39SeedPhraseWithFeedback(seedPhrase: string): {
           }
         }
       } catch (wordlistError) {
+        // eslint-disable-next-line no-console
         console.warn('Could not access BIP39 wordlist for detailed validation:', wordlistError);
       }
       
@@ -191,6 +195,7 @@ export function validateBIP39SeedPhraseWithFeedback(seedPhrase: string): {
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Seed phrase validation error:', error);
     return {
       isValid: false,
@@ -438,33 +443,32 @@ export function validatePrivateKey(privateKey: string): boolean {
     
     // Check if it's a valid hex string of correct length (64 characters = 32 bytes)
     if (!/^[0-9a-fA-F]{64}$/.test(processedKey)) {
-      console.log('Private key validation failed: Invalid hex format or length');
+
       return false;
     }
     
     // Check if it's not zero or too large
     const keyBigInt = BigInt('0x' + processedKey);
     if (keyBigInt === BigInt(0)) {
-      console.log('Private key validation failed: Key is zero');
+
       return false;
     }
     
     if (keyBigInt >= BigInt('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141')) {
-      console.log('Private key validation failed: Key is too large');
+
       return false;
     }
     
     // Try to create a wallet to validate
     const wallet = new ethers.Wallet('0x' + processedKey);
     if (!wallet.address) {
-      console.log('Private key validation failed: Could not derive address');
+
       return false;
     }
-    
-    console.log('Private key validation successful for address:', wallet.address);
+
     return true;
   } catch (error) {
-    console.log('Private key validation failed with error:', error);
+
     return false;
   }
 }
@@ -515,6 +519,7 @@ export function importFromPrivateKey(privateKey: string, network: string = 'ethe
       derivationPath
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to import from private key:', error);
     throw new Error('Failed to import wallet from private key');
   }

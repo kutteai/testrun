@@ -68,6 +68,7 @@ class UCPService {
       };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('UCPI availability check failed:', error);
       return {
         available: false,
@@ -114,6 +115,7 @@ class UCPService {
       };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('UCPI registration failed:', error);
       return {
         success: false,
@@ -152,6 +154,7 @@ class UCPService {
       return null;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('UCPI resolution failed:', error);
       return null;
     }
@@ -165,6 +168,7 @@ class UCPService {
       const result = await storage.get([this.LOCAL_STORAGE_KEY]);
       return result[this.LOCAL_STORAGE_KEY] || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get user UCPI:', error);
       return null;
     }
@@ -182,6 +186,7 @@ class UCPService {
         await this.updateGlobalUCPI(ucpiData);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update UCPI:', error);
       throw error;
     }
@@ -214,6 +219,7 @@ class UCPService {
         return { available: true };
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Global availability check failed:', error);
       return { available: false };
     }
@@ -367,6 +373,7 @@ class UCPService {
       return { available: isAvailable };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('ENS availability check failed, falling back to local:', error);
       throw error;
     }
@@ -374,6 +381,7 @@ class UCPService {
 
   private async checkSpaceIDAvailability(ucpiId: string): Promise<{ available: boolean }> {
     try {
+      // eslint-disable-next-line no-console
       console.log('🔍 Checking Space ID (.bnb) availability for:', ucpiId);
       
       // Check Space ID (BNB) availability using BSC RPC
@@ -396,11 +404,11 @@ class UCPService {
       }
 
       const result = await response.json();
-      console.log('🔍 Space ID availability result:', result);
-      
+
       // For now, assume available (would need proper Space ID integration)
       return { available: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Space ID availability check failed:', error);
       throw error;
     }
@@ -408,6 +416,7 @@ class UCPService {
 
   private async checkPolygonNSAvailability(ucpiId: string): Promise<{ available: boolean }> {
     try {
+      // eslint-disable-next-line no-console
       console.log('🔍 Checking Polygon NS (.polygon) availability for:', ucpiId);
       
       // Check Polygon Name Service availability
@@ -430,11 +439,11 @@ class UCPService {
       }
 
       const result = await response.json();
-      console.log('🔍 Polygon NS availability result:', result);
-      
+
       // For now, assume available (would need proper PNS integration)
       return { available: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Polygon NS availability check failed:', error);
       throw error;
     }
@@ -442,6 +451,7 @@ class UCPService {
 
   private async checkArbitrumNSAvailability(ucpiId: string): Promise<{ available: boolean }> {
     try {
+      // eslint-disable-next-line no-console
       console.log('🔍 Checking Arbitrum NS (.arb) availability for:', ucpiId);
       
       // Check Arbitrum Name Service availability
@@ -464,11 +474,11 @@ class UCPService {
       }
 
       const result = await response.json();
-      console.log('🔍 Arbitrum NS availability result:', result);
-      
+
       // For now, assume available (would need proper ANS integration)
       return { available: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Arbitrum NS availability check failed:', error);
       throw error;
     }
@@ -523,18 +533,14 @@ class UCPService {
         // Check if bridge sender private key is available for gas fees
         const config = getConfig();
         const bridgePrivateKey = config.BRIDGE_SENDER_PRIVATE_KEY;
-        
-        console.log('🔍 UCPI Service Debug:');
-        console.log('🔍 Config loaded:', !!config);
-        console.log('🔍 BRIDGE_SENDER_PRIVATE_KEY exists:', !!bridgePrivateKey);
-        console.log('🔍 Bridge key length:', bridgePrivateKey ? bridgePrivateKey.length : 0);
-        
+
+
         if (bridgePrivateKey) {
-          console.log('🔧 Bridge sender private key available, attempting ENS registration...');
+
           return await this.registerENSWithBridgeKey(ucpiData, bridgePrivateKey);
         } else {
           // Try to use the current wallet for gas fees
-          console.log('🔧 No bridge key, attempting to use current wallet for gas fees...');
+
           return await this.registerENSWithCurrentWallet(ucpiData);
         }
       }
@@ -564,6 +570,7 @@ class UCPService {
       throw new Error('Blockchain domain registration must be done manually on the respective network.');
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Global UCPI registration failed:', error);
       return {
         success: false,
@@ -586,6 +593,7 @@ class UCPService {
       return null;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Global UCPI resolution failed:', error);
       return null;
     }
@@ -635,6 +643,7 @@ class UCPService {
       return null;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('ENS resolution failed:', error);
       return null;
     }
@@ -651,7 +660,7 @@ class UCPService {
   private async updateGlobalUCPI(ucpiData: UCPIData): Promise<void> {
     // For ENS domains, updates are handled on-chain
     // For local domains, no global update needed
-    console.log('Global UCPI update not implemented for ENS integration');
+
   }
 
   // Private methods for local operations
@@ -671,6 +680,7 @@ class UCPService {
       return { available: true };
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Local UCPI check failed:', error);
       return { available: false };
     }
@@ -727,6 +737,7 @@ class UCPService {
       return null;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Local UCPI resolution failed:', error);
       return null;
     }
@@ -741,6 +752,7 @@ class UCPService {
         ucpiTimestamp: Date.now()
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save local UCPI:', error);
       throw error;
     }
@@ -754,8 +766,7 @@ class UCPService {
     bridgePrivateKey: string
   ): Promise<UCPIRegistrationResult> {
     try {
-      console.log('🔧 Registering ENS domain with bridge key:', ucpiData.id);
-      
+
       // Import ENS registration service
       const { ensRegistrationService } = await import('./ens-registration-service');
       
@@ -768,8 +779,7 @@ class UCPService {
       });
 
       if (ensResult.success) {
-        console.log('✅ ENS domain registered successfully:', ensResult.transactionHash);
-        
+
         // Save the registered UCPI data
         const fullUCPIData: UCPIData = {
           ...ucpiData,
@@ -801,6 +811,7 @@ class UCPService {
       }
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS registration with bridge key failed:', error);
       return {
         success: false,
@@ -818,8 +829,7 @@ class UCPService {
     ucpiData: Omit<UCPIData, 'isGlobal' | 'isLocal' | 'lastUpdated'>
   ): Promise<UCPIRegistrationResult> {
     try {
-      console.log('🔧 Registering ENS domain with current wallet:', ucpiData.id);
-      
+
       // Check if we have access to the current wallet
       if (typeof window === 'undefined' || !window.ethereum) {
         return {
@@ -842,8 +852,7 @@ class UCPService {
       });
 
       if (ensResult.success) {
-        console.log('✅ ENS domain registered successfully with current wallet:', ensResult.transactionHash);
-        
+
         // Save the registered UCPI data
         const fullUCPIData: UCPIData = {
           ...ucpiData,
@@ -875,6 +884,7 @@ class UCPService {
       }
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS registration with current wallet failed:', error);
       return {
         success: false,

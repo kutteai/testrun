@@ -36,6 +36,7 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
         addresses.arbitrum = wallet.address;
         addresses.optimism = wallet.address;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('EVM address derivation failed:', error);
       }
       
@@ -53,6 +54,7 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
           addresses.bitcoin = bitcoinAddress as string;
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Bitcoin address derivation failed:', error);
       }
       
@@ -61,6 +63,7 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
         const keypair = Keypair.fromSecretKey(new Buffer(privateKeyHex, 'hex'));
         addresses.solana = keypair.publicKey.toString();
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Solana address derivation failed:', error);
       }
       
@@ -72,11 +75,13 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
         });
         addresses.tron = tronWeb.defaultAddress.base58;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('TRON address derivation failed:', error);
       }
       
       return addresses;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Address derivation failed:', error);
       return {};
     }
@@ -131,6 +136,7 @@ const ImportPrivateKeyScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack })
         onNavigate('create-ucpi');
         
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Import failed:', error);
         toast.error('Failed to import wallet. Please try again.');
       } finally {

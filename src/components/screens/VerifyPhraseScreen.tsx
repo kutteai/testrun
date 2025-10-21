@@ -58,19 +58,19 @@ const VerifyPhraseScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
           throw new Error('Missing password or seed phrase');
         }
 
-        console.log('🔍 VerifyPhrase: Importing wallet with verified seed phrase...');
-        console.log('🔍 VerifyPhrase: Password length:', password.length);
+
+        // eslint-disable-next-line no-console
         console.log('🔍 VerifyPhrase: Seed phrase length:', seedPhrase.split(' ').length);
 
         // Import the wallet with the verified seed phrase (this is the correct flow)
         await importWallet(seedPhrase, 'ethereum', password);
-        
-        console.log('✅ VerifyPhrase: Wallet imported successfully');
+
         toast.success('Wallet imported and unlocked successfully!');
         
         // Navigate to UCPI creation after successful wallet import
         onNavigate('create-ucpi');
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to import wallet:', error);
         toast.error('Failed to import wallet. Please try again.');
       } finally {

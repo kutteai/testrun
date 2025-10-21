@@ -38,7 +38,7 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
   // Listen for network changes to refresh transactions
   useEffect(() => {
     const handleNetworkChange = async (event: CustomEvent) => {
-      console.log('🔄 Network changed event received in TransactionsScreen:', event.detail);
+
       if (wallet?.address) {
         await loadTransactions();
       }
@@ -68,6 +68,7 @@ const TransactionsScreen: React.FC<{ onNavigate: (screen: string) => void }> = (
         setTransactions(evmTransactions);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading transactions:', error);
       toast.error('Failed to load transactions');
       setTransactions([]);

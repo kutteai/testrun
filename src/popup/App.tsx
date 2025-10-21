@@ -92,11 +92,10 @@ const App: React.FC = () => {
       try {
         const result = await chrome.storage.local.get(['pendingDAppRequest']);
         if (result.pendingDAppRequest) {
-          console.log('🔍 Popup: Found pending dApp request:', result.pendingDAppRequest);
-          
+
           // If wallet exists but is locked, force unlock screen
           if (hasWallet && !isWalletUnlocked) {
-            console.log('🔒 Popup: Forcing unlock screen for dApp request');
+
             setCurrentScreen('welcome');
             
             // Show a toast to inform user
@@ -109,7 +108,7 @@ const App: React.FC = () => {
           }
         }
       } catch (error) {
-        console.log('Could not check for pending dApp request:', error);
+
       }
     };
     
@@ -234,18 +233,20 @@ const App: React.FC = () => {
       case 'networks':
         return <NetworksScreen onNavigate={handleNavigate} onGoBack={handleGoBack} />;
       case 'accounts':
-        console.log('Rendering AccountsScreen');
+
         try {
           return <AccountsScreen onNavigate={handleNavigate} />;
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Error rendering AccountsScreen:', error);
           return <div>Error loading Accounts screen</div>;
         }
       case 'tokens':
-        console.log('Rendering TokensScreen');
+
         try {
           return <TokensScreen onNavigate={handleNavigate} />;
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Error rendering TokensScreen:', error);
           return <div>Error loading Tokens screen</div>;
         }
@@ -303,6 +304,7 @@ const App: React.FC = () => {
                     alert('Full screen mode not supported in this browser');
                   }
                 } catch (error) {
+                  // eslint-disable-next-line no-console
                   console.error('Failed to open expanded view:', error);
                   alert('Failed to open full screen mode');
                 }

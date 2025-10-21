@@ -113,6 +113,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
 
       return isValid;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Authentication error:', error);
       return false;
     }
@@ -146,11 +147,11 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       }
       return isValid;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Unlock error:', error);
       return false;
     }
   };
-
 
 
   const resetFailedAttempts = (): void => {
@@ -181,7 +182,6 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
   };
 
 
-
   const loadSecuritySettings = async () => {
     try {
       const result = await storage.get(['securitySettings', 'isWalletUnlocked', 'passwordHash']);
@@ -198,6 +198,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
         // setPasswordHash(result.passwordHash); // This line was removed from the new_code, so it's removed here.
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load security settings:', error);
     }
   };
@@ -207,6 +208,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       await storage.set({ isWalletUnlocked: locked });
       // setIsWalletUnlocked(locked); // This line was removed from the new_code, so it's removed here.
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update wallet lock status:', error);
     }
   };
@@ -216,6 +218,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       await storage.set({ securitySettings: settings });
       setSecurityState(prev => ({ ...prev, ...settings }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update security settings:', error);
     }
   };
@@ -225,6 +228,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       await storage.set({ passwordHash: hash });
       // setPasswordHash(hash); // This line was removed from the new_code, so it's removed here.
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update password hash:', error);
     }
   };
@@ -234,6 +238,7 @@ export const SecurityProvider: React.FC<SecurityProviderProps> = ({ children }) 
       const result = await storage.get(['passwordHash']);
       return result.passwordHash || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get stored password hash:', error);
       return null;
     }

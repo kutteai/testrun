@@ -284,6 +284,7 @@ class BackendAPI {
       await this.healthCheck();
       return true;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Backend API not available:', error);
       return false;
     }
@@ -299,7 +300,7 @@ export class HybridAPIService {
 
   async initialize(): Promise<void> {
     this.useBackend = await backendAPI.isAvailable();
-    console.log(`API Service initialized: ${this.useBackend ? 'Using backend' : 'Using direct calls'}`);
+
   }
 
   async validateToken(address: string, network: string): Promise<boolean> {
@@ -308,6 +309,7 @@ export class HybridAPIService {
         const result = await backendAPI.validateToken(address, network);
         return result.isValid;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Backend token validation failed, falling back to direct:', error);
         this.useBackend = false;
       }
@@ -324,6 +326,7 @@ export class HybridAPIService {
         const result = await backendAPI.getNativeBalance(network, address);
         return result.balance;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Backend balance fetch failed, falling back to direct:', error);
         this.useBackend = false;
       }
@@ -340,6 +343,7 @@ export class HybridAPIService {
         const result = await backendAPI.getTokenPrice(network, address);
         return result.price;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Backend price fetch failed, falling back to direct:', error);
         this.useBackend = false;
       }
@@ -356,6 +360,7 @@ export class HybridAPIService {
         const result = await backendAPI.generatePasswordHash(password);
         return result.hash;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Backend password hash failed, falling back to local:', error);
         this.useBackend = false;
       }
@@ -375,6 +380,7 @@ export class HybridAPIService {
         const result = await backendAPI.verifyPassword(password, storedHash);
         return result.matches;
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Backend password verify failed, falling back to local:', error);
         this.useBackend = false;
       }
@@ -390,6 +396,7 @@ export class HybridAPIService {
       try {
         return await backendAPI.diagnosePassword(password, data);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Backend password diagnosis failed:', error);
         return { error: 'Backend diagnosis unavailable' };
       }

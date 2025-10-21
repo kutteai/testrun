@@ -37,6 +37,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
         setExistingAccounts(existingAccounts.accounts);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load existing accounts:', error);
     }
   };
@@ -49,6 +50,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
         currentAccount: accounts[0]?.address || null
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save accounts:', error);
     }
   };
@@ -169,6 +171,7 @@ const ImportWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
       }, 1500);
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Account creation failed:', error);
       setErrorMessage('Failed to create account. Please try again.');
       setCreateStatus('error');

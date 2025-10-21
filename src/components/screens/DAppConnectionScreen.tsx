@@ -80,6 +80,7 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
       }
       return success;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Unlock failed:', error);
       return false;
     }
@@ -112,6 +113,7 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
       await walletConnectManager.disconnect(dApp.topic);
       setConnectedDApps(prev => prev.filter(app => app.topic !== dApp.topic));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to disconnect dApp:', error);
     }
   };
@@ -124,8 +126,7 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
       const { uri } = await walletConnectManager.connect();
       
       // In a real implementation, you would show the QR code or URI
-      console.log('WalletConnect URI:', uri);
-      
+
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : 'Connection failed');
     } finally {

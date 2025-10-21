@@ -43,6 +43,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setGasSettings(gas);
       setTransactionSettings(tx);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading settings:', error);
     }
   };
@@ -57,6 +58,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const prices = await getCurrentGasPrices(rpcUrl);
       setCurrentGasPrices(prices);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading gas prices:', error);
     } finally {
       setIsLoading(false);
@@ -94,6 +96,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       
       toast.success('Settings saved successfully');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error saving settings:', error);
       toast.error('Failed to save settings');
     } finally {
@@ -102,7 +105,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   };
 
   const formatGwei = (wei: string) => {
-    return (parseInt(wei) / 1e9).toFixed(2);
+    return (parseInt(wei, 10) / 1e9).toFixed(2);
   };
 
   const formatUSD = (gwei: string) => {
@@ -262,7 +265,7 @@ const GasSettingsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
               <label className="block text-sm font-medium mb-2">Session Timeout (minutes)</label>
               <select
                 value={transactionSettings.sessionTimeout}
-                onChange={(e) => handleSessionTimeoutChange(parseInt(e.target.value))}
+                onChange={(e) => handleSessionTimeoutChange(parseInt(e.target.value, 10))}
                 className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value={5}>5 minutes</option>

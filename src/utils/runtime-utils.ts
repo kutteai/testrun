@@ -1,9 +1,12 @@
 // Cross-browser runtime API utility
 // Provides a unified interface for Chrome and Firefox extension runtime APIs
 
+import { getBrowser } from './browser';
+
 export interface RuntimeAPI {
   onMessage: {
     addListener(callback: (message: any, sender: any, sendResponse: any) => boolean | void): void;
+    removeListener(callback: (message: any, sender: any, sendResponse: any) => boolean | void): void;
   };
   onInstalled: {
     addListener(callback: (details: any) => void): void;
@@ -11,16 +14,25 @@ export interface RuntimeAPI {
   onStartup: {
     addListener(callback: () => void): void;
   };
-  sendMessage(message: any, callback?: (response: any) => void): void;
+  sendMessage(message: any, options?: any, callback?: (response: any) => void): void;
   getURL(path: string): string;
   lastError?: {
     message: string;
   };
+  id?: string;
+  onConnect: {
+    addListener(callback: (port: any) => void): void;
+  };
+  onMessageExternal: {
+    addListener(callback: (message: any, sender: any, sendResponse: any) => boolean | void | Promise<any>): void;
+    removeListener(callback: (message: any, sender: any, sendResponse: any) => boolean | void | Promise<any>): void;
+  };
 }
 
 export interface TabsAPI {
-  query(queryInfo: any, callback: (tabs: any[]) => void): void;
-  sendMessage(tabId: number, message: any, callback?: (response: any) => void): void;
+  query(queryInfo: any): Promise<any[]>;
+  create(createProperties: any): Promise<any>;
+  sendMessage(tabId: number, message: any, options?: any): Promise<any>;
 }
 
 export interface ActionAPI {
@@ -28,13 +40,14 @@ export interface ActionAPI {
 }
 
 export interface AlarmsAPI {
+  create(alarmInfo: any): void;
   onAlarm: {
     addListener(callback: (alarm: any) => void): void;
   };
 }
 
 export interface NotificationsAPI {
-  create(options: any, callback?: (notificationId: string) => void): void;
+  create(options: any): Promise<string>;
 }
 
 export interface StorageChangeAPI {
@@ -44,14 +57,11 @@ export interface StorageChangeAPI {
 }
 
 // Detect browser and get appropriate runtime API
-export const getRuntimeAPI = (): RuntimeAPI => {
+export const getUnifiedBrowserAPI = () => {
   if (typeof chrome !== 'undefined' && chrome.runtime) {
-    return chrome.runtime as RuntimeAPI;
+    return chrome;
   }
-  if (typeof browser !== 'undefined' && browser.runtime) {
-    return browser.runtime as RuntimeAPI;
-  }
-  throw new Error('Runtime API not available in this browser');
+  return getBrowser();
 };
 
 // Get tabs API
@@ -59,7 +69,8 @@ export const getTabsAPI = (): TabsAPI => {
   if (typeof chrome !== 'undefined' && chrome.tabs) {
     return chrome.tabs as TabsAPI;
   }
-  if (typeof browser !== 'undefined' && browser.tabs) {
+  const browser = getUnifiedBrowserAPI();
+  if (browser && browser.tabs) {
     return browser.tabs as TabsAPI;
   }
   throw new Error('Tabs API not available in this browser');
@@ -70,7 +81,8 @@ export const getActionAPI = (): ActionAPI => {
   if (typeof chrome !== 'undefined' && chrome.action) {
     return chrome.action as ActionAPI;
   }
-  if (typeof browser !== 'undefined' && browser.action) {
+  const browser = getUnifiedBrowserAPI();
+  if (browser && browser.action) {
     return browser.action as ActionAPI;
   }
   throw new Error('Action API not available in this browser');
@@ -81,7 +93,8 @@ export const getAlarmsAPI = (): AlarmsAPI => {
   if (typeof chrome !== 'undefined' && chrome.alarms) {
     return chrome.alarms as AlarmsAPI;
   }
-  if (typeof browser !== 'undefined' && browser.alarms) {
+  const browser = getUnifiedBrowserAPI();
+  if (browser && browser.alarms) {
     return browser.alarms as AlarmsAPI;
   }
   throw new Error('Alarms API not available in this browser');
@@ -92,7 +105,8 @@ export const getNotificationsAPI = (): NotificationsAPI => {
   if (typeof chrome !== 'undefined' && chrome.notifications) {
     return chrome.notifications as NotificationsAPI;
   }
-  if (typeof browser !== 'undefined' && browser.notifications) {
+  const browser = getUnifiedBrowserAPI();
+  if (browser && browser.notifications) {
     return browser.notifications as NotificationsAPI;
   }
   throw new Error('Notifications API not available in this browser');
@@ -103,7 +117,8 @@ export const getStorageChangeAPI = (): StorageChangeAPI => {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     return chrome.storage as StorageChangeAPI;
   }
-  if (typeof browser !== 'undefined' && browser.storage) {
+  const browser = getUnifiedBrowserAPI();
+  if (browser && browser.storage) {
     return browser.storage as unknown as StorageChangeAPI;
   }
   throw new Error('Storage Change API not available in this browser');
@@ -119,7 +134,7 @@ let _storageChange: StorageChangeAPI | null = null;
 
 export const runtime = (): RuntimeAPI => {
   if (!_runtime) {
-    _runtime = getRuntimeAPI();
+    _runtime = getUnifiedBrowserAPI().runtime as RuntimeAPI;
   }
   return _runtime;
 };
@@ -160,8 +175,55 @@ export const storageChange = (): StorageChangeAPI => {
 };
 
 // Safe message sending with error handling
-export const safeSendMessage = (message: any): Promise<any> => {
-  return new Promise((resolve, reject) => {
+export const safeSendMessage = (message: any): Promise<any> => new Promise((resolve, reject) => {
+  try {
+    const runtimeAPI = runtime();
+    runtimeAPI.sendMessage(message, (response) => {
+      if (runtimeAPI.lastError) {
+        reject(new Error(runtimeAPI.lastError.message));
+      } else {
+        resolve(response);
+      }
+    });
+  } catch (error) {
+    reject(error);
+  }
+});
+
+// Safe tab query with error handling
+export const safeQueryTabs = (queryInfo: any): Promise<any[]> => new Promise((resolve, reject) => {
+  try {
+    const tabsAPI = tabs();
+    tabsAPI.query(queryInfo).then((tabs) => {
+      resolve(tabs);
+    }).catch(reject);
+  } catch (error) {
+    reject(error);
+  }
+});
+
+// Safe tab message sending with error handling
+export const safeSendMessageToTab = (tabId: number, message: any): Promise<any> => new Promise((resolve, reject) => {
+  try {
+    const tabsAPI = tabs();
+    const runtimeAPI = runtime();
+    tabsAPI.sendMessage(tabId, message).then((response) => {
+      if (runtimeAPI.lastError) {
+        reject(new Error(runtimeAPI.lastError.message));
+      } else {
+        resolve(response);
+      }
+    }).catch(reject);
+  } catch (error) {
+    reject(error);
+  }
+});
+
+// Cross-browser message sending for injected scripts
+// This function can be used in content scripts and injected scripts
+export const crossBrowserSendMessage = (message: any): Promise<any> => new Promise((resolve, reject) => {
+  try {
+    // Try to use the runtime API if available
     try {
       const runtimeAPI = runtime();
       runtimeAPI.sendMessage(message, (response) => {
@@ -171,89 +233,34 @@ export const safeSendMessage = (message: any): Promise<any> => {
           resolve(response);
         }
       });
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
+    } catch (runtimeError) {
+      // Runtime API not available, fall back to postMessage
+      // Use postMessage for cross-context communication
+      const messageId = Date.now().toString();
+      const messageWithId = { ...message, _id: messageId };
 
-// Safe tab query with error handling
-export const safeQueryTabs = (queryInfo: any): Promise<any[]> => {
-  return new Promise((resolve, reject) => {
-    try {
-      const tabsAPI = tabs();
-      tabsAPI.query(queryInfo, (tabs) => {
-        resolve(tabs);
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
-
-// Safe tab message sending with error handling
-export const safeSendMessageToTab = (tabId: number, message: any): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    try {
-      const tabsAPI = tabs();
-      const runtimeAPI = runtime();
-      tabsAPI.sendMessage(tabId, message, (response) => {
-        if (runtimeAPI.lastError) {
-          reject(new Error(runtimeAPI.lastError.message));
-        } else {
-          resolve(response);
-        }
-      });
-    } catch (error) {
-      reject(error);
-    }
-  });
-};
-
-// Cross-browser message sending for injected scripts
-// This function can be used in content scripts and injected scripts
-export const crossBrowserSendMessage = (message: any): Promise<any> => {
-  return new Promise((resolve, reject) => {
-    try {
-      // Try to use the runtime API if available
-      try {
-        const runtimeAPI = runtime();
-        runtimeAPI.sendMessage(message, (response) => {
-          if (runtimeAPI.lastError) {
-            reject(new Error(runtimeAPI.lastError.message));
-          } else {
-            resolve(response);
-          }
-        });
-      } catch (runtimeError) {
-        // Runtime API not available, fall back to postMessage
-        // Use postMessage for cross-context communication
-        const messageId = Date.now().toString();
-        const messageWithId = { ...message, _id: messageId };
-        
-        const messageHandler = (event: MessageEvent) => {
-          if (event.source !== window) return;
-          if (event.data._id === messageId) {
-            window.removeEventListener('message', messageHandler);
-            if (event.data.error) {
-              reject(new Error(event.data.error));
-            } else {
-              resolve(event.data.response);
-            }
-          }
-        };
-        
-        window.addEventListener('message', messageHandler);
-        window.postMessage(messageWithId, '*');
-        
-        // Timeout after 10 seconds
-        setTimeout(() => {
+      const messageHandler = (event: MessageEvent) => {
+        if (event.source !== window) return;
+        if (event.data._id === messageId) {
           window.removeEventListener('message', messageHandler);
-          reject(new Error('Message timeout'));
-        }, 10000);
-      }
-    } catch (error) {
-      reject(error);
+          if (event.data.error) {
+            reject(new Error(event.data.error));
+          } else {
+            resolve(event.data.response);
+          }
+        }
+      };
+
+      window.addEventListener('message', messageHandler);
+      window.postMessage(messageWithId, '*');
+
+      // Timeout after 10 seconds
+      setTimeout(() => {
+        window.removeEventListener('message', messageHandler);
+        reject(new Error('Message timeout'));
+      }, 10000);
     }
-  });
-};
+  } catch (error) {
+    reject(error);
+  }
+});

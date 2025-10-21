@@ -69,6 +69,7 @@ export async function encryptDataSecurely(
       authTag: authTag ? authTag.toString('hex') : undefined
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Encryption error:', error);
     throw new Error('Failed to encrypt data securely');
   }
@@ -107,6 +108,7 @@ export async function decryptDataSecurely(
     
     return decrypted;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Decryption error:', error);
     throw new Error('Failed to decrypt data - invalid password or corrupted data');
   }
@@ -244,6 +246,7 @@ export class SecureStorage {
         [key]: encrypted
       });
   } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Secure storage error:', error);
       throw new Error('Failed to store data securely');
     }
@@ -262,6 +265,7 @@ export class SecureStorage {
       const decrypted = await decryptDataSecurely(encrypted, password);
       return JSON.parse(decrypted);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Secure retrieval error:', error);
       throw new Error('Failed to retrieve data securely');
     }
@@ -272,6 +276,7 @@ export class SecureStorage {
     try {
       await storage.remove([key]);
   } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Secure clear error:', error);
       throw new Error('Failed to clear data securely');
     }

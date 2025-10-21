@@ -69,7 +69,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         generatedNotifications.push(...storedNotifications.productNotifications);
       }
     } catch (error) {
-      console.log('No stored product notifications found');
+
     }
 
     return generatedNotifications.sort((a, b) => {
@@ -106,6 +106,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         // Save updated notifications to storage
         await storage.set({ notifications: allNotifications });
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load notifications:', error);
         // Fallback to generated notifications only
         setNotifications(await generateNotifications());
@@ -132,6 +133,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       await storage.set({ notifications: updatedNotifications });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save notifications:', error);
     }
   };
@@ -147,6 +149,7 @@ const NotificationsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       await storage.set({ notifications: updatedNotifications });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save notifications:', error);
     }
   };

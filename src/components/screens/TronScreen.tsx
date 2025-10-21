@@ -45,6 +45,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load TRON wallets:', error);
     }
   };
@@ -53,6 +54,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       await storage.set({ tronWallets: wallets });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save TRON wallets:', error);
     }
   };
@@ -76,6 +78,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setNewWalletName('');
       toast.success('TRON wallet created successfully!');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating TRON wallet:', error);
       toast.error('Failed to create TRON wallet');
     } finally {
@@ -109,6 +112,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setTronWallets(updatedWallets);
       await saveTronWallets(updatedWallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading wallet data:', error);
     }
   };
@@ -132,6 +136,7 @@ const TronScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const status = await tronUtils.getNetworkStatus(selectedNetwork);
       setNetworkStatus(status);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading network status:', error);
     }
   };

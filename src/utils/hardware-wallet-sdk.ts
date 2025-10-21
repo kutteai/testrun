@@ -616,6 +616,7 @@ export class LatticeSDK extends HardwareWalletSDK {
         await this.client.connect();
       } catch (error) {
         // Fallback to WebSocket connection if SDK import fails
+        // eslint-disable-next-line no-console
         console.warn('GridPlus SDK not available, using WebSocket fallback');
         this.client = {
           request: async (params: any) => {

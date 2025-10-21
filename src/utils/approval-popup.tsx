@@ -34,6 +34,7 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
         setRequest(parsed);
         setIsVisible(true);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to parse request:', error);
       }
     }
@@ -66,6 +67,7 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
       onApprove();
       window.close();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to send approval:', error);
       setLoading(false);
     }
@@ -85,6 +87,7 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
       onReject();
       window.close();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to send rejection:', error);
       window.close();
     }
@@ -96,6 +99,7 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to copy to clipboard:', error);
     }
   };
@@ -295,8 +299,9 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
       case 'connect_bitcoin':
       case 'connect_solana':
       case 'connect_tron':
-      case 'connect_ton':
+      case 'connect_ton': {
         const networkName = request.type.replace('connect_', '').toUpperCase();
+        }
         return (
           <div className="space-y-4">
             <div className="text-center">

@@ -1,5 +1,4 @@
 // content.js - ENABLED VERSION
-console.log('🚀 PayCio Content Script Loading...');
 
 // Set up content script indicator FIRST
 (window as any).paycioWalletContentScript = {
@@ -10,15 +9,15 @@ console.log('🚀 PayCio Content Script Loading...');
 
 // Inject wallet script for DApp connection
 function injectWalletScript() {
-    console.log('📥 Injecting PayCio wallet script...');
-    
+
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('injected.js');
     script.onload = function() {
-        console.log('✅ PayCio wallet script injected successfully');
+
         script.remove();
     };
     script.onerror = function() {
+        // eslint-disable-next-line no-console
         console.error('❌ Failed to inject PayCio wallet script');
         script.remove();
     };
@@ -32,8 +31,7 @@ window.addEventListener('message', (event) => {
     if (event.source !== window) return;
     if (!event.data || !event.data.type) return;
     if (!event.data.type.startsWith('PAYCIO_')) return;
-    
-    console.log('📨 PayCio Content: Message from injected script:', event.data.type);
+
     handleInjectedMessage(event.data);
 });
 
@@ -64,7 +62,7 @@ function handleInjectedMessage(message: any) {
             
         case 'PAYCIO_TEST_MESSAGE':
             // Respond to test message
-            console.log('PayCio Content: Responding to test message with ID:', message.id);
+
             try {
                 window.postMessage({
       type: 'PAYCIO_TEST_RESPONSE',
@@ -72,14 +70,15 @@ function handleInjectedMessage(message: any) {
       success: true,
       timestamp: Date.now()
                 }, '*');
-                console.log('PayCio Content: Test response sent successfully');
+
             } catch (error) {
+                // eslint-disable-next-line no-console
                 console.error('PayCio Content: Error sending test response:', error);
             }
             break;
             
         default:
-            console.log('❓ Unknown injected message:', type);
+
             sendErrorToInjected(type + '_RESPONSE', id, 'Unknown message type');
     }
 }
@@ -94,10 +93,11 @@ function forwardWalletRequest(message: any) {
     
     chrome.runtime.sendMessage(backgroundMessage, (response) => {
         if (chrome.runtime.lastError) {
+            // eslint-disable-next-line no-console
             console.error('❌ Background error:', chrome.runtime.lastError.message);
             sendErrorToInjected('PAYCIO_WALLET_REQUEST_RESPONSE', message.id, chrome.runtime.lastError.message);
         } else {
-            console.log('✅ Background response:', response);
+
             window.postMessage({
                 type: 'PAYCIO_WALLET_REQUEST_RESPONSE',
                 id: message.id,
@@ -193,10 +193,10 @@ function sendErrorToInjected(responseType: string, messageId: any, error: string
 
 // Test connection function
 function testConnection() {
-    console.log('🔍 PayCio Content: Testing connection...');
-    
+
     // Check if extension context is still valid
     if (!chrome.runtime || !chrome.runtime.sendMessage) {
+        // eslint-disable-next-line no-console
         console.error('❌ PayCio Content: Extension context invalidated');
       return;
     }
@@ -205,12 +205,14 @@ function testConnection() {
     try {
         chrome.runtime.sendMessage({ type: 'PING' }, (response) => {
             if (chrome.runtime.lastError) {
+                // eslint-disable-next-line no-console
                 console.error('❌ PayCio Content: Background connection failed:', chrome.runtime.lastError.message);
             } else {
-                console.log('✅ PayCio Content: Background connection OK:', response);
+
             }
         });
     } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ PayCio Content: Error sending message:', error);
     }
     
@@ -221,15 +223,14 @@ function testConnection() {
     };
     
     window.postMessage(testMessage, '*');
-    console.log('🔍 PayCio Content: Test message sent to injected script');
+
 }
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log('📨 PayCio Content: Message from background:', message.type);
-    
+
     if (message.type === 'PASSWORD_DEBUG_INFO') {
-        console.log('🔍 PayCio Content: Received password debug info');
+
         // Display the debug information in an alert
         alert(message.debugInfo);
     }
@@ -241,7 +242,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 (window as any).paycioTestConnection = testConnection;
 
 // ENABLED: Initialize content script
-console.log('✅ Content script initialization ENABLED');
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
         injectWalletScript();
@@ -254,5 +255,3 @@ if (document.readyState === 'loading') {
     // Test connection after a short delay
     setTimeout(testConnection, 1000);
 }
-
-console.log('✅ PayCio Content Script Ready!');

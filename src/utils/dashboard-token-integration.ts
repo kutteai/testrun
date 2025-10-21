@@ -16,8 +16,7 @@ export async function getDashboardTokensForAllNetworks(
   walletAddress: string
 ): Promise<DashboardTokenData> {
   try {
-    console.log('🔄 Loading dashboard tokens for all networks:', walletAddress);
-    
+
     const allAssets: DashboardAsset[] = [];
     const networkBreakdown: Record<string, { count: number; value: number }> = {};
     const chainTypeBreakdown: Record<string, { count: number; value: number }> = {};
@@ -31,6 +30,7 @@ export async function getDashboardTokensForAllNetworks(
         const assets = await loadDashboardTokens(walletAddress, network);
         return { network, assets };
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Failed to load tokens for ${network}:`, error);
         return { network, assets: [] };
       }
@@ -69,9 +69,9 @@ export async function getDashboardTokensForAllNetworks(
     const totalUSD = allAssets.reduce((sum, asset) => sum + asset.usdValue, 0);
     const totalChangePercent = 0; // Would need historical data for this
     
+    // eslint-disable-next-line no-console
     console.log(`✅ Loaded ${allAssets.length} dashboard assets across ${Object.keys(networkBreakdown).length} networks`);
-    console.log('💰 Total USD value:', totalUSD);
-    
+
     return {
       assets: allAssets,
       totalUSD,
@@ -81,6 +81,7 @@ export async function getDashboardTokensForAllNetworks(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load dashboard tokens:', error);
     return {
       assets: [],
@@ -98,14 +99,13 @@ export async function getDashboardTokensForCurrentNetwork(
   currentNetwork: string
 ): Promise<DashboardAsset[]> {
   try {
-    console.log(`🔄 Loading dashboard tokens for current network ${currentNetwork}:`, walletAddress);
-    
+
     const assets = await loadDashboardTokens(walletAddress, currentNetwork);
-    
-    console.log(`✅ Loaded ${assets.length} assets for ${currentNetwork}`);
+
     return assets;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Failed to load dashboard tokens for ${currentNetwork}:`, error);
     return [];
   }
@@ -117,8 +117,7 @@ export async function refreshDashboardTokenBalances(
   network?: string
 ): Promise<DashboardTokenData> {
   try {
-    console.log('🔄 Refreshing dashboard token balances...');
-    
+
     if (network) {
       // Refresh single network
       const assets = await getDashboardTokensForCurrentNetwork(walletAddress, network);
@@ -137,6 +136,7 @@ export async function refreshDashboardTokenBalances(
     }
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to refresh dashboard token balances:', error);
     throw new Error('Failed to refresh balances');
   }

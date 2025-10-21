@@ -30,7 +30,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Listen for network changes
   useEffect(() => {
     const handleNetworkChange = async (event: CustomEvent) => {
-      console.log('🔄 Network changed event received in BitcoinScreen:', event.detail);
+
       if (currentNetwork?.id === 'bitcoin') {
         // Refresh Bitcoin data when switching to Bitcoin network
         await loadBitcoinWallets();
@@ -182,7 +182,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     switch (type) {
       case AddressType.LEGACY: return 'Legacy';
       case AddressType.NATIVE_SEGWIT: return 'SegWit';
-      case AddressType.NATIVE_SEGWIT: return 'Native SegWit';
+//       case AddressType.NATIVE_SEGWIT: return 'Native SegWit'; // Duplicate case - commented out
       default: return 'Unknown';
     }
   };
@@ -191,7 +191,7 @@ const BitcoinScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     switch (type) {
       case AddressType.LEGACY: return 'from-gray-500 to-gray-600';
       case AddressType.NATIVE_SEGWIT: return 'from-blue-500 to-blue-600';
-      case AddressType.NATIVE_SEGWIT: return 'from-green-500 to-green-600';
+//       case AddressType.NATIVE_SEGWIT: return 'from-green-500 to-green-600'; // Duplicate case - commented out
       default: return 'from-gray-500 to-gray-600';
     }
   };

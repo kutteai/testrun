@@ -97,8 +97,6 @@ const App: React.FC = () => {
 
   // Initialize app and determine initial screen - DISABLED
   useEffect(() => {
-    console.log('App: Skipping initialization...');
-    console.log('App: Wallet state - hasWallet:', hasWallet, 'isWalletUnlocked:', isWalletUnlocked);
     setIsAppInitialized(true);
     setCurrentScreen('welcome');
   }, []);
@@ -113,13 +111,8 @@ const App: React.FC = () => {
         message,
         networkName,
         onConfirm: async (password: string) => {
-          try {
-            await onConfirm(password);
-            setShowPasswordModal(false);
-          } catch (error) {
-            // Error will be handled by the modal
-            throw error;
-          }
+          await onConfirm(password);
+          setShowPasswordModal(false);
         },
         onCancel: () => {
           onCancel();
@@ -141,12 +134,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleDAppUnlockRequest = (event: CustomEvent) => {
       const { origin, requestType = 'connect' } = event.detail;
-      
-      console.log('DApp unlock request received:', { origin, requestType });
-      
+
       dappUnlock.showUnlockPopup(origin, requestType, () => {
         // Success callback - could trigger a refresh or specific action
-        console.log('DApp unlock successful for:', origin);
+
       });
     };
 
@@ -176,22 +167,19 @@ const App: React.FC = () => {
 
   // Update screen when wallet state changes
   useEffect(() => {
-    console.log('🔄 App.tsx: Wallet state effect triggered');
-    console.log('🔄 App.tsx: isAppInitialized:', isAppInitialized, 'isInitializing:', isInitializing);
-    console.log('🔄 App.tsx: hasWallet:', hasWallet, 'isWalletUnlocked:', isWalletUnlocked);
-    console.log('🔄 App.tsx: currentScreen:', currentScreen);
-    
+
+
     if (isAppInitialized && !isInitializing) {
       if (hasWallet && isWalletUnlocked) {
         // Only auto-navigate to dashboard if we're on welcome screen
         if (currentScreen === 'welcome') {
-          console.log('🔄 App.tsx: Auto-navigating to dashboard');
+
           setCurrentScreen('dashboard');
         }
       } else if (hasWallet && !isWalletUnlocked) {
         // Wallet locked, go back to welcome for unlock
         if (currentScreen !== 'welcome' && currentScreen !== 'accounts') {
-          console.log('🔄 App.tsx: Wallet locked, going back to welcome (but allowing accounts)');
+
           setCurrentScreen('welcome');
           toast('Please unlock your wallet to continue');
         }
@@ -202,8 +190,7 @@ const App: React.FC = () => {
   // Handle network changes to preserve navigation
   useEffect(() => {
     const handleNetworkChange = (event: CustomEvent) => {
-      console.log('🌐 Network changed, preserving navigation:', event.detail);
-      
+
       // Import navigation utilities and handle network switch
       import('./utils/network-navigation-fix').then(({ networkNavigationUtils }) => {
         const result = networkNavigationUtils.handleNetworkSwitch(
@@ -224,6 +211,7 @@ const App: React.FC = () => {
           setNavigationHistory(result.history as ScreenId[]);
         }
       }).catch(error => {
+        // eslint-disable-next-line no-console
         console.error('Network navigation handling failed:', error);
       });
     };
@@ -254,6 +242,7 @@ const App: React.FC = () => {
         setNavigationHistory(['dashboard']);
       }
     }).catch(error => {
+      // eslint-disable-next-line no-console
       console.error('Navigation utils import failed:', error);
       // Fallback to original logic
       if (navigationHistory.length > 1) {
@@ -270,32 +259,24 @@ const App: React.FC = () => {
 
   // Handle navigation
   const handleNavigate = (screen: ScreenId) => {
-    console.log('🔀 App.tsx: handleNavigate called with screen:', screen);
-    console.log('🔀 App.tsx: Current screen before navigation:', currentScreen);
-    console.log('🔀 App.tsx: isWalletUnlocked:', isWalletUnlocked);
-    console.log('🔀 App.tsx: Stack trace:', new Error().stack);
-    
+
     // Prevent navigation to protected screens if wallet is locked
     const protectedScreens: ScreenId[] = [
      'dashboard', 'send', 'receive', 'settings', 
   'security', 'networks', 'nfts', 'portfolio', 'transactions',
   'address-book', 'ens', 'tokens' 
     ];
-    
-    console.log('🔍 App.tsx: Navigation check - screen:', screen, 'isWalletUnlocked:', isWalletUnlocked, 'isProtected:', protectedScreens.includes(screen));
-    
+
     if (protectedScreens.includes(screen) && !isWalletUnlocked) {
-      console.log('🚫 App.tsx: Blocked navigation to protected screen:', screen);
+
       toast.error('Please unlock your wallet first');
       setCurrentScreen('welcome');
       return;
     }
-    
-    console.log('✅ App.tsx: Allowing navigation to:', screen);
-    
+
     // Special handling for accounts screen
     if (screen === 'accounts') {
-      console.log('🎯 App.tsx: Navigating to accounts screen');
+      // Navigation to accounts screen
     }
     
     // Update navigation history
@@ -304,16 +285,17 @@ const App: React.FC = () => {
   };
 
   // Show loading screen during initialization - DISABLED
-  if (false) { // Temporarily disable loading
-    return (
-      <div className="h-full bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Initializing wallet...</p>
-        </div>
-      </div>
-    );
-  }
+  // Temporarily disable loading screen
+  // if (false) {
+  //   return (
+  //     <div className="h-full bg-gray-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+  //         <p className="text-gray-600">Initializing wallet...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Render current screen
   const renderScreen = () => {

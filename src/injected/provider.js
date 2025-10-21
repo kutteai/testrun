@@ -7,9 +7,7 @@
     return;
   }
   window.paycioProviderInjected = true;
-  
-  console.log('Paycio Ethereum Provider injected');
-  
+
   // EIP-1193 Provider Implementation
   class PaycioEthereumProvider {
     constructor() {
@@ -112,16 +110,14 @@
     // Direct request method to avoid recursion
     async requestDirect({ method, params = [] }) {
       try {
-        console.log('PayCio: Processing direct request:', method, params);
-        
+
         // Handle connection requests specially
         if (method === 'eth_requestAccounts') {
-          console.log('PayCio: Handling eth_requestAccounts - opening PayCio wallet');
-          
+
           // Check if wallet is unlocked
           const isUnlocked = await this.checkWalletUnlockStatus();
           if (!isUnlocked) {
-            console.log('PayCio: Wallet is locked, showing unlock modal');
+
             const unlockSuccess = await this.showUnlockModal();
             if (!unlockSuccess) {
               throw new Error('User cancelled wallet unlock');
@@ -134,7 +130,7 @@
             this.accounts = accounts;
             this.selectedAddress = accounts[0];
             this.isConnected = true;
-            console.log('PayCio: Connected with accounts:', accounts);
+
             return accounts;
           } else {
             throw new Error('No accounts available in PayCio wallet');
@@ -143,13 +139,13 @@
         
         // Handle network switching requests
         if (method === 'wallet_switchEthereumChain') {
-          console.log('PayCio: Handling wallet_switchEthereumChain:', params);
+
           return await this.handleNetworkSwitch(params);
         }
         
         // Handle network addition requests
         if (method === 'wallet_addEthereumChain') {
-          console.log('PayCio: Handling wallet_addEthereumChain:', params);
+
           return await this.handleNetworkAddition(params);
         }
         
@@ -177,6 +173,7 @@
           }, '*');
         });
       } catch (error) {
+         
         console.error('PayCio: Direct request failed:', error);
         // Return proper error format for EIP-1193
         throw {
@@ -189,16 +186,14 @@
     // EIP-1193 Methods
     async request({ method, params = [] }) {
       try {
-        console.log('PayCio: Processing request:', method, params);
-        
+
         // Handle connection requests specially
         if (method === 'eth_requestAccounts') {
-          console.log('PayCio: Handling eth_requestAccounts - opening PayCio wallet');
-          
+
           // Check if wallet is unlocked
           const isUnlocked = await this.checkWalletUnlockStatus();
           if (!isUnlocked) {
-            console.log('PayCio: Wallet is locked, showing unlock modal');
+
             const unlockSuccess = await this.showUnlockModal();
             if (!unlockSuccess) {
               throw new Error('User cancelled wallet unlock');
@@ -211,7 +206,7 @@
             this.accounts = accounts;
             this.selectedAddress = accounts[0];
             this.isConnected = true;
-            console.log('PayCio: Connected with accounts:', accounts);
+
             return accounts;
           } else {
             throw new Error('No accounts available in PayCio wallet');
@@ -220,13 +215,13 @@
         
         // Handle network switching requests
         if (method === 'wallet_switchEthereumChain') {
-          console.log('PayCio: Handling wallet_switchEthereumChain:', params);
+
           return await this.handleNetworkSwitch(params);
         }
         
         // Handle network addition requests
         if (method === 'wallet_addEthereumChain') {
-          console.log('PayCio: Handling wallet_addEthereumChain:', params);
+
           return await this.handleNetworkAddition(params);
         }
         
@@ -254,6 +249,7 @@
           }, '*');
         });
       } catch (error) {
+         
         console.error('PayCio: Request failed:', error);
         // Return proper error format for EIP-1193
         throw {
@@ -266,7 +262,7 @@
     // Check wallet unlock status
     async checkWalletUnlockStatus() {
       try {
-        console.log('PayCio: Checking wallet unlock status...');
+
         const response = await new Promise((resolve) => {
           const messageId = Date.now().toString();
           window.postMessage({
@@ -288,12 +284,12 @@
             resolve({ success: false, error: 'Timeout' });
           }, 5000);
         });
-        
-        console.log('PayCio: Wallet status response:', response);
+
         const isUnlocked = response?.success && response?.data?.isUnlocked;
-        console.log('PayCio: Wallet is unlocked:', isUnlocked);
+
         return isUnlocked;
       } catch (error) {
+         
         console.error('PayCio: Error checking wallet status:', error);
         return false;
       }
@@ -522,6 +518,7 @@
         }
         return [];
       } catch (error) {
+         
         console.error('PayCio: Error getting accounts:', error);
         return [];
       }
@@ -531,17 +528,16 @@
     async handleNetworkSwitch(params) {
       try {
         const chainId = params[0]?.chainId;
-        console.log('PayCio: Switching to network:', chainId);
-        
+
         // Check if it's TON network
         if (chainId === '0x28' || chainId === '40') { // TON mainnet
-          console.log('PayCio: Switching to TON network');
+
           return await this.switchToTONNetwork();
         }
         
         // Check if it's Ethereum network
         if (chainId === '0x1' || chainId === '1') { // Ethereum mainnet
-          console.log('PayCio: Switching to Ethereum network');
+
           return await this.switchToEthereumNetwork();
         }
         
@@ -549,6 +545,7 @@
         return await this.switchNetworkViaExtension(chainId);
         
       } catch (error) {
+         
         console.error('PayCio: Network switch failed:', error);
         throw {
           code: 4902, // User rejected the request
@@ -561,12 +558,12 @@
     async handleNetworkAddition(params) {
       try {
         const networkInfo = params[0];
-        console.log('PayCio: Adding network:', networkInfo);
-        
+
         // Send network addition request to extension
         return await this.addNetworkViaExtension(networkInfo);
         
       } catch (error) {
+         
         console.error('PayCio: Network addition failed:', error);
         throw {
           code: 4902, // User rejected the request
@@ -604,12 +601,13 @@
           // Update provider state
           this.chainId = '0x28';
           this.networkVersion = '40';
-          console.log('PayCio: Successfully switched to TON network');
+
           return null; // wallet_switchEthereumChain returns null on success
         } else {
           throw new Error(response?.error || 'Failed to switch to TON network');
         }
       } catch (error) {
+         
         console.error('PayCio: TON network switch failed:', error);
         throw error;
       }
@@ -644,12 +642,13 @@
           // Update provider state
           this.chainId = '0x1';
           this.networkVersion = '1';
-          console.log('PayCio: Successfully switched to Ethereum network');
+
           return null; // wallet_switchEthereumChain returns null on success
         } else {
           throw new Error(response?.error || 'Failed to switch to Ethereum network');
         }
       } catch (error) {
+         
         console.error('PayCio: Ethereum network switch failed:', error);
         throw error;
       }
@@ -685,12 +684,13 @@
           // Update provider state
           this.chainId = chainId;
           this.networkVersion = parseInt(chainId, 16).toString();
-          console.log('PayCio: Successfully switched to network:', chainId);
+
           return null; // wallet_switchEthereumChain returns null on success
         } else {
           throw new Error(response?.error || 'Failed to switch network');
         }
       } catch (error) {
+         
         console.error('PayCio: Network switch failed:', error);
         throw error;
       }
@@ -723,12 +723,13 @@
         });
         
         if (response?.success) {
-          console.log('PayCio: Successfully added network:', networkInfo.chainName);
+
           return null; // wallet_addEthereumChain returns null on success
         } else {
           throw new Error(response?.error || 'Failed to add network');
         }
       } catch (error) {
+         
         console.error('PayCio: Network addition failed:', error);
         throw error;
       }
@@ -777,6 +778,7 @@
           try {
             listener(...args);
           } catch (error) {
+             
             console.error('Error in event listener:', error);
           }
         });
@@ -838,11 +840,10 @@
   
   // Override the request method to ensure PayCio handles all requests
   window.ethereum.request = async (args) => {
-    console.log('PayCio: Intercepting ethereum request:', args);
-    
+
     // For connection requests, always use PayCio
     if (args.method === 'eth_requestAccounts' || args.method === 'wallet_requestPermissions') {
-      console.log('PayCio: Handling connection request with PayCio');
+
       return await provider.requestDirect(args);
     }
     
@@ -850,7 +851,7 @@
     try {
       return await provider.requestDirect(args);
     } catch (error) {
-      console.log('PayCio: PayCio request failed, trying original provider:', error.message);
+
       if (originalRequest && existingProvider) {
         return await originalRequest.call(existingProvider, args);
       }
@@ -864,7 +865,7 @@
   // Force EIP-6963 announcement immediately
   const announceEIP6963 = () => {
     if (hasAnnounced) {
-      console.log('Paycio: Already announced, skipping duplicate');
+
       return;
     }
     
@@ -876,16 +877,14 @@
       icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzE4MENCMyIvPgo8cGF0aCBkPSJNOCAxMkgxNlYyMEg4VjEyWiIgZmlsbD0id2hpdGUiLz4KPHBhdGggZD0iTTE2IDEySDI0VjIwSDE2VjEyWiIgZmlsbD0id2hpdGUiLz4KPC9zdmc+',
       rdns: 'com.paycio.wallet'
     };
-    
-    console.log('Paycio: Announcing EIP-6963 provider:', info);
-    console.log('Paycio: Dispatching eip6963:announceProvider event');
-    
+
+
     const event = new CustomEvent('eip6963:announceProvider', {
       detail: Object.freeze({ info, provider })
     });
     
     window.dispatchEvent(event);
-    console.log('Paycio: EIP-6963 event dispatched successfully');
+
   };
   
   // Announce immediately
@@ -897,6 +896,5 @@
       announceEIP6963();
     }
   });
-  
-  console.log('Paycio provider ready and announced via EIP-6963');
+
 })();

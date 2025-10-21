@@ -28,6 +28,7 @@ const ManageWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const existingWallet = await storage.get(['wallet']);
       return existingWallet.wallet || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load wallet from storage:', error);
       return null;
     }
@@ -38,6 +39,7 @@ const ManageWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       await storage.set({ wallet });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save wallet to storage:', error);
     }
   };
@@ -49,6 +51,7 @@ const ManageWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         walletNames: names
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save wallet names to storage:', error);
     }
   };
@@ -91,6 +94,7 @@ const ManageWalletScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         throw new Error('No wallet found');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update wallet name:', error);
       setErrorMessage('Failed to update wallet name. Please try again.');
       setUpdateStatus('error');

@@ -31,6 +31,7 @@ const BackupsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const result = await storage.get(['backups']);
       setBackups(result.backups || []);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load backups:', error);
     }
   };
@@ -40,6 +41,7 @@ const BackupsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       await storage.set({ backups: updatedBackups });
       setBackups(updatedBackups);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save backups:', error);
       toast.error('Failed to save backup list');
     }
@@ -75,6 +77,7 @@ const BackupsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       saveBackups(updatedBackups);
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to decrypt seed phrase:', error);
       toast.error('Failed to decrypt seed phrase');
     } finally {
@@ -128,6 +131,7 @@ const BackupsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       toast.success('Private key exported successfully');
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to export private key:', error);
       toast.error('Failed to export private key');
     } finally {
@@ -195,6 +199,7 @@ const BackupsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       toast.success('Keystore exported successfully');
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to export keystore:', error);
       toast.error('Failed to export keystore');
     } finally {

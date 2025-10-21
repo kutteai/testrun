@@ -91,6 +91,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         
         setWalletOptions(updatedOptions);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to initialize hardware wallets:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         
@@ -130,6 +131,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
             detected: availableTypes.find(t => t.type === option.id)?.detected || false
           })));
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Device status monitoring failed:', error);
         }
       }
@@ -157,6 +159,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
       setConnectionStatus('idle');
       toast.success('Device detection refreshed');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to refresh device detection:', error);
       setConnectionStatus('error');
       setErrorMessage('Failed to refresh device detection');
@@ -183,8 +186,6 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         connecting: option.id === selectedWallet
       })));
 
-      console.log(`Attempting to connect to ${selectedWallet}...`);
-      
       // First, try to detect already connected devices
       const connectedDevices = await hardwareWalletManager.detectConnectedDevices();
       
@@ -216,9 +217,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
       
       // Connect to the device
       await hardwareWalletManager.connectToDevice(selectedWallet as 'ledger' | 'trezor');
-      
-      console.log('Device connected successfully, getting device info...');
-      
+
       // Get device info and map it to our interface
       const info = await hardwareWalletManager.getDeviceInfo();
       const mappedDeviceInfo: DeviceInfo = {
@@ -230,17 +229,14 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         connected: info.connected || false
       };
       setDeviceInfo(mappedDeviceInfo);
-      
-      console.log('Getting wallet addresses...');
-      
+
       // Get wallet addresses
       const addresses = await hardwareWalletManager.getHardwareWalletAddresses(
         hardwareWalletManager.derivationPath
       );
       
       if (addresses.length > 0) {
-        console.log(`Found ${addresses.length} addresses, adding to wallet...`);
-        
+
         // Add hardware wallet to the wallet context
         await addHardwareWallet(
           selectedWallet as 'ledger' | 'trezor',
@@ -267,6 +263,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         throw new Error('No addresses derived from hardware wallet');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Failed to connect to ${selectedWallet}:`, error);
       setConnectionStatus('error');
       
@@ -403,6 +400,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
       setConnectionStatus('idle');
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Connection test failed:', error);
       setConnectionStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Test failed');
@@ -526,6 +524,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
                       await refreshDeviceDetection();
                     }
                   } catch (error) {
+                    // eslint-disable-next-line no-console
                     console.error('Failed to request device access:', error);
                     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                     toast.error(`Failed to request device access: ${errorMessage}`);

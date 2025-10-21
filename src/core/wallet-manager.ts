@@ -54,12 +54,13 @@ export class WalletManager {
 
   // Load wallets from storage
   private async loadWallets(): Promise<void> {
-    try {
+    try { // TODO: Review useless catch block
       const result = await storage.get(['wallets']);
       if (result.wallets) {
         this.wallets = result.wallets;
       }
     } catch (error) {
+       
       // console.error('Failed to load wallets:', error);
       throw error;
     }
@@ -67,9 +68,10 @@ export class WalletManager {
 
   // Save wallets to storage
   private async saveWallets(): Promise<void> {
-    try {
+    try { // TODO: Review useless catch block
       await storage.set({ wallets: this.wallets });
     } catch (error) {
+       
       // console.error('Failed to save wallets:', error);
       throw error;
     }
@@ -96,7 +98,7 @@ export class WalletManager {
 
   // Create a new wallet with real seed phrase generation
   async createWallet(request: CreateWalletRequest): Promise<WalletData> {
-    try {
+    try { // TODO: Review useless catch block
       // Generate real seed phrase
       const seedPhrase = this.generateSeedPhrase();
       
@@ -130,6 +132,7 @@ export class WalletManager {
 
       return this.convertToWalletData(wallet);
     } catch (error) {
+       
       // console.error('Failed to create wallet:', error);
       throw error;
     }
@@ -226,6 +229,7 @@ export class WalletManager {
               nonces[networkId] = 0;
               
             } catch (networkError) {
+              // eslint-disable-next-line no-console
               console.warn(`Failed to generate ${networkId} address for account ${i}:`, networkError);
               // Continue with other networks - don't fail the entire account creation
             }
@@ -249,6 +253,7 @@ export class WalletManager {
 
         accounts.push(account);
       } catch (error) {
+         
         // console.error(`Failed to derive account ${i}:`, error);
       }
     }
@@ -258,7 +263,7 @@ export class WalletManager {
 
   // Import wallet from seed phrase
   async importWallet(request: ImportWalletRequest): Promise<WalletData> {
-    try {
+    try { // TODO: Review useless catch block
       // Validate seed phrase
       if (!this.validateSeedPhrase(request.seedPhrase)) {
         throw new Error('Invalid seed phrase');
@@ -294,6 +299,7 @@ export class WalletManager {
 
       return this.convertToWalletData(wallet);
     } catch (error) {
+       
       // console.error('Failed to import wallet:', error);
       throw error;
     }
@@ -330,8 +336,7 @@ export class WalletManager {
     
     // Save the updated wallets
     await this.saveWallets();
-    
-    console.log(`✅ Set wallet ${walletId} as active`);
+
   }
 
   // Get wallet by name
@@ -349,7 +354,7 @@ export class WalletManager {
     const needsMigration = wallet.accounts.some(acc => typeof acc === 'string' || (acc && typeof acc === 'object' && !acc.addresses));
     
     if (needsMigration) {
-      console.log('🔧 WalletManager: Migrating accounts from old format to new format');
+
       await this.migrateAccounts(wallet);
     }
     
@@ -432,7 +437,7 @@ export class WalletManager {
     // Update wallet with migrated accounts
     wallet.accounts = migratedAccounts;
     await this.saveWallets();
-    console.log('✅ WalletManager: Accounts migrated successfully');
+
   }
 
   // Get account by address on specific network
@@ -462,38 +467,36 @@ export class WalletManager {
   // Add network to existing account
   async addNetworkToAccount(accountId: string, network: string, address: string): Promise<void> {
     await this.ensureInitialized();
-    console.log(`🔄 WalletManager.addNetworkToAccount called:`, { accountId, network, address });
-    
+
     const wallet = this.wallets.find(w => w.accounts.some(acc => acc.id === accountId));
     if (wallet) {
-      console.log(`✅ Found wallet for account ${accountId}`);
+
       const account = wallet.accounts.find(acc => acc.id === accountId);
       if (account) {
-        console.log(`✅ Found account ${accountId}, current addresses:`, account.addresses);
-        console.log(`✅ Found account ${accountId}, current networks:`, account.networks);
-        
+
+
         // Check if network already exists
         if (account.networks.includes(network)) {
-          console.log(`⚠️ Network ${network} already exists in account, updating address only`);
+
           account.addresses[network] = address;
         } else {
-          console.log(`➕ Adding new network ${network} to account`);
+
           account.addresses[network] = address;
           account.networks.push(network);
         }
         
         account.balances[network] = '0';
         account.nonces[network] = 0;
-        
-        console.log(`✅ After update - addresses:`, account.addresses);
-        console.log(`✅ After update - networks:`, account.networks);
-        
+
+
         await this.saveWallets();
-        console.log(`✅ Wallets saved successfully`);
+
       } else {
+        // eslint-disable-next-line no-console
         console.error(`❌ Account ${accountId} not found in wallet`);
       }
     } else {
+      // eslint-disable-next-line no-console
       console.error(`❌ Wallet not found for account ${accountId}`);
     }
   }
@@ -520,6 +523,7 @@ export class WalletManager {
 
       return account.privateKey;
     } catch (error) {
+       
       // console.error('Failed to get account private key:', error);
       return null;
     }
@@ -547,6 +551,7 @@ export class WalletManager {
 
       return seedPhrase;
     } catch (error) {
+       
       // console.error('Failed to get account seed phrase:', error);
       return null;
     }
@@ -583,13 +588,13 @@ export class WalletManager {
       // If no address for current network, derive one
       if (!networkAddress && account.encryptedSeedPhrase) {
         try {
-          console.log(`🔧 Deriving address for ${currentNetworkId} for account ${account.id}`);
-          
+
           // Get the password from storage or prompt user
           const { storageUtils } = await import('../utils/storage-utils');
           const password = await storageUtils.getPassword();
           
           if (!password) {
+            // eslint-disable-next-line no-console
             console.warn('No password available for address derivation');
             networkAddress = Object.values(account.addresses)[0];
           } else {
@@ -598,6 +603,7 @@ export class WalletManager {
             const seedPhrase = await decryptData(account.encryptedSeedPhrase, password);
             
             if (!seedPhrase) {
+              // eslint-disable-next-line no-console
               console.warn('Failed to decrypt seed phrase for address derivation');
               networkAddress = Object.values(account.addresses)[0];
             } else {
@@ -630,11 +636,12 @@ export class WalletManager {
               if (networkAddress) {
                 // Add the new address to the account
                 account.addresses[currentNetworkId] = networkAddress;
-                console.log(`✅ Derived ${currentNetworkId} address for account ${account.id}: ${networkAddress}`);
+
               }
             }
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error(`❌ Failed to derive address for ${currentNetworkId}:`, error);
           // Fallback to first available address
           networkAddress = Object.values(account.addresses)[0];
@@ -661,8 +668,10 @@ export class WalletManager {
         window.dispatchEvent(event);
       }
       
+      // eslint-disable-next-line no-console
       console.log(`✅ Switched to account: ${account.name} (${wallet.address}) on ${currentNetworkId}`);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to switch account:', error);
       throw error;
     }
@@ -679,6 +688,7 @@ export class WalletManager {
       const activeAccount = wallet.accounts.find(acc => acc.isActive);
       return activeAccount || null;
     } catch (error) {
+       
       // console.error('Failed to get active account:', error);
       return null;
     }
@@ -716,18 +726,20 @@ export class WalletManager {
         // Use the same private key for EVM networks, derive different addresses for others
         if (['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism'].includes(networkId)) {
           addresses[networkId] = walletData.address; // Same address for EVM networks
-          console.log(`✅ Generated ${networkId} address: ${walletData.address}`);
+
         } else {
           // For non-EVM networks, derive specific addresses
           const networkDerivationPath = this.getNetworkDerivationPath(networkId, newAccountIndex);
           const networkWalletData = await deriveAccountFromSeed(seedPhrase, networkDerivationPath, networkId);
           addresses[networkId] = networkWalletData.address;
+          // eslint-disable-next-line no-console
           console.log(`✅ Generated ${networkId} address: ${networkWalletData.address} (path: ${networkDerivationPath})`);
         }
         balances[networkId] = '0';
         nonces[networkId] = 0;
         networks.push(networkId);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn(`❌ Failed to derive address for ${networkId}:`, error);
         // Skip this network if derivation fails
       }
@@ -931,6 +943,7 @@ export class WalletManager {
 
       return await this.importWallet(request);
     } catch (error) {
+       
       // console.error('Failed to restore wallet:', error);
       throw new Error('Invalid backup data');
     }
@@ -992,6 +1005,7 @@ export class WalletManager {
       
       return balance;
     } catch (error) {
+       
       // console.error('Error getting balance:', error);
       return '0';
     }
@@ -1022,13 +1036,13 @@ export class WalletManager {
       // Ensure account has address for the new network
       if (!account.addresses[networkId] && account.encryptedSeedPhrase) {
         try {
-          console.log(`🔧 Deriving ${networkId} address for account ${account.id} during network switch`);
-          
+
           // Get the password from storage
           const { storageUtils } = await import('../utils/storage-utils');
           const password = await storageUtils.getPassword();
           
           if (!password) {
+            // eslint-disable-next-line no-console
             console.warn('No password available for address derivation during network switch');
           } else {
             // Decrypt the seed phrase
@@ -1036,6 +1050,7 @@ export class WalletManager {
             const seedPhrase = await decryptData(account.encryptedSeedPhrase, password);
             
             if (!seedPhrase) {
+              // eslint-disable-next-line no-console
               console.warn('Failed to decrypt seed phrase for address derivation during network switch');
             } else {
               // Import the network address generation utility
@@ -1066,11 +1081,12 @@ export class WalletManager {
               
               if (networkAddress) {
                 account.addresses[networkId] = networkAddress;
-                console.log(`✅ Derived ${networkId} address for account ${account.id}: ${networkAddress}`);
+
               }
             }
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error(`❌ Failed to derive ${networkId} address for account ${account.id}:`, error);
         }
       }
@@ -1125,16 +1141,17 @@ export class WalletManager {
   // Get current account for a wallet
   async getCurrentAccountForWallet(walletId: string): Promise<WalletAccount | null> {
     await this.ensureInitialized();
-    
-    console.log('🔍 WalletManager.getCurrentAccountForWallet: Looking for wallet:', walletId);
+
+    // eslint-disable-next-line no-console
     console.log('🔍 Available wallets:', this.wallets.map(w => ({ id: w.id, address: w.address, accountsCount: w.accounts.length })));
     
     const wallet = this.wallets.find(w => w.id === walletId);
     if (!wallet) {
-      console.log('❌ WalletManager.getCurrentAccountForWallet: Wallet not found');
+
       return null;
     }
     
+    // eslint-disable-next-line no-console
     console.log('✅ WalletManager.getCurrentAccountForWallet: Wallet found:', {
       id: wallet.id,
       address: wallet.address,
@@ -1145,6 +1162,7 @@ export class WalletManager {
     // Safety check: ensure accounts are properly formatted objects, not strings
     const validAccounts = wallet.accounts.filter(acc => {
       if (typeof acc === 'string') {
+        // eslint-disable-next-line no-console
         console.warn('🔧 WalletManager: Found string account in getCurrentAccount, skipping:', acc);
         return false; // Filter out string accounts
       }
@@ -1179,6 +1197,7 @@ export class WalletManager {
       // console.log('🔍 WalletManager.getCurrentAccountForWallet: Using first account and making it active:', currentAccount.addresses[wallet.currentNetwork] || Object.values(currentAccount.addresses)[0]);
     }
     
+    // eslint-disable-next-line no-console
     console.log('🔍 WalletManager.getCurrentAccountForWallet: Current account:', currentAccount ? {
       id: currentAccount.id,
       name: currentAccount.name,
@@ -1293,6 +1312,7 @@ export class WalletManager {
             nonces[networkId] = 0;
             
           } catch (networkError) {
+            // eslint-disable-next-line no-console
             console.warn(`Failed to generate ${networkId} address for new account:`, networkError);
           }
         }
@@ -1320,9 +1340,11 @@ export class WalletManager {
       
       await this.saveWallets();
       
+      // eslint-disable-next-line no-console
       console.log(`✅ Added account from seed phrase: ${newAccount.name} (${address})`);
       return newAccount;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add account from seed phrase:', error);
       throw error;
     }
@@ -1368,8 +1390,9 @@ export class WalletManager {
           addresses[networkId] = result.address;
           balances[networkId] = '0';
           nonces[networkId] = 0;
-          console.log(`✅ Generated ${networkId} address: ${result.address}`);
+
         } catch (networkError) {
+          // eslint-disable-next-line no-console
           console.warn(`Failed to generate ${networkId} address for private key account:`, networkError);
         }
       }
@@ -1396,9 +1419,11 @@ export class WalletManager {
       
       await this.saveWallets();
       
+      // eslint-disable-next-line no-console
       console.log(`✅ Added account from private key: ${newAccount.name} (${walletData.address})`);
       return newAccount;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add account from private key:', error);
       throw error;
     }
@@ -1508,6 +1533,7 @@ export class WalletManager {
             nonces[networkId] = 0;
             
           } catch (networkError) {
+            // eslint-disable-next-line no-console
             console.warn(`Failed to generate ${networkId} address for new account:`, networkError);
           }
         }
@@ -1534,9 +1560,11 @@ export class WalletManager {
       
       await this.saveWallets();
       
+      // eslint-disable-next-line no-console
       console.log(`✅ Added new account with generated seed phrase: ${newAccount.name} (${address})`);
       return { account: newAccount, seedPhrase: newSeedPhrase };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error adding account to wallet:', error);
       throw error;
     }
@@ -1595,6 +1623,7 @@ export class WalletManager {
       
       return balance;
     } catch (error) {
+       
       // console.error('Error getting account balance:', error);
       return '0';
     }
@@ -1612,45 +1641,32 @@ export class WalletManager {
 
   // Update account name
   async updateAccountName(walletId: string, accountId: string, newName: string): Promise<void> {
-    console.log('🔄 WalletManager.updateAccountName called:', { walletId, accountId, newName });
-    
+
     const wallet = this.wallets.find(w => w.id === walletId);
     if (!wallet) {
+      // eslint-disable-next-line no-console
       console.error('❌ Wallet not found:', walletId);
       throw new Error('Wallet not found');
     }
 
     const account = wallet.accounts.find(acc => acc.id === accountId);
     if (!account) {
+      // eslint-disable-next-line no-console
       console.error('❌ Account not found:', accountId);
       throw new Error('Account not found');
     }
 
-    console.log('📝 Before update:', { 
-      oldName: account.name, 
-      newName, 
-      accountId,
-      walletId 
-    });
-
     // Update the account name
     account.name = newName;
     wallet.lastAccessed = Date.now();
-    
-    console.log('💾 Saving wallets...');
+
     // Save the updated wallet
     await this.saveWallets();
-    console.log('✅ Wallets saved successfully');
-    
+
     // Verify the change was saved
     const savedWallet = this.wallets.find(w => w.id === walletId);
     const savedAccount = savedWallet?.accounts.find(acc => acc.id === accountId);
-    console.log('🔍 Verification after save:', { 
-      savedName: savedAccount?.name,
-      expectedName: newName,
-      match: savedAccount?.name === newName
-    });
-    
-    console.log(`✅ Account name updated: ${accountId} -> ${newName}`);
+
+
   }
 } 

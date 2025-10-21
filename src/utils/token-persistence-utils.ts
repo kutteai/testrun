@@ -68,9 +68,9 @@ export async function saveCustomToken(token: PersistedToken): Promise<void> {
     const updatedTokens = [...filteredTokens, { ...token, addedAt: Date.now() }];
     
     await storage.set({ [STORAGE_KEYS.CUSTOM_TOKENS]: updatedTokens });
-    console.log('💾 Saved custom token to persistent storage:', token.symbol);
-    
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to save custom token:', error);
     throw new Error('Failed to persist custom token');
   }
@@ -81,11 +81,12 @@ export async function loadCustomTokens(): Promise<PersistedToken[]> {
   try {
     const result = await storage.get([STORAGE_KEYS.CUSTOM_TOKENS]);
     return result[STORAGE_KEYS.CUSTOM_TOKENS] || [];
-  } catch (error) {
+    } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load custom tokens:', error);
-    return [];
+      return [];
+    }
   }
-}
 
 // Remove custom token permanently
 export async function removeCustomTokenPermanently(address: string, network: string): Promise<void> {
@@ -98,9 +99,9 @@ export async function removeCustomTokenPermanently(address: string, network: str
     );
     
     await storage.set({ [STORAGE_KEYS.CUSTOM_TOKENS]: updatedTokens });
-    console.log('🗑️ Removed custom token from persistent storage:', address);
-    
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to remove custom token:', error);
     throw new Error('Failed to remove custom token');
   }
@@ -122,7 +123,8 @@ export async function getEnabledTokensForNetwork(network: string): Promise<Persi
       (enabledTokenIds.length === 0 || enabledTokenIds.includes(token.id) || token.isEnabled !== false)
     );
     
-  } catch (error) {
+    } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get enabled tokens for network:', error);
     return [];
   }
@@ -134,18 +136,17 @@ export async function loadDashboardTokens(
   network: string
 ): Promise<DashboardAsset[]> {
   try {
-    console.log(`🔄 Loading dashboard tokens for ${network}:`, walletAddress);
-    
+
     const chainType = getChainTypeForNetwork(network);
     if (!chainType) {
+      // eslint-disable-next-line no-console
       console.warn('Unsupported network for dashboard tokens:', network);
       return [];
     }
 
     // Get enabled custom tokens for this network
     const enabledTokens = await getEnabledTokensForNetwork(network);
-    console.log(`📋 Found ${enabledTokens.length} enabled custom tokens for ${network}`);
-    
+
     const dashboardAssets: DashboardAsset[] = [];
 
     // Always include native token
@@ -168,10 +169,10 @@ export async function loadDashboardTokens(
           chainType: chainType,
           isNative: true
         });
-        
-        console.log(`✅ Native ${nativeBalance.symbol}: ${nativeBalance.balance}`);
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load native token balance:', error);
     }
 
@@ -197,10 +198,10 @@ export async function loadDashboardTokens(
             chainType: chainType,
             isNative: false
           });
-          
-          console.log(`✅ Custom ${balance.symbol}: ${balance.balance}`);
+
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Failed to load balance for custom token ${token.symbol}:`, error);
         
         // Still add the token with 0 balance if it's enabled
@@ -221,10 +222,10 @@ export async function loadDashboardTokens(
       }
     }
 
-    console.log(`🎯 Loaded ${dashboardAssets.length} dashboard assets for ${network}`);
     return dashboardAssets;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load dashboard tokens:', error);
     return [];
   }
@@ -250,9 +251,9 @@ export async function setTokenEnabled(tokenId: string, enabled: boolean): Promis
     }
     
     await storage.set({ [STORAGE_KEYS.ENABLED_TOKENS]: enabledTokens });
-    console.log(`💾 Token ${tokenId} ${enabled ? 'enabled' : 'disabled'}`);
-    
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to set token enabled state:', error);
     throw new Error('Failed to update token state');
   }
@@ -285,7 +286,8 @@ export async function getAllEnabledTokensWithBalances(
     
     return tokensByNetwork;
     
-  } catch (error) {
+    } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to load all enabled tokens:', error);
     return {};
   }
@@ -294,8 +296,7 @@ export async function getAllEnabledTokensWithBalances(
 // Migrate old token storage format to new format
 export async function migrateTokenStorage(): Promise<void> {
   try {
-    console.log('🔄 Checking for token storage migration...');
-    
+
     const result = await storage.get(['user_tokens', 'tokens', STORAGE_KEYS.CUSTOM_TOKENS]);
     
     // Check if we have old format tokens
@@ -304,8 +305,7 @@ export async function migrateTokenStorage(): Promise<void> {
     const newCustomTokens = result[STORAGE_KEYS.CUSTOM_TOKENS] || [];
     
     if ((oldUserTokens.length > 0 || oldTokens.length > 0) && newCustomTokens.length === 0) {
-      console.log('📦 Migrating old token storage format...');
-      
+
       const tokensToMigrate = [...oldUserTokens, ...oldTokens];
       const migratedTokens: PersistedToken[] = tokensToMigrate.map((token: any) => ({
         id: token.id || `migrated-${Date.now()}-${Math.random()}`,
@@ -329,11 +329,11 @@ export async function migrateTokenStorage(): Promise<void> {
       
       // Clean up old storage keys
       await storage.remove(['user_tokens', 'tokens']);
-      
-      console.log(`✅ Migrated ${migratedTokens.length} tokens to new storage format`);
+
     }
     
-  } catch (error) {
+    } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to migrate token storage:', error);
   }
 }
@@ -369,6 +369,7 @@ export async function exportTokensWithBalances(
             usdValue: balance && price ? parseFloat(balance.balance) * price : 0
           };
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error(`Failed to get balance for ${token.symbol}:`, error);
           return {
             ...token,
@@ -388,6 +389,7 @@ export async function exportTokensWithBalances(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to export tokens with balances:', error);
     throw new Error('Export failed');
   }
@@ -406,10 +408,9 @@ export async function clearAllTokenStorage(): Promise<void> {
       'user_tokens', // Legacy
       'tokens' // Legacy
     ]);
-    
-    console.log('🧹 Cleared all token storage');
-    
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to clear token storage:', error);
     throw new Error('Failed to clear storage');
   }
@@ -450,6 +451,7 @@ export async function getTokenStatistics(): Promise<{
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get token statistics:', error);
     return {
       totalCustomTokens: 0,
@@ -463,20 +465,18 @@ export async function getTokenStatistics(): Promise<{
 // Initialize token persistence system
 export async function initializeTokenPersistence(): Promise<void> {
   try {
-    console.log('🚀 Initializing token persistence system...');
-    
+
     // Run migration if needed
     await migrateTokenStorage();
     
     // Verify storage integrity
     const customTokens = await loadCustomTokens();
-    console.log(`📊 Loaded ${customTokens.length} persistent custom tokens`);
-    
+
     // Log network breakdown
     const stats = await getTokenStatistics();
-    console.log('📈 Token statistics:', stats);
-    
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to initialize token persistence:', error);
   }
 }
@@ -488,6 +488,7 @@ try {
     NETWORK_CONFIG = module.NETWORK_CONFIG;
   });
 } catch (error) {
+  // eslint-disable-next-line no-console
   console.error('Failed to import NETWORK_CONFIG:', error);
   NETWORK_CONFIG = {};
 }

@@ -62,6 +62,7 @@ const ExpandViewScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           
           setIsLoading(false);
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Error fetching data:', error);
           setIsLoading(false);
         }
@@ -131,13 +132,13 @@ const ExpandViewScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           hash: tx.hash || tx.transactionHash,
           from: tx.from,
           to: tx.to,
-          value: tx.value ? (parseInt(tx.value) / 1e18).toString() : '0',
-          amount: tx.value ? (parseInt(tx.value) / 1e18).toString() : '0',
+          value: tx.value ? (parseInt(tx.value, 10) / 1e18).toString() : '0',
+          amount: tx.value ? (parseInt(tx.value, 10) / 1e18).toString() : '0',
           network: currentNetwork.id,
           status: (tx.confirmations > 0 ? 'confirmed' : 'pending') as 'confirmed' | 'pending' | 'failed',
-          timestamp: parseInt(tx.timeStamp || tx.timestamp) * 1000,
+          timestamp: parseInt(tx.timeStamp || tx.timestamp, 10) * 1000,
           gasUsed: tx.gasUsed,
-          gasPrice: tx.gasPrice ? (parseInt(tx.gasPrice) / 1e9).toString() : '0',
+          gasPrice: tx.gasPrice ? (parseInt(tx.gasPrice, 10) / 1e9).toString() : '0',
           blockNumber: tx.blockNumber,
           confirmations: tx.confirmations || 0,
           isTokenTransaction: !!tx.tokenName,
@@ -149,6 +150,7 @@ const ExpandViewScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         
         setRecentTxHistory(allTransactions.slice(0, 5));
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error loading transaction history:', error);
       } finally {
         setIsLoadingHistory(false);
@@ -173,6 +175,7 @@ const ExpandViewScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const result = await storage.get(['ucpiId']);
       return result.ucpiId || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load UCPI ID:', error);
       return null;
     }

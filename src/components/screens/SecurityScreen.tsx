@@ -44,6 +44,7 @@ const SecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         try {
           await storage.set({ passwordHash: hash });
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Failed to save password hash:', error);
         }
       };

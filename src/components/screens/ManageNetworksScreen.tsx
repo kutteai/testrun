@@ -47,6 +47,7 @@ const ManageNetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setLocalAdditionalNetworks(additional);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error adding network:', error);
     }
   };
@@ -62,6 +63,7 @@ const ManageNetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setLocalAdditionalNetworks(additional);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error toggling network:', error);
     }
   };
@@ -76,7 +78,7 @@ const ManageNetworksScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="bg-[#180CB2] text-white px-6 py-4">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => onGoBack ? onGoBack() : onNavigate('dashboard')}
+            onClick={() => onNavigate('dashboard')}
             className="p-2 hover:bg-white/10 rounded-full transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />

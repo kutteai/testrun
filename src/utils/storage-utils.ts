@@ -35,6 +35,7 @@ export const storage = {
         });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Storage get error:', error);
       return {}; // Return empty object on error
     }
@@ -59,8 +60,10 @@ export const storage = {
         });
       }
       
+      // eslint-disable-next-line no-console
       console.log('Storage set successful:', Object.keys(items));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Storage set error:', error);
       throw error;
     }
@@ -85,6 +88,7 @@ export const storage = {
         });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Session storage get error:', error);
       return {}; // Return empty object on error
     }
@@ -108,8 +112,10 @@ export const storage = {
         });
       }
       
+      // eslint-disable-next-line no-console
       console.log('Session storage set successful:', Object.keys(items));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Session storage set error:', error);
       // Don't throw for session storage failures
     }
@@ -132,9 +138,9 @@ export const storage = {
           });
         });
       }
-      
-      console.log('Session storage remove successful:', keys);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Session storage remove error:', error);
       // Don't throw for session storage failures
     }
@@ -157,9 +163,9 @@ export const storage = {
           });
         });
       }
-      
-      console.log('Storage remove successful:', keys);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Storage remove error:', error);
       throw error;
     }
@@ -183,9 +189,9 @@ export const storage = {
           });
         });
       }
-      
-      console.log('Storage clear successful');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Storage clear error:', error);
       throw error;
     }
@@ -209,9 +215,9 @@ export const storage = {
           });
         });
       }
-      
-      console.log('Session storage clear successful');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Session storage clear error:', error);
       // Don't throw for session storage failures
     }
@@ -245,11 +251,11 @@ class SecureSessionManager {
       
       // Also store in session storage for immediate access
       await storage.setSession({ sessionPassword: password });
-      
-      console.log('Session created successfully:', sessionId);
+
       return { sessionId, timestamp };
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Session creation failed:', error);
       throw new Error('Failed to create session');
     }
@@ -268,7 +274,7 @@ class SecureSessionManager {
       }
       
       if (!sessionData || !sessionData.sessionId || !sessionData.timestamp) {
-        console.log('No valid session data found');
+
         return false;
       }
       
@@ -276,15 +282,15 @@ class SecureSessionManager {
       const sessionAge = now - sessionData.timestamp;
       
       if (sessionAge > this.SESSION_TIMEOUT) {
-        console.log('Session expired');
+
         await this.destroySession();
         return false;
       }
-      
-      console.log('Session is valid');
+
       return true;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Session validation failed:', error);
       return false;
     }
@@ -317,11 +323,11 @@ class SecureSessionManager {
       
       // Also update in session storage
       await storage.setSession({ [this.STORAGE_KEY]: updatedSessionData });
-      
-      console.log('Session extended');
+
       return true;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Session extension failed:', error);
       return false;
     }
@@ -334,9 +340,9 @@ class SecureSessionManager {
       
       // Clear from session storage
       await storage.removeSession([this.STORAGE_KEY, 'sessionPassword']);
-      
-      console.log('Session destroyed');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Session destruction failed:', error);
     }
   }
@@ -359,6 +365,7 @@ class SecureSessionManager {
       
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get session password:', error);
       return null;
     }
@@ -384,9 +391,9 @@ export const storageUtils = {
       }
       
     await storage.set({ wallet });
-      console.log('Wallet stored successfully:', wallet.id);
-      
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store wallet:', error);
       throw error;
     }
@@ -399,14 +406,14 @@ export const storageUtils = {
       const wallet = result.wallet;
       
       if (wallet && wallet.id) {
-        console.log('Wallet retrieved successfully:', wallet.id);
+
         return wallet;
       }
-      
-      console.log('No wallet found in storage');
+
       return null;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get wallet:', error);
       return null;
     }
@@ -427,10 +434,9 @@ export const storageUtils = {
         sessionPassword: password,
         backupPassword: btoa(password) // Encoded backup
       });
-      
-      console.log('Password stored successfully with persistence');
-      
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store password:', error);
       throw error;
     }
@@ -442,7 +448,7 @@ export const storageUtils = {
       // Try session storage first (immediate access)
       let result = await storage.getSession(['sessionPassword']);
       if (result.sessionPassword) {
-        console.log('Password retrieved from session storage');
+
         return result.sessionPassword;
       }
       
@@ -451,7 +457,7 @@ export const storageUtils = {
       if (result.sessionPassword) {
         // Restore to session storage for immediate access
         await storage.setSession({ sessionPassword: result.sessionPassword });
-        console.log('Password retrieved from persistent storage');
+
         return result.sessionPassword;
       }
       
@@ -463,17 +469,18 @@ export const storageUtils = {
           // Restore to both storages
           await storage.setSession({ sessionPassword: decoded });
           await storage.set({ sessionPassword: decoded });
-          console.log('Password retrieved from backup storage');
+
           return decoded;
         } catch (decodeError) {
+          // eslint-disable-next-line no-console
           console.warn('Failed to decode backup password:', decodeError);
         }
       }
-      
-      console.log('No password found in storage');
+
       return null;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get password:', error);
       return null;
     }
@@ -487,8 +494,9 @@ export const storageUtils = {
         storage.remove(['sessionPassword', 'backupPassword', 'tempPassword', 'unlockTime']),
         SecureSessionManager.destroySession()
       ]);
-      console.log('Sensitive session data cleared - wallet data preserved');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to clear sensitive data:', error);
     }
   },
@@ -497,8 +505,9 @@ export const storageUtils = {
   async storeUnlockTime(timestamp: number): Promise<void> {
     try {
       await storage.set({ unlockTime: timestamp });
-      console.log('Unlock time stored:', timestamp);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store unlock time:', error);
     }
   },
@@ -509,6 +518,7 @@ export const storageUtils = {
       const result = await storage.get(['unlockTime']);
       return result.unlockTime || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get unlock time:', error);
       return null;
     }
@@ -522,8 +532,9 @@ export const storageUtils = {
       }
       
     await storage.set({ currentSeedPhrase: seedPhrase });
-      console.log('Seed phrase stored successfully');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store seed phrase:', error);
       throw error;
     }
@@ -535,6 +546,7 @@ export const storageUtils = {
     const result = await storage.get(['currentSeedPhrase']);
     return result.currentSeedPhrase || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get seed phrase:', error);
       return null;
     }
@@ -543,9 +555,10 @@ export const storageUtils = {
   // Store import flow flag
   async setImportFlow(isImport: boolean): Promise<void> {
     try {
-    console.log('🔍 storageUtils: Setting import flow flag to:', isImport);
+
     await storage.set({ importFlow: isImport });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to set import flow flag:', error);
       throw error;
     }
@@ -555,9 +568,10 @@ export const storageUtils = {
   async getImportFlow(): Promise<boolean> {
     try {
     const result = await storage.get(['importFlow']);
-    console.log('🔍 storageUtils: Getting import flow flag, result:', result);
+
     return result.importFlow || false;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get import flow flag:', error);
       return false;
     }

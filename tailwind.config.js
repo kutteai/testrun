@@ -1,9 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./src/**/*.{js,jsx,ts,tsx}",
-    "./popup.html",
-    "./options.html"
+    './src/**/*.{js,jsx,ts,tsx}',
+    './popup.html',
+    './options.html',
   ],
   theme: {
     extend: {
@@ -79,7 +79,7 @@ module.exports = {
           700: '#334155',
           800: '#1e293b',
           900: '#0f172a',
-        }
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
@@ -116,7 +116,7 @@ module.exports = {
         xs: '2px',
       },
       boxShadow: {
-        'glow': '0 0 20px rgba(59, 130, 246, 0.5)',
+        glow: '0 0 20px rgba(59, 130, 246, 0.5)',
         'glow-lg': '0 0 40px rgba(59, 130, 246, 0.3)',
         'inner-glow': 'inset 0 0 20px rgba(59, 130, 246, 0.2)',
       },
@@ -135,4 +135,4 @@ module.exports = {
     require('@tailwindcss/forms'),
     require('@tailwindcss/typography'),
   ],
-} 
+};

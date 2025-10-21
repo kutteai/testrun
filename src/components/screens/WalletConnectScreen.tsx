@@ -70,6 +70,7 @@ export const WalletConnectScreen: React.FC = () => {
       await walletConnectManager.disconnect();
       loadSessions();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to disconnect:', error);
     }
   };
@@ -83,6 +84,7 @@ export const WalletConnectScreen: React.FC = () => {
         loadSessions();
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to approve session:', error);
     }
   };
@@ -94,6 +96,7 @@ export const WalletConnectScreen: React.FC = () => {
         setApprovalModal({ isOpen: false, type: 'session' });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to reject session:', error);
     }
   };
@@ -105,6 +108,7 @@ export const WalletConnectScreen: React.FC = () => {
         setApprovalModal({ isOpen: false, type: 'request' });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to approve request:', error);
     }
   };
@@ -116,6 +120,7 @@ export const WalletConnectScreen: React.FC = () => {
         setApprovalModal({ isOpen: false, type: 'request' });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to reject request:', error);
     }
   };

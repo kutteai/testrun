@@ -74,6 +74,7 @@ export async function getTokenBalance(
     
     return null; // No balance
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Error fetching balance for token ${tokenAddress}:`, error);
     return null;
   }
@@ -93,6 +94,7 @@ export async function getTokenPrice(tokenAddress: string): Promise<number | null
     const data = await response.json();
     return data[tokenAddress.toLowerCase()]?.usd || null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching token price:', error);
     return null;
   }
@@ -155,8 +157,7 @@ export async function detectTokensWithBalances(
   walletAddress: string,
   rpcUrl: string
 ): Promise<TokenBalance[]> {
-  console.log('🔍 Auto-detecting tokens with balances > 0 for:', walletAddress);
-  
+
   const tokensWithBalances: TokenBalance[] = [];
   
   // Check popular tokens
@@ -171,14 +172,14 @@ export async function detectTokensWithBalances(
         }
         
         tokensWithBalances.push(balance);
-        console.log(`✅ Found ${balance.symbol}: ${balance.balance}`);
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Error checking ${token.symbol}:`, error);
     }
   }
-  
-  console.log(`🎯 Found ${tokensWithBalances.length} tokens with balances > 0`);
+
   return tokensWithBalances;
 }
 
@@ -187,8 +188,7 @@ export async function getAllPopularTokens(
   walletAddress: string,
   rpcUrl: string
 ): Promise<TokenBalance[]> {
-  console.log('🔍 Getting all popular tokens for:', walletAddress);
-  
+
   const allTokens: TokenBalance[] = [];
   
   // Check popular tokens
@@ -203,9 +203,10 @@ export async function getAllPopularTokens(
         }
         
         allTokens.push(balance);
-        console.log(`✅ ${balance.symbol}: ${balance.balance}`);
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Error checking ${token.symbol}:`, error);
       // Add token with 0 balance if we can't fetch it
       allTokens.push({
@@ -218,8 +219,7 @@ export async function getAllPopularTokens(
       });
     }
   }
-  
-  console.log(`🎯 Found ${allTokens.length} tokens total`);
+
   return allTokens;
 }
 

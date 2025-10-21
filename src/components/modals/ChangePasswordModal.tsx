@@ -80,6 +80,7 @@ const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({
       await onPasswordChange(currentPassword, newPassword);
       // Modal will be closed by parent component on success
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Password change failed:', error);
       setErrors(['Failed to change password. Please try again.']);
     } finally {

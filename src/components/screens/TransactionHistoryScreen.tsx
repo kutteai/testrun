@@ -21,13 +21,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   // Debug logging
   useEffect(() => {
-    console.log('TransactionHistoryScreen Debug:', {
-      hasWallet: !!wallet,
-      walletAddress: wallet?.address,
-      currentNetwork: currentNetwork?.id,
-      hasRecentTransactions: recentTransactions.length > 0,
-      hasPendingTransactions: pendingTransactions.length > 0
-    });
+
   }, [wallet, currentNetwork, recentTransactions, pendingTransactions]);
 
   // Combine recent and pending transactions
@@ -38,7 +32,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
   // Load transactions when component mounts - DISABLED FOR NOW
   useEffect(() => {
-    console.log('TransactionHistoryScreen: Skipping blockchain transaction loading...');
+
     // if (wallet?.address && currentNetwork) {
     //   loadBlockchainTransactions(1, false);
     // }
@@ -48,6 +42,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const loadBlockchainTransactions = async (pageNum: number = 1, append: boolean = false) => {
     if (!wallet?.address || !currentNetwork?.id) {
       const errorMsg = `No wallet or network selected. Wallet: ${!!wallet}, Address: ${!!wallet?.address}, Network: ${!!currentNetwork}, NetworkId: ${currentNetwork?.id}`;
+      // eslint-disable-next-line no-console
       console.error('Transaction loading error:', errorMsg);
       setError(errorMsg);
       return;
@@ -74,12 +69,12 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         hash: tx.hash || tx.transactionHash,
         from: tx.from,
         to: tx.to,
-        value: tx.value ? (parseInt(tx.value) / 1e18).toString() : '0',
+        value: tx.value ? (parseInt(tx.value, 10) / 1e18).toString() : '0',
         network: currentNetwork.id,
         status: tx.confirmations > 0 ? 'confirmed' : 'pending',
-        timestamp: parseInt(tx.timeStamp || tx.timestamp) * 1000,
+        timestamp: parseInt(tx.timeStamp || tx.timestamp, 10) * 1000,
         gasUsed: tx.gasUsed,
-        gasPrice: tx.gasPrice ? (parseInt(tx.gasPrice) / 1e9).toString() : '0',
+        gasPrice: tx.gasPrice ? (parseInt(tx.gasPrice, 10) / 1e9).toString() : '0',
         blockNumber: tx.blockNumber,
         confirmations: tx.confirmations || 0,
         isTokenTransaction: !!tx.tokenName,
@@ -102,6 +97,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         toast.success('Transactions refreshed');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading transactions:', error);
       // Set empty transactions instead of error
       if (append) {
@@ -369,7 +365,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Block:</span>
                         <span className="text-white">
-                          {parseInt(transaction.blockNumber).toLocaleString()}
+                          {parseInt(transaction.blockNumber, 10).toLocaleString()}
                         </span>
                       </div>
                     )}
@@ -385,7 +381,7 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       <div className="flex justify-between text-sm">
                         <span className="text-slate-400">Gas Used:</span>
                         <span className="text-white">
-                          {parseInt(transaction.gasUsed).toLocaleString()}
+                          {parseInt(transaction.gasUsed, 10).toLocaleString()}
                         </span>
                       </div>
                     )}

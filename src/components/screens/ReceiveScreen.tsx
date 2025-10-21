@@ -15,26 +15,19 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
 
   // Debug logging
   useEffect(() => {
-    console.log('ReceiveScreen Debug:', {
-      hasWallet: !!wallet,
-      walletAddress: wallet?.address,
-      isWalletUnlocked,
-      isLoading,
-      isInitializing,
-      currentNetwork: currentNetwork?.id
-    });
+
   }, [wallet, isWalletUnlocked, isLoading, isInitializing, currentNetwork]);
 
   // Listen for wallet changes to refresh data
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
-      console.log('🔄 Wallet changed event received in ReceiveScreen:', event.detail);
+
       // ReceiveScreen will automatically update when wallet state changes
       // since it uses wallet from context directly
     };
 
     const handleAccountSwitched = async (event: CustomEvent) => {
-      console.log('🔄 Account switched event received in ReceiveScreen:', event.detail);
+
       // ReceiveScreen will automatically update when account changes
       // since it uses wallet from context directly
     };
@@ -50,14 +43,15 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Listen for network changes to refresh current account
   useEffect(() => {
     const handleNetworkChange = async (event: CustomEvent) => {
-      console.log('🔄 Network changed event received in ReceiveScreen:', event.detail);
+
       // Refresh current account when network changes
       try {
         const currentAccount = await getCurrentAccount();
         if (currentAccount) {
-          console.log('✅ Updated current account for ReceiveScreen:', currentAccount);
+
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error refreshing account on network change:', error);
       }
     };
@@ -164,7 +158,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           url: `ethereum:${wallet.address}`
         });
       } catch {
-        console.log('Share cancelled');
+
       }
     } else {
       // Fallback to copy
@@ -392,6 +386,7 @@ const ReceiveScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     </div>
     );
   } catch (err) {
+    // eslint-disable-next-line no-console
     console.error('ReceiveScreen Error:', err);
     setError(err instanceof Error ? err.message : 'Unknown error occurred');
     return (

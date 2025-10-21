@@ -200,7 +200,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
     }
     
     // Validate decimals
-    const decimals = parseInt(customTokenData.decimals);
+    const decimals = parseInt(customTokenData.decimals, 10);
     if (isNaN(decimals) || decimals < 0 || decimals > 18) {
       return 'Decimals must be between 0 and 18';
     }
@@ -252,7 +252,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
       if (tokenSymbol.toLowerCase() !== customTokenData.symbol.toLowerCase()) {
         throw new Error('Token symbol mismatch with blockchain data');
       }
-      if (tokenDecimals !== parseInt(customTokenData.decimals)) {
+      if (tokenDecimals !== parseInt(customTokenData.decimals, 10)) {
         throw new Error('Token decimals mismatch with blockchain data');
       }
       
@@ -270,6 +270,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
             tokenChange = `${priceData[coinId].usd_24h_change?.toFixed(2) || '0.00'}%`;
           }
         } catch (priceError) {
+          // eslint-disable-next-line no-console
           console.warn('Failed to fetch token price:', priceError);
         }
       }
@@ -313,6 +314,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
       setShowAddTokensModal(false);
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Token import failed:', error);
       setErrorMessage('Failed to import token. Please try again.');
       setImportStatus('error');
@@ -327,6 +329,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
     try {
       await storage.set({ managedTokens: tokens });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save managed tokens:', error);
     }
   };
@@ -337,6 +340,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
       const existingTokens = await storage.get(['customTokens']);
       return existingTokens.customTokens || [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load custom tokens:', error);
       return [];
     }
@@ -347,6 +351,7 @@ const ManageCryptoScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => 
     try {
       await storage.set({ customTokens: tokens });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save custom tokens:', error);
     }
   };

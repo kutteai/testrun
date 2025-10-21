@@ -22,10 +22,15 @@ class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     // Log error to service in production
     // In a real app, you would send this to an error reporting service
+    // eslint-disable-next-line no-console
     console.error('🚨 ErrorBoundary caught an error:', error);
+    // eslint-disable-next-line no-console
     console.error('🚨 Error message:', error.message);
+    // eslint-disable-next-line no-console
     console.error('🚨 Error stack:', error.stack);
+    // eslint-disable-next-line no-console
     console.error('🚨 Error info:', errorInfo);
+    // eslint-disable-next-line no-console
     console.error('🚨 Component stack:', errorInfo.componentStack);
   }
 

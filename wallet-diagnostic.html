@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PayCio Wallet Diagnostic</title>
+  <style>
+    body {
+      font-family: 'Monaco', 'Courier New', monospace;
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: #252526;
+      border-radius: 8px;
+      padding: 30px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+    h1 {
+      color: #4ec9b0;
+      border-bottom: 2px solid #4ec9b0;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+    }
+    h2 {
+      color: #569cd6;
+      margin-top: 30px;
+      margin-bottom: 15px;
+    }
+    .check {
+      background: #1e1e1e;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      border-left: 4px solid #007acc;
+    }
+    .check.success {
+      border-left-color: #4ec9b0;
+      background: #1a2e1a;
+    }
+    .check.error {
+      border-left-color: #f48771;
+      background: #2e1a1a;
+    }
+    .check.warning {
+      border-left-color: #dcdcaa;
+      background: #2e2a1a;
+    }
+    .status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+    .status.ok { background: #4ec9b0; color: #000; }
+    .status.fail { background: #f48771; color: #000; }
+    .status.warn { background: #dcdcaa; color: #000; }
+    .code {
+      background: #1e1e1e;
+      padding: 10px;
+      border-radius: 3px;
+      overflow-x: auto;
+      margin: 10px 0;
+      border: 1px solid #3e3e42;
+    }
+    button {
+      background: #007acc;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      margin: 5px;
+    }
+    button:hover {
+      background: #005a9e;
+    }
+    .info { color: #9cdcfe; }
+    .success { color: #4ec9b0; }
+    .error { color: #f48771; }
+    .warning { color: #dcdcaa; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔍 PayCio Wallet Diagnostic Tool</h1>
+    <p style="color: #9cdcfe;">This page will help diagnose wallet injection and connection issues.</p>
+    
+    <h2>📋 Diagnostic Results</h2>
+    <div id="results"></div>
+    
+    <h2>🔧 Actions</h2>
+    <button onclick="runDiagnostics()">🔄 Re-run Diagnostics</button>
+    <button onclick="testConnection()">🔗 Test Connection</button>
+    <button onclick="location.reload()">↻ Reload Page</button>
+  </div>
+
+  <script>
+    function addCheck(title, status, details) {
+      const results = document.getElementById('results');
+      const check = document.createElement('div');
+      check.className = `check ${status}`;
+      
+      let statusBadge = '';
+      if (status === 'success') statusBadge = '<span class="status ok">✓ OK</span>';
+      else if (status === 'error') statusBadge = '<span class="status fail">✗ FAIL</span>';
+      else if (status === 'warning') statusBadge = '<span class="status warn">⚠ WARN</span>';
+      
+      check.innerHTML = `
+        ${statusBadge}
+        <strong>${title}</strong>
+        ${details ? `<div class="code">${details}</div>` : ''}
+      `;
+      
+      results.appendChild(check);
+    }
+
+    function runDiagnostics() {
+      document.getElementById('results').innerHTML = '';
+      console.clear();
+      console.log('=== PAYCIO WALLET DIAGNOSTICS ===');
+      
+      // Check 1: Extension Context
+      addCheck(
+        'Extension Content Script',
+        window.paycioWalletContentScript ? 'success' : 'error',
+        window.paycioWalletContentScript 
+          ? `Running: ${window.paycioWalletContentScript.isRunning}<br>Version: ${window.paycioWalletContentScript.version}`
+          : 'Content script not detected. Extension may not be loaded or enabled.'
+      );
+      
+      // Check 2: Provider Injection Flag
+      addCheck(
+        'Provider Injection Flag',
+        window.paycioProviderInjected ? 'success' : 'error',
+        window.paycioProviderInjected 
+          ? 'Provider script has been injected'
+          : 'Provider script NOT injected. Check manifest permissions.'
+      );
+      
+      // Check 3: window.ethereum
+      const hasEthereum = typeof window.ethereum !== 'undefined';
+      addCheck(
+        'window.ethereum',
+        hasEthereum ? 'success' : 'error',
+        hasEthereum 
+          ? `Present: ${window.ethereum.constructor.name}<br>isPayCio: ${window.ethereum.isPayCio}<br>isMetaMask: ${window.ethereum.isMetaMask}`
+          : 'window.ethereum is undefined'
+      );
+      
+      // Check 4: window.paycioProvider
+      addCheck(
+        'window.paycioProvider',
+        window.paycioProvider ? 'success' : 'error',
+        window.paycioProvider 
+          ? `Present: ${window.paycioProvider.constructor.name}<br>isPayCio: ${window.paycioProvider.isPayCio}`
+          : 'window.paycioProvider not found'
+      );
+      
+      // Check 5: window.paycio
+      addCheck(
+        'window.paycio',
+        window.paycio ? 'success' : 'error',
+        window.paycio 
+          ? `Present: ${window.paycio.constructor.name}<br>isPayCio: ${window.paycio.isPayCio}`
+          : 'window.paycio not found'
+      );
+      
+      // Check 6: Multiple Providers (EIP-6963)
+      if (window.ethereum?.providers) {
+        const paycioProvider = window.ethereum.providers.find(p => p.isPayCio);
+        addCheck(
+          'Multiple Providers Detected',
+          paycioProvider ? 'success' : 'warning',
+          `Total providers: ${window.ethereum.providers.length}<br>` +
+          `PayCio found: ${!!paycioProvider}<br>` +
+          `Providers: ${window.ethereum.providers.map(p => p.isPayCio ? 'PayCio' : p.isMetaMask ? 'MetaMask' : 'Unknown').join(', ')}`
+        );
+      }
+      
+      // Check 7: Provider Methods
+      if (window.ethereum) {
+        const hasMethods = 
+          typeof window.ethereum.request === 'function' &&
+          typeof window.ethereum.on === 'function';
+        addCheck(
+          'Provider Methods',
+          hasMethods ? 'success' : 'error',
+          hasMethods
+            ? 'request() and on() methods available'
+            : 'Provider methods missing'
+        );
+      }
+      
+      // Check 8: Chrome Runtime
+      if (typeof chrome !== 'undefined' && chrome.runtime) {
+        addCheck(
+          'Chrome Extension API',
+          'success',
+          `Extension ID: ${chrome.runtime.id || 'N/A'}`
+        );
+      } else {
+        addCheck(
+          'Chrome Extension API',
+          'error',
+          'Chrome runtime not accessible'
+        );
+      }
+      
+      // Check 9: Console Logs Check
+      addCheck(
+        'Console Logs',
+        'success',
+        'Check browser console (F12) for detailed injection logs. Look for:<br>' +
+        '- "PayCio Content Script Loading..."<br>' +
+        '- "Paycio Ethereum Provider injected"<br>' +
+        '- "Paycio provider ready and announced"'
+      );
+      
+      // Summary
+      const hasPaycio = window.paycioProvider || window.paycio || window.ethereum?.isPayCio;
+      if (hasPaycio) {
+        addCheck(
+          '✅ Summary',
+          'success',
+          '<strong class="success">PayCio Wallet is properly injected and ready!</strong><br>' +
+          'You can proceed to test DApp connections.'
+        );
+      } else {
+        addCheck(
+          '❌ Summary',
+          'error',
+          '<strong class="error">PayCio Wallet NOT detected!</strong><br><br>' +
+          '<strong>Troubleshooting Steps:</strong><br>' +
+          '1. Reload the extension in chrome://extensions<br>' +
+          '2. Make sure the extension is enabled<br>' +
+          '3. Check that the extension has access to this site<br>' +
+          '4. Reload this page after fixing the above<br>' +
+          '5. Check browser console for errors'
+        );
+      }
+      
+      console.log('=== DIAGNOSTICS COMPLETE ===');
+    }
+
+    async function testConnection() {
+      console.log('Testing connection...');
+      
+      const provider = window.paycioProvider || window.paycio || window.ethereum;
+      
+      if (!provider) {
+        addCheck('Connection Test', 'error', 'No provider available to test');
+        return;
+      }
+      
+      addCheck('Connection Test', 'success', 'Starting connection test...');
+      
+      try {
+        console.log('Requesting accounts...');
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+        addCheck(
+          'eth_requestAccounts',
+          accounts?.length > 0 ? 'success' : 'warning',
+          accounts?.length > 0 
+            ? `Connected! Account: ${accounts[0]}`
+            : 'No accounts returned'
+        );
+      } catch (error) {
+        addCheck(
+          'eth_requestAccounts',
+          'error',
+          `Error: ${error.message}<br>Code: ${error.code || 'N/A'}`
+        );
+        console.error('Connection test failed:', error);
+      }
+    }
+
+    // Run diagnostics on page load
+    setTimeout(() => {
+      console.log('Running initial diagnostics...');
+      runDiagnostics();
+    }, 1000); // Wait 1 second for provider injection
+  </script>
+</body>
+</html>

@@ -26,6 +26,7 @@ const NotificationSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           });
           setAccountNotifications(initialAccountNotifications);
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Failed to load accounts:', error);
         }
       }

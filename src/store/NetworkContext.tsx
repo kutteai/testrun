@@ -288,7 +288,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
           // Use all available networks (default + custom) to find the current network
           const allNetworks = [...defaultNetworks, ...(result.customNetworks || [])];
           const currentNetwork = allNetworks.find(n => n.id === currentNetworkId) || allNetworks[0];
-          console.log('🔄 Loading stored network:', currentNetworkId, 'Found:', !!currentNetwork);
+
           setNetworkState(prev => ({
             ...prev,
             currentNetwork,
@@ -296,6 +296,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
           }));
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load custom networks:', error);
       }
     };
@@ -308,6 +309,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
     try {
       await storage.set({ customNetworks });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save custom networks:', error);
     }
   };
@@ -315,17 +317,15 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
     // Test network connection
     const testConnection = async (network: Network): Promise<boolean> => {
       const startTime = Date.now();
-      console.log(`🚀 Starting connection test for ${network.name}...`);
-      
+
       try {
       // Set timeout based on network type
       const timeout = 10000; // 10 seconds for all networks
-        console.log(`⏱️  Timeout set to ${timeout}ms for ${network.name}`);
-        
+
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => {
             const elapsed = Date.now() - startTime;
-            console.log(`⏰ Timeout after ${elapsed}ms for ${network.name}`);
+
             reject(new Error('Connection timeout'));
           }, timeout);
         });
@@ -335,7 +335,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
       
       if (['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'].includes(network.id)) {
         // EVM networks - test with eth_blockNumber
-        console.log(`📡 Testing EVM network: ${network.name}`);
+
         const response = await Promise.race([
           fetch(network.rpcUrl, {
           method: 'POST',
@@ -366,7 +366,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else if (network.id === 'bitcoin') {
         // Bitcoin - test with getblockchaininfo
-        console.log(`📡 Testing Bitcoin network: ${network.name}`);
+
         const response = await Promise.race([
           fetch('https://blockstream.info/api/blocks/tip/height', {
             method: 'GET',
@@ -384,7 +384,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else if (network.id === 'litecoin') {
         // Litecoin - test with getblockchaininfo
-        console.log(`📡 Testing Litecoin network: ${network.name}`);
+
         const response = await Promise.race([
           fetch('https://api.blockcypher.com/v1/ltc/main', {
             method: 'GET',
@@ -402,7 +402,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else if (network.id === 'solana') {
         // Solana - test with getHealth
-        console.log(`📡 Testing Solana network: ${network.name}`);
+
         const response = await Promise.race([
           fetch('https://api.mainnet-beta.solana.com', {
             method: 'POST',
@@ -428,7 +428,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else if (network.id === 'tron') {
         // TRON - test with getNowBlock
-        console.log(`📡 Testing TRON network: ${network.name}`);
+
         const response = await Promise.race([
           fetch('https://api.trongrid.io/wallet/getnowblock', {
             method: 'POST',
@@ -449,7 +449,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else if (network.id === 'ton') {
         // TON - test with getMasterchainInfo
-        console.log(`📡 Testing TON network: ${network.name}`);
+
         const response = await Promise.race([
           fetch('https://toncenter.com/api/v2/getMasterchainInfo', {
             method: 'GET',
@@ -467,7 +467,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else if (network.id === 'xrp') {
         // XRP - test with server_info
-        console.log(`📡 Testing XRP network: ${network.name}`);
+
         const response = await Promise.race([
           fetch('https://s1.ripple.com:51234', {
             method: 'POST',
@@ -491,7 +491,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
         
       } else {
         // Unknown network - try generic RPC test
-        console.log(`📡 Testing unknown network: ${network.name}`);
+
         const response = await Promise.race([
           fetch(network.rpcUrl, {
             method: 'POST',
@@ -518,11 +518,12 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
       }
       
       const elapsed = Date.now() - startTime;
-      console.log(`✅ Connection test completed in ${elapsed}ms for ${network.name}: ${isConnected ? 'SUCCESS' : 'FAILED'}`);
+
       return isConnected;
       
       } catch (error) {
         const elapsed = Date.now() - startTime;
+        // eslint-disable-next-line no-console
         console.warn(`❌ Connection test failed for ${network.name} after ${elapsed}ms:`, error);
         return false;
       }
@@ -532,24 +533,25 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
   // Switch network
   const switchNetwork = async (networkId: string): Promise<void> => {
     try {
-      console.log('🔄 NetworkContext: Switching to network:', networkId);
+
+      // eslint-disable-next-line no-console
       console.log('🔄 Available networks:', networkState.networks.map(n => n.id));
       
       const network = networkState.networks.find(n => n.id === networkId);
       if (!network) {
+        // eslint-disable-next-line no-console
         console.error('❌ Network not found:', networkId, 'Available:', networkState.networks.map(n => n.id));
         throw new Error(`Network '${networkId}' not found`);
       }
-      
-      console.log('✅ Network found:', network.name);
 
       // Test connection before switching (but don't block if it fails)
       let isConnected = false;
       try {
-        console.log(`Testing connection to ${network.name} at ${network.rpcUrl}`);
+
         isConnected = await testConnection(network);
-        console.log(`Connection test result for ${network.name}:`, isConnected);
+
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn('Connection test failed, but continuing with network switch:', error);
         isConnected = false;
       }
@@ -564,6 +566,7 @@ export const NetworkProvider: React.FC<NetworkProviderProps> = ({ children }) =>
       // Save current network to storage
       await storage.set({ currentNetwork: networkId });
       
+      // eslint-disable-next-line no-console
       console.log('✅ NetworkContext: Successfully switched to:', network.name, '(' + networkId + ')');
 
       // Trigger a custom event to notify other contexts about network change

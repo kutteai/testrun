@@ -169,6 +169,7 @@ export function useTokenManagement(accountId: string): UseTokenManagementReturn 
     try {
       return await tokenManagementService.getAccountTokenStats(accountId);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get token stats:', err);
       return {
         totalTokens: 0,

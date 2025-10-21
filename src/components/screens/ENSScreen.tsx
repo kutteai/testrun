@@ -97,6 +97,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       
       setMyDomains(domains);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading user domains:', error);
       setMyDomains([]);
     } finally {
@@ -121,8 +122,9 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
       
       await storage.set({ savedENSDomains: savedDomains });
-      console.log('✅ ENS domain saved to storage:', domain.name);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Error saving ENS domain:', error);
     }
   };
@@ -166,6 +168,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       
       setSearchResult(domain);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS search error:', error);
       toast.error('Failed to search ENS domain');
     } finally {
@@ -233,6 +236,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         toast.error(`Registration failed: ${result.error}`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS registration error:', error);
       toast.error(`Failed to register ENS domain: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -305,6 +309,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         toast.error(`Renewal failed: ${result.error}`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS domain renewal error:', error);
       toast.error(`Failed to renew ENS domain: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -361,6 +366,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         toast.error(`Failed to set text record: ${result.error}`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS text record setting error:', error);
       toast.error(`Failed to set text record: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -426,6 +432,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       toast.success(`Domain ${fullDomainName} added to your list!`);
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add custom domain:', error);
       toast.error('Failed to add domain. Please try again.');
     } finally {
@@ -451,6 +458,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       toast.success('Domain removed from your list');
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to remove domain:', error);
       toast.error('Failed to remove domain');
     } finally {
@@ -479,6 +487,7 @@ const ENSScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       toast.success('Domain updated successfully!');
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update domain:', error);
       toast.error('Failed to update domain');
     }

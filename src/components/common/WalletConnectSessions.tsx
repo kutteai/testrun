@@ -29,6 +29,7 @@ export const WalletConnectSessions: React.FC = () => {
       });
       toast.success('Session disconnected');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to disconnect session:', error);
       toast.error('Failed to disconnect session');
     }
@@ -40,6 +41,7 @@ export const WalletConnectSessions: React.FC = () => {
       setCopied(id);
       setTimeout(() => setCopied(null), 2000);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to copy to clipboard:', error);
     }
   };

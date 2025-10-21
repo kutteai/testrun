@@ -40,22 +40,21 @@ class SecureWalletComm {
       }, 15000); // Reduced timeout
 
       try {
-        console.log(`🔍 SecureWalletComm: Sending message ${type}:`, payload);
-        
+
         browserAPI.runtime.sendMessage({ type, ...payload }, (response) => {
           clearTimeout(timeoutId);
-          
-          console.log(`🔍 SecureWalletComm: Received response for ${type}:`, response);
-          console.log('🔍 SecureWalletComm: Runtime last error:', browserAPI.runtime.lastError);
-          
+
+
           if (browserAPI.runtime.lastError) {
             const errorMsg = browserAPI.runtime.lastError.message;
+            // eslint-disable-next-line no-console
             console.error(`❌ SecureWalletComm: Runtime error for ${type}:`, errorMsg);
             reject(new Error(`Background script error: ${errorMsg}`));
             return;
           }
           
           if (!response) {
+            // eslint-disable-next-line no-console
             console.error(`❌ SecureWalletComm: No response received for ${type}`);
             reject(new Error('No response from background script'));
             return;
@@ -63,19 +62,21 @@ class SecureWalletComm {
           
           // Handle different response formats
           if (response.success === true) {
-            console.log(`✅ SecureWalletComm: Success response for ${type}`);
+
             resolve(response.data || response);
           } else if (response.success === false) {
+            // eslint-disable-next-line no-console
             console.error(`❌ SecureWalletComm: Error response for ${type}:`, response.error);
             reject(new Error(response.error || 'Background script returned error'));
           } else {
             // Legacy format - assume success if no explicit success field
-            console.log(`⚠️ SecureWalletComm: Legacy response format for ${type}:`, response);
+
             resolve(response);
           }
         });
       } catch (error) {
         clearTimeout(timeoutId);
+        // eslint-disable-next-line no-console
         console.error(`❌ SecureWalletComm: Exception sending ${type}:`, error);
         reject(error);
       }
@@ -85,9 +86,10 @@ class SecureWalletComm {
   static async healthCheck() {
     try {
       const response = await this.sendMessage('HEALTH_CHECK', {});
-      console.log('✅ Background script health check passed:', response);
+
       return true;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Background script health check failed:', error);
       
       // Try alternative connection methods
@@ -106,7 +108,7 @@ class SecureWalletComm {
       
       if (browserAPI && browserAPI.storage) {
         await browserAPI.storage.local.get(['healthcheck']);
-        console.log('✅ Alternative health check: Storage accessible');
+
         return true;
       }
       
@@ -115,17 +117,20 @@ class SecureWalletComm {
         try {
           const manifest = (browserAPI.runtime as any).getManifest();
           if (manifest) {
-            console.log('✅ Alternative health check: Runtime accessible');
+
             return true;
           }
         } catch (manifestError) {
+          // eslint-disable-next-line no-console
           console.warn('Manifest access failed:', manifestError);
         }
       }
       
+      // eslint-disable-next-line no-console
       console.error('❌ All alternative health checks failed');
       return false;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Alternative health check failed:', error);
       return false;
     }
@@ -494,10 +499,7 @@ const walletReducer = (state: WalletState, action: WalletAction): WalletState =>
     case 'SET_GLOBAL_PASSWORD':
       return { ...state, globalPassword: action.payload };
     case 'UPDATE_WALLET_ACCOUNTS':
-      console.log('🔄 UPDATE_WALLET_ACCOUNTS reducer called with:', {
-        accountsCount: action.payload.accounts?.length || 0,
-        accounts: action.payload.accounts
-      });
+
       return { 
         ...state, 
         wallet: action.payload,
@@ -541,22 +543,21 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Initialize wallet
   const initializeWallet = async (): Promise<void> => {
     try {
-      console.log('WalletContext: Starting wallet initialization...');
+
       dispatch({ type: 'SET_INITIALIZING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null }); // Clear any existing errors
       
       // Force clear any persistent error state
-      console.log('🔄 WalletContext: Clearing any persistent error state...');
-      
+
       // Check if there's an old error in storage and clear it
       try {
         const result = await storage.get(['walletError', 'error']);
         if (result.walletError || result.error) {
-          console.log('🧹 WalletContext: Found old error in storage, clearing...', { walletError: result.walletError, error: result.error });
+
           await storage.remove(['walletError', 'error']);
         }
       } catch (storageError) {
-        console.log('Could not check/clear storage errors:', storageError);
+
       }
       
       // Simple initialization - just check if wallet exists
@@ -567,48 +568,36 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const unlockTime = await getStoredUnlockTime();
         const now = Date.now();
         const sessionTimeout = 15 * 60 * 1000; // 15 minutes in milliseconds
-        
-        console.log('🔍 WalletContext: Checking session validity...');
-        console.log('🔍 WalletContext: Unlock time:', unlockTime);
-        console.log('🔍 WalletContext: Current time:', now);
-        console.log('🔍 WalletContext: Session timeout:', sessionTimeout);
-        
+
+
         if (unlockTime && (now - unlockTime) < sessionTimeout) {
           // Session is still valid, auto-unlock
-          console.log('✅ WalletContext: Session still valid, auto-unlocking...');
-          
+
           // Try to restore the password using the enhanced session manager
           try {
             const password = await SecureSessionManager.getSessionPassword();
             if (password) {
-              console.log('✅ WalletContext: Restored password from persistent storage');
+
               dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
             } else {
-              console.log('⚠️ WalletContext: No password in storage - will use fallback addresses');
+
             }
           } catch (error) {
-            console.log('⚠️ WalletContext: Could not access password storage:', error);
+
           }
           
           dispatch({ type: 'SET_WALLET', payload: storedWallet });
           dispatch({ type: 'SET_HAS_WALLET', payload: true });
           dispatch({ type: 'SET_WALLET_CREATED', payload: true });
           dispatch({ type: 'SET_WALLET_UNLOCKED', payload: true });
-          console.log('✅ WalletContext: Wallet auto-unlocked successfully');
-          
+
             // Check session status for debugging
   setTimeout(() => checkSessionStatus(), 1000);
   
   // Debug function to check wallet state
   const checkWalletState = () => {
-    console.log('🔍 Wallet State Check:');
-    console.log('- Has Wallet:', state.hasWallet);
-    console.log('- Wallet Created:', state.isWalletCreated);
-    console.log('- Wallet Unlocked:', state.isWalletUnlocked);
-    console.log('- Current Address:', state.wallet?.address || 'NONE');
-    console.log('- Current Network:', state.wallet?.currentNetwork || 'NONE');
-    console.log('- Has Encrypted Seed:', !!state.wallet?.encryptedSeedPhrase);
-    console.log('- Has Global Password:', !!state.globalPassword);
+
+
   };
   
   // Debug function to check password status
@@ -616,20 +605,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     try {
       const sessionResult = await storage.getSession(['sessionPassword']);
       const localResult = await storage.get(['passwordHash']);
-      
-      console.log('🔍 Password Status Check:');
-      console.log('- Session Password:', sessionResult.sessionPassword ? 'EXISTS' : 'MISSING');
-      console.log('- Local Password Hash:', localResult.passwordHash ? 'EXISTS' : 'MISSING');
-      console.log('- Global Password in State:', state.globalPassword ? 'EXISTS' : 'MISSING');
-      console.log('- Wallet Unlocked:', state.isWalletUnlocked);
-      console.log('- Current Address:', state.wallet?.address || 'NONE');
-      console.log('- Current Network:', state.wallet?.currentNetwork || 'NONE');
-      
+
+
       if (!sessionResult.sessionPassword && state.isWalletUnlocked) {
-        console.log('⚠️ WARNING: Wallet is unlocked but no session password found!');
+
       }
     } catch (error) {
-      console.log('⚠️ Could not check password status:', error);
+
     }
   };
   
@@ -637,23 +619,23 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   setTimeout(() => checkPasswordStatus(), 2000);
         } else {
           // Session expired or no unlock time, start locked
-          console.log('🔒 WalletContext: Session expired or no unlock time, starting locked');
+
           dispatch({ type: 'SET_WALLET', payload: storedWallet });
           dispatch({ type: 'SET_HAS_WALLET', payload: true });
           dispatch({ type: 'SET_WALLET_CREATED', payload: true });
           dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
-          console.log('🔒 WalletContext: Wallet found, ready for unlock...');
+
         }
       } else {
         // No wallet exists
         dispatch({ type: 'SET_HAS_WALLET', payload: false });
         dispatch({ type: 'SET_WALLET_CREATED', payload: false });
         dispatch({ type: 'SET_WALLET_UNLOCKED', payload: false });
-        console.log('No wallet found, ready for creation...');
+
       }
-      
-      console.log('Wallet initialization completed successfully');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error initializing wallet:', error);
       // Don't set error state during initialization to avoid "something went wrong"
     } finally {
@@ -664,27 +646,26 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Update all balances
   const updateAllBalances = async (): Promise<void> => {
     if (!state.address) {
-      console.log('❌ DEBUG: No current account address available');
+
       return;
     }
 
     try {
-      console.log(`🔍 DEBUG: updateAllBalances called with address="${state.address}"`);
+
       // Get current network from storage
               const result = await storage.get(['currentNetwork']);
       const currentNetworkId = result.currentNetwork || 'ethereum';
       
       // Get balance for current network (getRealBalance now handles failures and returns "0")
       const balance = await getRealBalance(state.address!, currentNetworkId);
-      
-      console.log(`💰 Balance fetched for ${currentNetworkId}: ${balance}`);
-      
+
       // Update balances state with new balance for current network
       const newBalances = { ...state.balances };
       newBalances[currentNetworkId] = balance;
 
       dispatch({ type: 'SET_BALANCES', payload: newBalances });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to update balances:', error);
       // Set balance to "0" as fallback
       const result = await storage.get(['currentNetwork']);
@@ -704,13 +685,13 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     const handleExtensionReopen = async () => {
       if (state.hasWallet && !state.isWalletUnlocked) {
-        console.log('🔄 Extension reopened, checking for stored password...');
+
         const storedPassword = await getPassword();
         if (storedPassword) {
-          console.log('✅ Found stored password, wallet can be unlocked');
+
           // Don't automatically unlock for security, but password is available
         } else {
-          console.log('⚠️ No stored password found, wallet will remain locked');
+
         }
       }
     };
@@ -730,11 +711,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleNetworkChange = async (event: CustomEvent) => {
       try {
         const { networkId, network } = event.detail;
-        console.log('🔄 WalletContext: Network changed event received:', networkId, network);
-        
+
         // Update current network in wallet context
         if (network) {
-          console.log('🔄 WalletContext: Updating current network to:', network.name);
+
           dispatch({ type: 'SET_CURRENT_NETWORK', payload: network });
           
           // Also update the wallet's currentNetwork if wallet exists
@@ -744,16 +724,17 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               currentNetwork: networkId
             };
             dispatch({ type: 'SET_WALLET', payload: updatedWallet });
-            console.log('🔄 WalletContext: Updated wallet currentNetwork to:', networkId);
+
           }
         }
         
         // Update balances for the new network
         if (state.isWalletUnlocked && state.address) {
-          console.log('🔄 WalletContext: Updating balances for new network');
+
           await updateAllBalances();
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to handle network change:', error);
       }
     };
@@ -779,13 +760,14 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const checkAutoLock = async () => {
       const storedHash = await getStoredPasswordHash();
       if (state.isWalletUnlocked && storedHash) {
+        // eslint-disable-next-line no-console
         console.log('🔒 Starting auto-lock timer (15 minutes)');
         startAutoLockTimer();
         
         // Reset timer on user activity
         const handleUserActivity = () => {
           lastActivityRef.current = Date.now();
-          console.log('🔄 User activity detected, resetting auto-lock timer');
+
           resetAutoLockTimer();
         };
 
@@ -803,6 +785,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           document.removeEventListener('scroll', handleUserActivity);
         };
       } else {
+        // eslint-disable-next-line no-console
         console.log('🔒 Clearing auto-lock timer (wallet locked or no password hash)');
         clearAutoLockTimer();
       }
@@ -814,10 +797,10 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Auto-lock timer functions
   const startAutoLockTimer = () => {
     clearAutoLockTimer();
-    console.log('🔒 Auto-lock timer started - will lock in 15 minutes of inactivity');
+
     autoLockTimerRef.current = setTimeout(() => {
               if (state.isWalletUnlocked) {
-        console.log('🔒 Auto-lock triggered - locking wallet due to inactivity');
+
           lockWallet();
         }
     }, AUTO_LOCK_TIMEOUT);
@@ -863,8 +846,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       // Get all wallets to update the context
       const allWallets = await walletManager.getAllWallets();
-      console.log('🔍 WalletContext: Total wallets after creation:', allWallets.length);
-      
+
       // Store wallet securely in WalletContext storage too for compatibility
       await storeWallet(newWallet);
       
@@ -896,6 +878,7 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         window.dispatchEvent(walletCreatedEvent);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Wallet creation failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to create wallet';
       // Don't set error state to avoid persistent "something went wrong"
@@ -907,8 +890,9 @@ export const WalletProvider: React.FC<{ children: React.ReactNode }> = ({ childr
  // Import wallet from seed phrase with real implementation
 const importWallet = async (seedPhrase: string, network: string, password: string): Promise<void> => {
   try {
-      console.log('🔍 WalletContext: Starting importWallet...');
-      console.log('🔍 WalletContext: Network:', network);
+
+
+      // eslint-disable-next-line no-console
       console.log('🔍 WalletContext: Seed phrase length:', seedPhrase.split(' ').length);
       
       // Require password parameter - no fallback
@@ -917,22 +901,19 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
       }
 
     dispatch({ type: 'SET_LOADING', payload: true });
-    console.log('🔍 WalletContext: Loading state set to true');
 
     // Validate seed phrase with detailed feedback
     const validation = validateBIP39SeedPhraseWithFeedback(seedPhrase);
-    console.log('🔍 WalletContext: Seed phrase validation result:', validation);
+
     if (!validation.isValid) {
       throw new Error(validation.error || 'Invalid seed phrase');
     }
 
-      console.log('🔍 WalletContext: Importing WalletManager...');
       // Use WalletManager to import wallet
       const { WalletManager } = await import('../core/wallet-manager');
       const walletManager = new WalletManager();
-      console.log('🔍 WalletContext: WalletManager created');
-      
-      console.log('🔍 WalletContext: Calling walletManager.importWallet...');
+
+
       const newWallet = await walletManager.importWallet({
       name: `Wallet ${Date.now()}`, // Unique name for each wallet
         seedPhrase,
@@ -940,17 +921,13 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
         network,
         accountCount: 1
       });
-      console.log('🔍 WalletContext: Wallet imported successfully:', newWallet.id);
 
-      console.log('🔍 WalletContext: Setting new wallet as active...');
-      
       // Set the new wallet as the active wallet
       await walletManager.setActiveWallet(newWallet.id);
       
       // Get all wallets to update the context
       const allWallets = await walletManager.getAllWallets();
-      console.log('🔍 WalletContext: Total wallets now:', allWallets.length);
-      
+
       // Update wallet state to reflect the new active wallet
       const browserAPI = (() => {
         if (typeof browser !== 'undefined') return browser;
@@ -968,9 +945,7 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
           activeWalletId: newWallet.id
         }
       });
-      
-      console.log('🔍 WalletContext: New wallet set as active successfully');
-    
+
     dispatch({ type: 'SET_WALLET', payload: newWallet });
     dispatch({ type: 'SET_WALLET_CREATED', payload: true });
     dispatch({ type: 'SET_HAS_WALLET', payload: true });
@@ -1013,7 +988,9 @@ const importWallet = async (seedPhrase: string, network: string, password: strin
     }
     
   } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ WalletContext: Wallet import failed:', error);
+      // eslint-disable-next-line no-console
       console.error('❌ WalletContext: Error details:', {
         message: error.message,
         stack: error.stack,
@@ -1045,6 +1022,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     const walletData = importFromPrivateKey(privateKey, network);
     
     // Debug logging
+    // eslint-disable-next-line no-console
     console.log('Private key import debug:', {
       privateKey: privateKey.substring(0, 10) + '...' + privateKey.substring(privateKey.length - 10),
       network: network,
@@ -1092,6 +1070,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           // In production, this should be encrypted
           return walletData.privateKey;
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Failed to decrypt private key:', error);
           return null;
         }
@@ -1119,6 +1098,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     dispatch({ type: 'SET_CURRENT_NETWORK', payload: networkData });
     
   } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Private key import failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to import wallet from private key';
       // Don't set error state to avoid persistent "something went wrong"
@@ -1139,6 +1119,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       await storePasswordHash(hash);
       dispatch({ type: 'SET_GLOBAL_PASSWORD', payload: password });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to set password:', error);
       throw error;
     }
@@ -1146,15 +1127,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
   // Force clear error state (for debugging)
   const clearError = (): void => {
-    console.log('🧹 WalletContext: Manually clearing error state...');
+
     dispatch({ type: 'SET_ERROR', payload: null });
   };
 
   // Fallback unlock when background script is not responding
   const fallbackUnlock = async (password: string): Promise<boolean> => {
     try {
-      console.log('🔄 Attempting fallback unlock using direct storage access...');
-      
+
       // Try to access wallet data directly from storage
       const browserAPI = (() => {
         if (typeof browser !== 'undefined') return browser;
@@ -1176,8 +1156,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         if (stored.passwordHash) {
           const verification = await hybridAPI.verifyPassword(password, stored.passwordHash);
           if (verification) {
-            console.log('✅ Fallback: Serverless password verification successful');
-            
+
             // Set wallet as unlocked in local state
             const walletData: WalletData = {
               id: stored.wallet.id || 'fallback-wallet',
@@ -1206,21 +1185,23 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           }
         }
       } catch (serverlessError) {
+        // eslint-disable-next-line no-console
         console.warn('Serverless verification failed in fallback:', serverlessError);
       }
       
       throw new Error('Fallback unlock failed - could not verify password');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Fallback unlock error:', error);
       return false;
     }
   };
 
   const unlockWallet = async (password: string): Promise<boolean> => {
-    console.log('🔍 UNLOCK DEBUG: Starting unlock process');
-    console.log('🔍 UNLOCK DEBUG: Password length:', password?.length);
-    
+
+
     if (!password?.trim()) {
+      // eslint-disable-next-line no-console
       console.error('❌ No password provided');
       dispatch({ type: 'SET_ERROR', payload: 'Password is required' });
       return false;
@@ -1235,13 +1216,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       if (!storedWallet) {
         throw new Error('No wallet found. Please create a wallet first.');
       }
-      console.log('✅ Wallet found:', storedWallet.id);
-      console.log('🔍 UNLOCK DEBUG: Has encrypted seed:', !!storedWallet?.encryptedSeedPhrase);
+
 
       // Get stored password hash
       const storedHash = await getStoredPasswordHash();
-      console.log('🔍 UNLOCK DEBUG: Password hash exists:', !!storedHash);
-      console.log('🔍 UNLOCK DEBUG: Hash length:', storedHash?.length || 0);
+
 
       let isValidPassword = false;
 
@@ -1250,10 +1229,13 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         try {
           const generatedHash = await hashPassword(password);
           isValidPassword = generatedHash === storedHash;
-          console.log('🔍 UNLOCK DEBUG: Generated hash matches:', isValidPassword);
+
+          // eslint-disable-next-line no-console
           console.log('🔍 UNLOCK DEBUG: Generated hash preview:', generatedHash.substring(0, 10));
+          // eslint-disable-next-line no-console
           console.log('🔍 UNLOCK DEBUG: Stored hash preview:', storedHash.substring(0, 10));
         } catch (hashError) {
+          // eslint-disable-next-line no-console
           console.warn('⚠️ Hash verification failed:', hashError);
         }
       }
@@ -1265,23 +1247,22 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           if (decryptedSeed?.trim()) {
             const words = decryptedSeed.trim().split(/\s+/);
             isValidPassword = words.length >= 12 && words.length <= 24;
-            console.log('🔍 UNLOCK DEBUG: Seed decryption successful:', !!decryptedSeed);
-            console.log('🔍 UNLOCK DEBUG: Seed word count:', words.length);
-            console.log('🔍 UNLOCK DEBUG: Seed decryption result:', isValidPassword);
-            
+
+
             // Regenerate missing password hash
             if (isValidPassword && !storedHash) {
               try {
                 const newHash = await hashPassword(password);
                 await storePasswordHash(newHash);
-                console.log('✅ Regenerated missing password hash');
+
               } catch (regenerateError) {
+                // eslint-disable-next-line no-console
                 console.warn('⚠️ Could not regenerate password hash:', regenerateError);
               }
             }
           }
         } catch (decryptError) {
-          console.log('🔍 UNLOCK DEBUG: Seed decryption failed:', decryptError.message);
+
         }
       }
 
@@ -1320,16 +1301,17 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Create secure session
       try {
         await SecureSessionManager.createSession(password);
-        console.log('✅ Secure session created');
+
       } catch (sessionError) {
+        // eslint-disable-next-line no-console
         console.warn('⚠️ Session creation failed:', sessionError);
         // Continue with unlock even if session creation fails
       }
 
-      console.log('✅ Wallet unlocked successfully');
       return true;
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Unlock failed:', error);
       dispatch({ type: 'SET_ERROR', payload: error.message });
       return false;
@@ -1341,9 +1323,8 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Enhanced debug function to help diagnose unlock issues
   const debugUnlockIssue = async (testPassword: string) => {
     try {
-      console.log('🔍 === COMPREHENSIVE UNLOCK DEBUG SESSION START ===');
-      console.log('🔍 Test password length:', testPassword?.length);
-      
+
+
       // Check storage contents
       const browserAPI = (() => {
         if (typeof browser !== 'undefined') return browser;
@@ -1352,99 +1333,107 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       })();
       
       const allData = await browserAPI.storage.local.get(null);
+      // eslint-disable-next-line no-console
       console.log('📦 All storage keys:', Object.keys(allData));
       
       // Check specific wallet-related data
       const walletData = await browserAPI.storage.local.get(['wallet', 'passwordHash', 'walletState', 'sessionPassword']);
-      console.log('🔍 Wallet exists:', !!walletData.wallet);
-      console.log('🔍 Password hash exists:', !!walletData.passwordHash);
-      console.log('🔍 Wallet state exists:', !!walletData.walletState);
-      console.log('🔍 Session password exists:', !!walletData.sessionPassword);
-      
+
+
       if (walletData.wallet) {
-        console.log('🔍 Wallet ID:', walletData.wallet.id);
-        console.log('🔍 Wallet has encrypted seed:', !!walletData.wallet.encryptedSeedPhrase);
-        console.log('🔍 Wallet address:', walletData.wallet.address);
+
+
       }
       
       if (walletData.passwordHash) {
-        console.log('🔍 Password hash length:', walletData.passwordHash.length);
+
+        // eslint-disable-next-line no-console
         console.log('🔍 Password hash preview:', walletData.passwordHash.substring(0, 20));
       }
       
       if (walletData.walletState) {
-        console.log('🔍 Wallet unlocked state:', walletData.walletState.isWalletUnlocked);
-        console.log('🔍 Last unlock time:', walletData.walletState.lastUnlockTime);
+
+
       }
       
       // Test password hashing
-      console.log('🔍 === TESTING PASSWORD HASHING ===');
+
       try {
         const testHash = await hashPassword(testPassword);
-        console.log('✅ Password hashing successful');
-        console.log('🔍 Generated hash length:', testHash.length);
+
+
+        // eslint-disable-next-line no-console
         console.log('🔍 Generated hash preview:', testHash.substring(0, 20));
         
         if (walletData.passwordHash) {
           const hashMatch = testHash === walletData.passwordHash;
-          console.log('🔍 Hash comparison result:', hashMatch);
+
           if (!hashMatch) {
-            console.log('❌ Hash mismatch detected!');
+
+            // eslint-disable-next-line no-console
             console.log('🔍 Expected hash preview:', walletData.passwordHash.substring(0, 20));
+            // eslint-disable-next-line no-console
             console.log('🔍 Generated hash preview:', testHash.substring(0, 20));
           }
         }
       } catch (hashError) {
+        // eslint-disable-next-line no-console
         console.error('❌ Password hashing failed:', hashError);
       }
       
       // Test seed phrase decryption
       if (walletData.wallet?.encryptedSeedPhrase) {
-        console.log('🔍 === TESTING SEED PHRASE DECRYPTION ===');
+
         try {
           const decryptedSeed = await decryptData(walletData.wallet.encryptedSeedPhrase, testPassword);
           if (decryptedSeed) {
             const words = decryptedSeed.trim().split(/\s+/);
-            console.log('✅ Seed decryption successful');
-            console.log('🔍 Decrypted word count:', words.length);
+
+
+            // eslint-disable-next-line no-console
             console.log('🔍 First few words:', words.slice(0, 3).join(' '));
-            console.log('🔍 Valid seed phrase:', words.length >= 12 && words.length <= 24);
+
           } else {
-            console.log('❌ Seed decryption returned empty result');
+
           }
         } catch (decryptError) {
+          // eslint-disable-next-line no-console
           console.error('❌ Seed decryption failed:', decryptError.message);
         }
       }
       
       // Test storage utilities
-      console.log('🔍 === TESTING STORAGE UTILITIES ===');
+
       try {
         const storedWallet = await getStoredWallet();
+        // eslint-disable-next-line no-console
         console.log('✅ getStoredWallet() successful:', !!storedWallet);
         
         const storedHash = await getStoredPasswordHash();
+        // eslint-disable-next-line no-console
         console.log('✅ getStoredPasswordHash() successful:', !!storedHash);
         
         const storedPassword = await getPassword();
+        // eslint-disable-next-line no-console
         console.log('✅ getPassword() successful:', !!storedPassword);
       } catch (storageError) {
+        // eslint-disable-next-line no-console
         console.error('❌ Storage utility error:', storageError);
       }
       
       // Test background script communication
-      console.log('🔍 === TESTING BACKGROUND SCRIPT COMMUNICATION ===');
+
       try {
         const bgResult = await SecureWalletComm.unlockWallet(testPassword);
-        console.log('✅ Background script communication successful');
-        console.log('🔍 Background result:', bgResult);
+
+
       } catch (bgError) {
+        // eslint-disable-next-line no-console
         console.error('❌ Background script communication failed:', bgError.message);
       }
-      
-      console.log('🔍 === UNLOCK DEBUG SESSION COMPLETE ===');
-      
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Debug session failed:', error);
     }
   };
@@ -1452,24 +1441,24 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Debug function for password verification only
   const debugPassword = async (testPassword: string) => {
     try {
-      console.log('🔍 === PASSWORD VERIFICATION DEBUG ===');
-      
+
       const storedHash = await getStoredPasswordHash();
       if (!storedHash) {
-        console.log('❌ No password hash found in storage');
+
         return false;
       }
-      
-      console.log('🔍 Stored hash exists, testing verification...');
+
       const generatedHash = await hashPassword(testPassword);
       const isValid = generatedHash === storedHash;
-      
-      console.log('🔍 Password verification result:', isValid);
+
+      // eslint-disable-next-line no-console
       console.log('🔍 Generated hash preview:', generatedHash.substring(0, 20));
+      // eslint-disable-next-line no-console
       console.log('🔍 Stored hash preview:', storedHash.substring(0, 20));
       
       return isValid;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Password verification debug failed:', error);
       return false;
     }
@@ -1478,8 +1467,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Debug function for storage integrity
   const debugStorage = async () => {
     try {
-      console.log('🔍 === STORAGE INTEGRITY DEBUG ===');
-      
+
       const browserAPI = (() => {
         if (typeof browser !== 'undefined') return browser;
         if (typeof chrome !== 'undefined') return chrome;
@@ -1488,12 +1476,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // Get all storage data
       const allData = await browserAPI.storage.local.get(null);
+      // eslint-disable-next-line no-console
       console.log('📦 Total storage items:', Object.keys(allData).length);
       
       // Check each important key
       const importantKeys = ['wallet', 'passwordHash', 'walletState', 'sessionPassword', 'unlockTime'];
       for (const key of importantKeys) {
         const value = allData[key];
+        // eslint-disable-next-line no-console
         console.log(`🔍 ${key}:`, {
           exists: !!value,
           type: typeof value,
@@ -1508,14 +1498,13 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       await browserAPI.storage.local.set({ [testKey]: testValue });
       const readBack = await browserAPI.storage.local.get([testKey]);
       const writeReadSuccess = JSON.stringify(readBack[testKey]) === JSON.stringify(testValue);
-      
-      console.log('🔍 Storage write/read test:', writeReadSuccess ? '✅ PASS' : '❌ FAIL');
-      
+
       // Clean up test data
       await browserAPI.storage.local.remove([testKey]);
       
       return writeReadSuccess;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Storage debug failed:', error);
       return false;
     }
@@ -1527,13 +1516,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   (window as any).debugStorage = debugStorage;
   
   // Force TypeScript recompilation
-  console.log('Debug functions exported to window object');
 
   // Lock wallet - preserves wallet data, only clears session
   const lockWallet = async (): Promise<void> => {
     try {
-      console.log('🔒 Locking wallet...');
-      
+
       // Update state to locked
       dispatch({ type: 'LOCK_WALLET' });
       
@@ -1550,13 +1537,13 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       try {
         await SecureWalletComm.lockWallet();
       } catch (bgError) {
+        // eslint-disable-next-line no-console
         console.warn('Background script lock failed:', bgError);
         // Continue with local lock even if background fails
       }
-      
-      console.log('✅ Wallet locked successfully - wallet data preserved');
-      
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to lock wallet:', error);
       throw error;
     }
@@ -1670,8 +1657,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
   // Switch network
   const switchNetwork = async (networkId: string): Promise<void> => {
-    console.log(`Starting network switch to: ${networkId}`);
-    
+
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
       
@@ -1686,8 +1672,6 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         throw new Error(`Network '${networkId}' not found`);
       }
 
-      console.log(`Network found:`, network);
-      
       if (!state.wallet) {
         // Just update current network if no wallet
         dispatch({ type: 'SET_CURRENT_NETWORK', payload: network });
@@ -1709,7 +1693,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     // Check if we already have an address for this network
     if ((state.wallet as any).addresses && (state.wallet as any).addresses[networkId]) {
       newAddress = (state.wallet as any).addresses[networkId];
-      console.log(`Using existing ${networkId} address: ${newAddress}`);
+
     } else {
         // Need to derive new address
         if (!password && state.wallet.encryptedSeedPhrase) {
@@ -1723,15 +1707,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
             
             // Derive address using AddressDerivationService
             newAddress = await AddressDerivationService.deriveAddress(seedPhrase, networkId);
-            
-            console.log(`Derived new ${networkId} address: ${newAddress}`);
-            
+
             // Validate the address
             if (!AddressDerivationService.validateAddress(newAddress, networkId)) {
               throw new Error(`Generated invalid address for ${networkId}: ${newAddress}`);
             }
             
         } catch (error) {
+            // eslint-disable-next-line no-console
             console.error(`Failed to derive ${networkId} address:`, error);
             throw new Error(`Failed to generate address for ${networkId}: ${error.message}`);
                   }
@@ -1741,9 +1724,10 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           const response = await SecureWalletComm.sendMessage('SWITCH_NETWORK', { networkId });
           if (response && (response as any).address) {
             newAddress = (response as any).address;
-            console.log(`Background script provided ${networkId} address: ${newAddress}`);
+
           }
           } catch (bgError) {
+            // eslint-disable-next-line no-console
             console.warn(`Background script network switch failed: ${bgError.message}`);
             throw new Error(`Cannot derive address for ${networkId}: ${bgError.message}`);
           }
@@ -1793,10 +1777,12 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         window.dispatchEvent(walletEvent);
       }
 
+      // eslint-disable-next-line no-console
       console.log(`✅ Successfully switched to ${network.name} (${newAddress})`);
       toast.success(`Switched to ${network.name}`);
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Network switch failed:', error);
       toast.error(`Failed to switch to ${networkId}: ${error.message}`);
       throw error;
@@ -1813,22 +1799,22 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const sessionTimeout = 15 * 60 * 1000; // 15 minutes in milliseconds
       
       if (!unlockTime) {
-        console.log(`🔧 No unlock time found - session invalid`);
+
         return false;
       }
       
       const isSessionValid = (now - unlockTime) < sessionTimeout;
-      console.log(`🔧 Session check - unlock time: ${unlockTime}, current: ${now}, timeout: ${sessionTimeout}, valid: ${isSessionValid}`);
-      
+
       if (!isSessionValid) {
         // Session expired, lock the wallet
-        console.log(`🔧 Session expired, locking wallet`);
+
         dispatch({ type: 'LOCK_WALLET' });
         await storage.removeSession(['sessionPassword']);
       }
       
       return isSessionValid;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`❌ Error checking session validity:`, error);
       return false;
     }
@@ -1837,8 +1823,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Your working Litecoin address generation algorithm (frontend version)
   const generateLitecoinAddressFrontend = async (seedPhrase: string): Promise<string> => {
     try {
-      console.log('🚀 Generating Litecoin Address using your proven algorithm...');
-      
+
       // Base58 alphabet for Bitcoin/Litecoin addresses
       const base58Alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
       
@@ -1935,19 +1920,17 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
       // Generate private key from seed
       const privateKey = await generatePrivateKeyFromSeed(seedPhrase);
-      console.log('🔑 Private key generated from seed');
-      
+
       // Generate public key
       const publicKey = await generatePublicKey(privateKey);
-      console.log('🔓 Public key generated');
-      
+
       // Generate address
       const address = await generateAddress(publicKey);
-      console.log('💰 Litecoin address generated:', address);
-      
+
       return address;
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Error generating Litecoin address:', error);
       throw new Error(`Litecoin address generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1956,8 +1939,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Helper functions for address derivation
   const deriveNetworkSpecificAddress = async (networkId: string, seedPhrase: string): Promise<string> => {
     try {
-      console.log(`🔧 Deriving address for ${networkId} with seed phrase length: ${seedPhrase?.length || 'undefined'}`);
-      
+
       // Validate inputs
       if (!networkId || !seedPhrase) {
         throw new Error(`Invalid parameters - networkId: ${networkId}, seedPhrase: ${!!seedPhrase}`);
@@ -1965,13 +1947,13 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // For Litecoin, use your working algorithm directly in the frontend
       if (networkId.toLowerCase() === 'litecoin') {
-        console.log('🚀 Generating Litecoin address using your working algorithm directly in frontend...');
-        
+
         try {
           const address = await generateLitecoinAddressFrontend(seedPhrase);
-          console.log(`✅ Litecoin address generated in frontend: ${address}`);
+
           return address;
         } catch (litecoinError) {
+          // eslint-disable-next-line no-console
           console.error('❌ Frontend Litecoin generation failed:', litecoinError);
           throw new Error(`Litecoin address generation failed: ${litecoinError.message}`);
         }
@@ -1994,20 +1976,19 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       if (!derivationPath) {
         throw new Error(`No derivation path defined for network: ${networkId}`);
       }
-      
-      console.log(`🔧 Using derivation path: ${derivationPath} for ${networkId}`);
-      
+
       const address = await generateNetworkAddress(seedPhrase, derivationPath, networkId);
       
+      // eslint-disable-next-line no-console
       console.log(`🔧 generateNetworkAddress returned: "${address}" (type: ${typeof address}, length: ${address?.length || 'undefined'})`);
       
       if (!address || address.trim() === '') {
         throw new Error(`generateNetworkAddress returned empty address for ${networkId}`);
       }
-      
-      console.log(`✅ Successfully derived ${networkId} address: ${address}`);
+
       return address;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`❌ Error deriving address for ${networkId}:`, error);
       throw new Error(`Failed to derive address for ${networkId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -2044,8 +2025,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       if (!accountAddress && targetAccount.encryptedSeedPhrase) {
         // Derive address for the current network
-        console.log(`🔧 Deriving ${currentNetworkId} address for account ${accountId}`);
-        
+
         const password = await getPassword();
         if (!password) {
           throw new Error('Password required to derive address');
@@ -2112,10 +2092,10 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
           });
           window.dispatchEvent(walletEvent);
         }
-        
-        console.log(`✅ Account switched to: ${accountId}, address: ${accountAddress || updatedWallet.address} on ${currentNetworkId}`);
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to switch account:', error);
       throw error;
     }
@@ -2124,21 +2104,16 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Add new account
   const addAccount = async (password: string, accountName?: string): Promise<any> => {
   try {
-            console.log('🔄 Starting add account process...');
-      
+
     if (!state.wallet) {
       throw new Error('No wallet available');
     }
 
-      console.log('✅ Wallet found:', { 
-        walletId: state.wallet.id, 
-        hasEncryptedSeedPhrase: !!state.wallet.encryptedSeedPhrase 
-      });
-      
       // Debug: Check what's actually in storage
       const storageCheck = await new Promise<any>((resolve) => {
         storage.get(['wallet', 'wallets']).then(resolve);
       });
+      // eslint-disable-next-line no-console
       console.log('🔍 Current storage contents:', {
         hasWallet: !!storageCheck.wallet,
         hasWallets: !!storageCheck.wallets,
@@ -2148,21 +2123,20 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // If wallet exists but not in wallets array, migrate it
       if (storageCheck.wallet && (!storageCheck.wallets || !storageCheck.wallets.find((w: any) => w.id === state.wallet?.id))) {
-        console.log('🔄 Migrating wallet to WalletManager format...');
+
         await storeWallet(state.wallet);
-        console.log('✅ Wallet migration completed');
+
     }
 
     const { WalletManager } = await import('../core/wallet-manager');
     const walletManager = new WalletManager();
-      
-      console.log('✅ WalletManager imported and instantiated');
-    
+
     // Wait a bit for the wallet manager to initialize
     
       // Verify WalletManager can find the wallet
       const foundWallet = await walletManager.getWallet(state.wallet.id);
       if (!foundWallet) {
+        // eslint-disable-next-line no-console
         console.error('❌ WalletManager cannot find wallet after migration. Attempting emergency fix...');
         
         // Emergency fix: Force store the wallet again
@@ -2176,36 +2150,26 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         if (!retryWallet) {
           throw new Error('Unable to sync wallet with WalletManager. Please try reloading the extension.');
         }
-        
-        console.log('✅ Emergency fix successful - wallet found');
+
       } else {
-        console.log('✅ WalletManager successfully found wallet');
+
       }
-      
-      console.log('🔐 Attempting to add account with password length:', password?.length || 0);
-      
+
       const result = await walletManager.addAccountToWallet(state.wallet.id, password, accountName);
       const newAccount = result.account;
       const seedPhrase = result.seedPhrase;
-      
-      console.log('✅ New account created:', { 
-        accountId: newAccount.id, 
-        addresses: newAccount.addresses,
-        hasSeedPhrase: !!seedPhrase
-      });
-    
+
     // Get the updated wallet with the new account
     const updatedWallet = await walletManager.getWallet(state.wallet.id);
     if (updatedWallet) {
-        console.log('✅ Updated wallet retrieved with accounts:', updatedWallet.accounts?.length || 0);
-        
+
         // Force reload the wallet manager to ensure we have the latest data
         await new Promise(resolve => setTimeout(resolve, 200));
         const freshWalletManager = new WalletManager();
         const freshWallet = await freshWalletManager.getWallet(state.wallet.id);
         
         if (freshWallet) {
-          console.log('✅ Fresh wallet retrieved with accounts:', freshWallet.accounts?.length || 0);
+
           dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: freshWallet });
           // Also store the updated wallet to ensure persistence
           await storeWallet(freshWallet);
@@ -2270,7 +2234,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         throw new Error('Failed to retrieve updated wallet');
     }
   } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Error adding account:', error);
+      // eslint-disable-next-line no-console
       console.error('Error details:', {
         message: error?.message,
         stack: error?.stack,
@@ -2300,11 +2266,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       if (updatedWallet) {
         dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
         await storeWallet(updatedWallet);
-        
-        console.log(`✅ Account added from seed phrase: ${newAccount.name}`);
+
         return newAccount;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add account from seed phrase:', error);
       throw error;
     }
@@ -2327,11 +2293,11 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       if (updatedWallet) {
         dispatch({ type: 'UPDATE_WALLET_ACCOUNTS', payload: updatedWallet });
         await storeWallet(updatedWallet);
-        
-        console.log(`✅ Account added from private key: ${newAccount.name}`);
+
         return newAccount;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add account from private key:', error);
       throw error;
     }
@@ -2357,6 +2323,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         dispatch({ type: 'SET_WALLET', payload: updatedWallet });
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error removing account:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to remove account';
       // Don't set error state to avoid persistent "something went wrong"
@@ -2461,8 +2428,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
             lastUpdated: Date.now()
           }
         });
-        console.log('✅ Wallet stored in both formats for compatibility');
+
     } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error storing wallet:', error);
         throw error;
       }
@@ -2480,6 +2448,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         }
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store wallet state:', error);
       throw error;
     }
@@ -2488,11 +2457,12 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Get stored wallet
   const getStoredWallet = async (): Promise<WalletData | null> => {
     try {
-      console.log('getStoredWallet: Starting storage access...');
+
       const result = await storage.get(['wallet', 'walletState']);
-      console.log('getStoredWallet: Storage result:', result);
+
       return result.wallet || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('getStoredWallet: Storage error:', error);
       return null;
     }
@@ -2501,11 +2471,12 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Get stored wallet state
   const getStoredWalletState = async (): Promise<any> => {
     try {
-      console.log('getStoredWalletState: Starting storage access...');
+
       const result = await storage.get(['walletState']);
-      console.log('getStoredWalletState: Storage result:', result);
+
       return result.walletState || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('getStoredWalletState: Storage error:', error);
       return null;
     }
@@ -2516,6 +2487,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     try {
       await storage.set({ passwordHash: hash });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store password hash:', error);
       throw error;
     }
@@ -2527,6 +2499,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const result = await storage.get(['passwordHash']);
       return result.passwordHash || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get password hash:', error);
       return null;
     }
@@ -2537,6 +2510,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     try {
       await storage.set({ unlockTime: timestamp });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to store unlock time:', error);
       throw error;
     }
@@ -2548,6 +2522,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const result = await storage.get(['unlockTime']);
       return result.unlockTime || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get unlock time:', error);
       return null;
     }
@@ -2627,8 +2602,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
     if (state.isWalletUnlocked) {
       try {
         await storeUnlockTime(Date.now());
-        console.log('⏰ WalletContext: Session extended');
+
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to extend session:', error);
       }
     }
@@ -2640,16 +2616,14 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const unlockTime = await getStoredUnlockTime();
       const now = Date.now();
       const sessionTimeout = 15 * 60 * 1000; // 15 minutes
-      
-      console.log('🔍 Session Status Check:');
-      console.log('  - Unlock time:', unlockTime);
-      console.log('  - Current time:', now);
-      console.log('  - Time difference:', unlockTime ? now - unlockTime : 'N/A');
-      console.log('  - Session timeout:', sessionTimeout);
+
+
+      // eslint-disable-next-line no-console
       console.log('  - Is session valid:', unlockTime ? (now - unlockTime) < sessionTimeout : false);
-      console.log('  - Wallet unlocked:', state.isWalletUnlocked);
-      console.log('  - Auto-lock timer active:', !!autoLockTimerRef.current);
+
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to check session status:', error);
     }
   };
@@ -2688,10 +2662,12 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Debug: Log current error state
   useEffect(() => {
     if (state.error) {
+      // eslint-disable-next-line no-console
       console.error('🚨 WalletContext: Error state detected:', state.error);
+      // eslint-disable-next-line no-console
       console.error('🚨 WalletContext: Error stack trace:', new Error().stack);
     } else {
-      console.log('✅ WalletContext: No error state');
+
     }
   }, [state.error]);
 
@@ -2708,20 +2684,18 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Store in alternative backup locations
       await storage.setSession({ backupPassword: password });
       await storage.set({ backupPassword: encodedPassword });
-      
-      console.log('✅ Password stored in session storage and local storage backup');
-      
+
       // Verify storage worked
       const verifyResult = await storage.getSession(['sessionPassword']);
       if (verifyResult.sessionPassword) {
-        console.log('✅ Password verification: SUCCESS');
+
         return true;
       } else {
-        console.log('⚠️ Session storage verification failed, but local storage backup exists');
+
         return true; // Still return true since we have local storage backup
       }
     } catch (error) {
-      console.log('❌ Password storage failed:', error);
+
       return false;
     }
   };
@@ -2731,7 +2705,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Try session storage first
       const sessionResult = await storage.getSession(['sessionPassword']);
       if (sessionResult.sessionPassword) {
-        console.log('✅ Password retrieved from session storage');
+
         return sessionResult.sessionPassword;
       }
       
@@ -2740,20 +2714,20 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       if (localResult.sessionPassword) {
         try {
           const decodedPassword = atob(localResult.sessionPassword);
-          console.log('✅ Password retrieved from local storage fallback');
+
           // Restore to session storage
           await storage.setSession({ sessionPassword: decodedPassword });
-          console.log('✅ Password restored to session storage');
+
           return decodedPassword;
         } catch (decodeError) {
-          console.log('❌ Could not decode password from local storage:', decodeError);
+
         }
       }
       
       // Try alternative storage keys
       const altSessionResult = await storage.getSession(['backupPassword']);
       if (altSessionResult.backupPassword) {
-        console.log('✅ Password retrieved from alternative session storage');
+
         return altSessionResult.backupPassword;
       }
       
@@ -2761,28 +2735,27 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       if (altLocalResult.backupPassword) {
         try {
           const decodedPassword = atob(altLocalResult.backupPassword);
-          console.log('✅ Password retrieved from alternative local storage');
+
           // Restore to session storage
           await storage.setSession({ sessionPassword: decodedPassword });
-          console.log('✅ Password restored to session storage');
+
           return decodedPassword;
         } catch (decodeError) {
-          console.log('❌ Could not decode alternative password from local storage:', decodeError);
+
         }
       }
       
       // Try to get password from global state if available
       if (state.globalPassword) {
-        console.log('✅ Password retrieved from global state');
+
         // Restore to session storage
         await storage.setSession({ sessionPassword: state.globalPassword });
         return state.globalPassword;
       }
-      
-      console.log('⚠️ No password found in any storage location');
+
       return null;
     } catch (error) {
-      console.log('❌ Error retrieving password:', error);
+
       return null;
     }
   };
@@ -2796,9 +2769,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // Clear alternative storage keys
       await storage.removeSession(['backupPassword']);
       await storage.remove(['backupPassword']);
-      console.log('✅ Password cleared from all storage');
+
     } catch (error) {
-      console.log('⚠️ Error clearing password:', error);
+
     }
   };
 
@@ -2816,6 +2789,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       // In a production environment, this should be encrypted
       return state.wallet.privateKey;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to decrypt private key:', error);
       return null;
     }
@@ -2831,6 +2805,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const walletManager = new WalletManager();
       return await walletManager.getAccountPrivateKey(state.wallet.id, accountId, password);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get account private key:', error);
       return null;
     }
@@ -2847,6 +2822,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const walletManager = new WalletManager();
       return await walletManager.getAccountSeedPhrase(state.wallet.id, accountId, password);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get account seed phrase:', error);
       return null;
     }
@@ -2855,11 +2831,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
   // Refresh wallet state from storage
   const refreshWallet = useCallback(async (): Promise<void> => {
     if (!state.wallet) {
-      console.log('❌ No wallet to refresh');
+
       return;
     }
-
-    console.log('🔄 Refreshing wallet state for:', state.wallet.id);
 
     try {
       const { WalletManager } = await import('../core/wallet-manager');
@@ -2867,22 +2841,24 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       
       // Get the updated wallet from storage
       const updatedWallet = await walletManager.getWallet(state.wallet.id);
-      console.log('📦 Retrieved wallet from storage:', updatedWallet);
-      
+
       if (updatedWallet) {
         // Log the accounts before update
+        // eslint-disable-next-line no-console
         console.log('📋 Accounts before refresh:', updatedWallet.accounts.map(acc => ({ id: acc.id, name: acc.name })));
         
         // Update the wallet state
         dispatch({ type: 'SET_WALLET', payload: updatedWallet });
-        console.log('✅ Wallet state refreshed successfully');
-        
+
         // Log the accounts after update
+        // eslint-disable-next-line no-console
         console.log('📋 Accounts after refresh:', updatedWallet.accounts.map(acc => ({ id: acc.id, name: acc.name })));
       } else {
+        // eslint-disable-next-line no-console
         console.error('❌ No wallet found in storage');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Failed to refresh wallet state:', error);
     }
   }, [state.wallet]);
@@ -2894,6 +2870,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const walletManager = new WalletManager();
       return await walletManager.getAllWallets();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get all wallets:', error);
       return [];
     }
@@ -2957,9 +2934,9 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
         });
         window.dispatchEvent(walletSwitchedEvent);
       }
-      
-      console.log(`✅ Switched to wallet: ${walletId}`);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to switch wallet:', error);
       throw error;
     }
@@ -2978,6 +2955,7 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
       const sortedWallets = allWallets.sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0));
       return sortedWallets[0];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get active wallet:', error);
       return null;
     }

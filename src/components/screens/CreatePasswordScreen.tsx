@@ -17,7 +17,7 @@ const CreatePasswordScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
   useEffect(() => {
     const checkImportFlow = async () => {
       const importFlow = await storageUtils.getImportFlow();
-      console.log('🔍 CreatePasswordScreen: Import flow flag:', importFlow);
+
       setIsImportFlow(importFlow);
     };
     checkImportFlow();
@@ -38,8 +38,7 @@ const CreatePasswordScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
   const handleCreatePassword = async () => {
     if (allRequirementsMet && passwordsMatch && acceptedTerms) {
       try {
-        console.log('🔍 CreatePasswordScreen: Creating password hash...');
-        
+
         // Use the SAME method as background script
         const encoder = new TextEncoder();
         const data = encoder.encode(password);
@@ -55,8 +54,7 @@ const CreatePasswordScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
         })();
         
         await browserAPI.storage.local.set({ passwordHash: hash });
-        console.log('🔍 CreatePasswordScreen: Password hash stored');
-        
+
         // Continue with wallet creation...
         if (isImportFlow) {
           await storageUtils.setImportFlow(true);
@@ -70,6 +68,7 @@ const CreatePasswordScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
           onNavigate('recovery-phrase');
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ CreatePasswordScreen: Failed to create password hash:', error);
         // Continue with flow - background script will handle hash creation
         if (isImportFlow) {

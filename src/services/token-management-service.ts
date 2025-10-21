@@ -38,13 +38,13 @@ export class TokenManagementService {
       const result = await storage.get([this.STORAGE_KEY]);
       const allAccountTokens = result[this.STORAGE_KEY] || {};
       const accountData = allAccountTokens[accountId] || null;
-      
-      console.log('🔍 TokenManagementService: Getting tokens for account:', accountId);
+
+      // eslint-disable-next-line no-console
       console.log('🔍 Available accounts:', Object.keys(allAccountTokens));
-      console.log('🔍 Account data:', accountData);
-      
+
       return accountData;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get account tokens:', error);
       return null;
     }
@@ -64,6 +64,7 @@ export class TokenManagementService {
       const networkTokens = accountData.networks[network];
       return networkTokens?.tokens || [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get account network tokens:', error);
       return [];
     }
@@ -120,15 +121,10 @@ export class TokenManagementService {
 
       // Save to storage
       await this.saveAccountTokens(accountId, accountData);
-      
-      console.log(`✅ Added token ${token.symbol} to account ${accountId} on ${network}`);
-      console.log('🔍 TokenManagementService: Saved token data:', {
-        accountId,
-        network,
-        tokenAddress: token.address,
-        tokenSymbol: token.symbol
-      });
+
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add token to account:', error);
       throw error;
     }
@@ -157,9 +153,9 @@ export class TokenManagementService {
 
       // Save to storage
       await this.saveAccountTokens(accountId, accountData);
-      
-      console.log(`✅ Removed token ${tokenAddress} from account ${accountId} on ${network}`);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to remove token from account:', error);
       throw error;
     }
@@ -194,9 +190,9 @@ export class TokenManagementService {
       accountData.lastUpdated = Date.now();
 
       await this.saveAccountTokens(accountId, accountData);
-      
-      console.log(`✅ ${enabled ? 'Enabled' : 'Disabled'} token ${tokenAddress} for account ${accountId}`);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to set token enabled:', error);
       throw error;
     }
@@ -213,6 +209,7 @@ export class TokenManagementService {
       const tokens = await this.getAccountNetworkTokens(accountId, network);
       return tokens.filter(token => token.isEnabled);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get enabled tokens:', error);
       return [];
     }
@@ -236,6 +233,7 @@ export class TokenManagementService {
 
       return searchResults;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to search tokens:', error);
       return [];
     }
@@ -249,6 +247,7 @@ export class TokenManagementService {
       const result = await storage.get([this.STORAGE_KEY]);
       return result[this.STORAGE_KEY] || {};
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get all accounts token data:', error);
       return {};
     }
@@ -294,6 +293,7 @@ export class TokenManagementService {
         networks
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get account token stats:', error);
       return {
         totalTokens: 0,
@@ -330,9 +330,10 @@ export class TokenManagementService {
       if (hasChanges) {
         accountData.lastUpdated = Date.now();
         await this.saveAccountTokens(accountId, accountData);
-        console.log(`✅ Cleaned up old tokens for account ${accountId}`);
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to cleanup old tokens:', error);
     }
   }
@@ -344,6 +345,7 @@ export class TokenManagementService {
     try {
       return await this.getAccountTokens(accountId);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to export account tokens:', error);
       return null;
     }
@@ -355,8 +357,9 @@ export class TokenManagementService {
   async importAccountTokens(accountId: string, data: AccountTokenData): Promise<void> {
     try {
       await this.saveAccountTokens(accountId, data);
-      console.log(`✅ Imported tokens for account ${accountId}`);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to import account tokens:', error);
       throw error;
     }
@@ -373,6 +376,7 @@ export class TokenManagementService {
       
       await storage.set({ [this.STORAGE_KEY]: allAccountTokens });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save account tokens:', error);
       throw error;
     }

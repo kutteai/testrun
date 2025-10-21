@@ -360,15 +360,13 @@ if (typeof window !== 'undefined') {
       'invalid--name.eth',  // Invalid characters
       'verylongdomainnamethatexceedsthelimit.eth' // Too long
     ];
-    
-    console.log('🧪 Testing ENS domain validation...');
-    
+
     for (const domain of testDomains) {
       try {
         const result = await ENSRegistrationValidator.validateDomainForRegistration(domain);
-        console.log(`${domain}:`, result);
+
       } catch (error) {
-        console.log(`${domain}: ERROR -`, error.message);
+
       }
     }
   };

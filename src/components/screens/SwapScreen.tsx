@@ -62,11 +62,12 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           };
           setCryptoPrices(prices);
           setPriceError(false);
-          console.log('✅ SwapScreen: Fetched crypto prices:', prices);
+
         } else {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ SwapScreen: Error fetching prices:', error);
         setCryptoPrices({});
         setPriceError(true);
@@ -106,6 +107,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ SwapScreen: Retry failed:', error);
       setCryptoPrices({});
       setPriceError(true);
@@ -116,7 +118,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Listen for wallet changes to refresh data
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
-      console.log('🔄 Wallet changed event received in SwapScreen:', event.detail);
+
       // SwapScreen will automatically update when wallet state changes
       // since it uses wallet from context directly
     };
@@ -207,6 +209,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const allTransactions = [...(existingTransactions.swapTransactions || []), transaction];
       await storage.set({ swapTransactions: allTransactions });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save swap transaction:', error);
     }
   };
@@ -255,6 +258,7 @@ const SwapScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       toast.success(`Successfully swapped ${fromAmount} ${fromCurrency} to ${toAmount} ${toCurrency}`);
       setShowSuccessModal(true);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Swap failed:', error);
       toast.error('Swap failed. Please try again.');
     } finally {

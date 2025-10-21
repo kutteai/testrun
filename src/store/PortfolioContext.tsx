@@ -71,6 +71,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
           }));
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load portfolio data:', error);
       }
     };
@@ -85,6 +86,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
         portfolioValue: data
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save portfolio data:', error);
     }
   };
@@ -94,6 +96,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
       const result = await storage.get(['wallet']);
       return result.wallet || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get wallet data:', error);
       return null;
     }
@@ -123,8 +126,8 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
       // Convert to portfolio asset format
       const assets = convertToPortfolioAssets(dashboardData.assets);
       
+      // eslint-disable-next-line no-console
       console.log(`✅ Portfolio updated with ${assets.length} assets across ${Object.keys(dashboardData.networkBreakdown).length} networks`);
-      console.log('💰 Total USD value:', dashboardData.totalUSD);
 
       // Update portfolio state with enhanced data
       setPortfolioState(prev => ({
@@ -143,9 +146,8 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
         error: null
       }));
 
-      console.log('🎯 Portfolio context updated with multi-chain tokens');
-
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Portfolio update failed:', error);
       setPortfolioState(prev => ({
         ...prev,
@@ -182,6 +184,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
             });
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`Failed to get balance for ${network}:`, error);
         }
       }
@@ -212,6 +215,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
               changePercent: priceChange.price_change_percentage_24h || 0 
             };
           } catch (error) {
+            // eslint-disable-next-line no-console
             console.error(`Error getting 24h price change for ${tokenId}:`, error);
             return { tokenId, change24h: 0, changePercent: 0 };
           }
@@ -320,6 +324,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
         lastUpdated: portfolio.lastUpdated
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting portfolio data:', error);
       return {
         totalUSD: 0,

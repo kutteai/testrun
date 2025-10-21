@@ -39,6 +39,7 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         toast.success('Wallet locked successfully');
         onNavigate('welcome'); // Navigate to welcome/unlock screen
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to lock wallet:', error);
         toast.error('Failed to lock wallet');
         // Don't navigate on error - let user retry
@@ -61,6 +62,7 @@ const OptionsMenuScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           toast.error('Full screen mode not supported in this browser');
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to open expanded view:', error);
         toast.error('Failed to open full screen mode');
       }

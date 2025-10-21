@@ -46,6 +46,7 @@ const PreferencesScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setAppearance(preferences.userAppearance || 'Light mode');
         setDefaultWallet(preferences.defaultWallet || wallet?.name || 'No wallet selected');
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load preferences:', error);
         // Use defaults if loading fails
         setCurrency('USD');
@@ -66,6 +67,7 @@ const PreferencesScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setCurrency(newCurrency);
       await storage.set({ userCurrency: newCurrency });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save currency preference:', error);
     }
   };
@@ -76,6 +78,7 @@ const PreferencesScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setLanguage(newLanguage);
       await storage.set({ userLanguage: newLanguage });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save language preference:', error);
     }
   };
@@ -86,6 +89,7 @@ const PreferencesScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setAppearance(newAppearance);
       await storage.set({ userAppearance: newAppearance });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save appearance preference:', error);
     }
   };

@@ -107,6 +107,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const allTransactions = [...(existingTransactions.buySellTransactions || []), ...transactions];
       await storage.set({ buySellTransactions: allTransactions });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save transactions:', error);
     }
   };
@@ -143,8 +144,9 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         
         setCryptoPrices(prices);
         setPriceError(false);
-        console.log('✅ BuySellScreen: Fetched crypto prices:', prices);
+
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ BuySellScreen: Error fetching prices:', error);
         setCryptoPrices({});
         setPriceError(true);
@@ -155,6 +157,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     };
 
     fetchPrices().catch(error => {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch crypto prices:', error);
       // This catch block ensures the error doesn't propagate to the console
     });
@@ -190,6 +193,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ BuySellScreen: Retry failed:', error);
       setCryptoPrices({});
       setPriceError(true);
@@ -202,7 +206,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Listen for wallet changes to refresh data
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
-      console.log('🔄 Wallet changed event received in BuySellScreen:', event.detail);
+
       // BuySellScreen doesn't need to refresh data on wallet change
       // as it only shows price data and transaction forms
     };
@@ -278,6 +282,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       }
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Transaction failed:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Transaction failed. Please try again.');
       setTransactionStatus('error');
@@ -303,6 +308,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
             return result;
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`${exchange} buy order failed:`, error);
           continue;
         }
@@ -330,6 +336,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
             return result;
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`${exchange} sell order failed:`, error);
           continue;
         }
@@ -477,9 +484,10 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       if (wallet?.address) {
         // This would trigger a balance refresh in the wallet context
         // The actual implementation would depend on your wallet management system
-        console.log('Wallet balance updated after trade');
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error updating wallet balance:', error);
     }
   };

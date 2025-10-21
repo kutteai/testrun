@@ -137,6 +137,7 @@ export class TonWalletGenerator {
       }
       return 0;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON balance:', error);
       return 0;
     }
@@ -157,6 +158,7 @@ export class TonWalletGenerator {
       }
       return { balance: 0, state: 'uninitialized', code: '' };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON account info:', error);
       return { balance: 0, state: 'uninitialized', code: '' };
     }
@@ -208,6 +210,7 @@ export class TonWalletGenerator {
         hash: result.toString() 
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error sending TON:', error);
       return { success: false, error: error.message };
     }
@@ -235,6 +238,7 @@ export class TonWalletGenerator {
         blockHeight: tx.block_id?.seqno || 0
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON transactions:', error);
       return [];
     }
@@ -262,6 +266,7 @@ export class TonWalletGenerator {
       }
       return 0;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON Jetton balance:', error);
       return 0;
     }
@@ -282,6 +287,7 @@ export class TonWalletGenerator {
       }
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON Jetton metadata:', error);
       return null;
     }
@@ -311,6 +317,7 @@ export class TonAPI {
       }
       return { blockHeight: 0, totalSupply: 0, tps: 0 };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON network status:', error);
       return { blockHeight: 0, totalSupply: 0, tps: 0 };
     }
@@ -339,6 +346,7 @@ export class TonAPI {
         blockHeight: tx.block_id?.seqno || 0
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON transaction:', error);
       return null;
     }
@@ -355,6 +363,7 @@ export class TonAPI {
       }
       return 0.01; // Default gas price
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TON gas price:', error);
       return 0.01;
     }
@@ -387,6 +396,7 @@ export class TonAPI {
       
       return totalFee + congestionFee;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error estimating TON fee:', error);
       // Fallback to reasonable default
       return 0.015; // 0.01 base + 0.005 congestion
@@ -410,6 +420,7 @@ export class TonAPI {
         return 0.3; // Lower load during night/early morning
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to get network load:', error);
       return 0.5; // Default moderate load
     }

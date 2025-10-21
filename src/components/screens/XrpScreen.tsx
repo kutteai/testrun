@@ -39,6 +39,7 @@ const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setXrpWallets(stored.xrpWallets);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load XRP wallets:', error);
     }
   };
@@ -49,6 +50,7 @@ const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       await storage.set({ xrpWallets: wallets });
       setXrpWallets(wallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save XRP wallets:', error);
     }
   };
@@ -72,6 +74,7 @@ const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setNewWalletName('');
       toast.success('XRP wallet created successfully!');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating XRP wallet:', error);
       toast.error('Failed to create XRP wallet');
     } finally {
@@ -99,6 +102,7 @@ const XrpScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setXrpWallets(updatedWallets);
       await saveXrpWallets(updatedWallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading wallet data:', error);
     }
   };

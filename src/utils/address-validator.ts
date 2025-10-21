@@ -329,8 +329,8 @@ export class AddressTester {
           break;
           
         case 'ethereum':
-          balance = (parseInt(data.result || '0') / Math.pow(10, 18)).toString();
-          hasTransactions = parseInt(data.result || '0') > 0;
+          balance = (parseInt(data.result || '0', 10) / Math.pow(10, 18)).toString();
+          hasTransactions = parseInt(data.result || '0', 10) > 0;
           break;
           
         case 'litecoin':
@@ -414,45 +414,41 @@ export class AddressTester {
 
 // Test utility for development
 export const testAllAddressTypes = async (testAddresses: Record<string, string>) => {
-  console.log('🧪 Testing Generated Addresses...\n');
-  
+
   for (const [network, address] of Object.entries(testAddresses)) {
+    // eslint-disable-next-line no-console
     console.log(`\n📍 Testing ${network.toUpperCase()} Address: ${address}`);
+    // eslint-disable-next-line no-console
     console.log('━'.repeat(60));
     
     try {
       const result = await AddressTester.testGeneratedAddress(address, network);
       
       // Display validation results
-      console.log('📋 Format Validation:');
-      console.log(`  Valid: ${result.validation.isValid ? '✅' : '❌'}`);
-      console.log(`  Type: ${result.validation.addressType}`);
-      console.log(`  Network: ${result.validation.network}`);
-      
+
+
       if (result.validation.errors.length > 0) {
-        console.log('  Errors:', result.validation.errors);
+
       }
       
       if (result.validation.warnings.length > 0) {
-        console.log('  Warnings:', result.validation.warnings);
+
       }
       
       // Display blockchain test results
-      console.log('\n🌐 Blockchain Verification:');
-      console.log(`  Exists: ${result.blockchainTest.exists ? '✅' : '❌'}`);
-      console.log(`  Balance: ${result.blockchainTest.balance}`);
-      console.log(`  Has Transactions: ${result.blockchainTest.hasTransactions ? '✅' : '❌'}`);
-      console.log(`  Explorer: ${result.blockchainTest.explorerUrl}`);
-      
+
+
       if (result.blockchainTest.error) {
-        console.log(`  Error: ${result.blockchainTest.error}`);
+
       }
       
       // Display recommendations
-      console.log('\n💡 Recommendations:');
+
+      // eslint-disable-next-line no-console
       result.recommendations.forEach(rec => console.log(`  ${rec}`));
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`❌ Failed to test ${network} address:`, error);
     }
   }

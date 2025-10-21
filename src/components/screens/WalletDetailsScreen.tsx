@@ -44,6 +44,7 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         const current = await getCurrentAccount();
         setCurrentAccount(current);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load wallet data:', error);
         toast.error('Failed to load wallet details');
       } finally {

@@ -93,6 +93,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
         const popular = await getPopularTokens(currentNetwork);
         setPopularTokens(popular.slice(0, 10)); // Show top 10 popular tokens
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load popular tokens:', error);
         setPopularTokens([]);
       } finally {
@@ -106,7 +107,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
   // Refresh tokens when account changes
   useEffect(() => {
     if (accountId) {
-      console.log('🔄 TokenManagementPanel: Account changed, refreshing tokens for account:', accountId);
+
       refreshTokens();
     }
   }, [accountId, refreshTokens]);
@@ -115,6 +116,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
     try {
       await setTokenEnabled(currentNetwork, tokenAddress, enabled);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to toggle token:', error);
     }
   };
@@ -124,6 +126,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
       try {
         await removeToken(currentNetwork, tokenAddress);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to remove token:', error);
       }
     }
@@ -147,6 +150,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
       // Refresh tokens to update the UI
       await refreshTokens();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add popular token:', error);
     }
   };
@@ -176,6 +180,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
       setCustomToken({ address: '', symbol: '', name: '', decimals: 18 });
       setShowCustomTokenModal(false);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add custom token:', error);
       alert('Failed to add custom token. Please check the contract address.');
     } finally {
@@ -528,7 +533,7 @@ const TokenManagementPanel: React.FC<TokenManagementPanelProps> = ({
                   <input
                     type="number"
                     value={customToken.decimals}
-                    onChange={(e) => handleCustomTokenInputChange('decimals', parseInt(e.target.value) || 18)}
+                    onChange={(e) => handleCustomTokenInputChange('decimals', parseInt(e.target.value, 10) || 18)}
                     placeholder="18"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />

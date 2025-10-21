@@ -150,6 +150,7 @@ const AddAccountScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }, 1500);
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating account:', error);
       setCreationStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Failed to create account');

@@ -31,6 +31,7 @@ export async function executeBridgeTransfer(params: BridgeTransferParams): Promi
         throw new Error(`Unsupported bridge: ${params.bridge}`);
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Bridge transfer error:', error);
     throw error;
   }
@@ -104,6 +105,7 @@ async function executePolygonBridge(params: BridgeTransferParams): Promise<Bridg
       fees: params.bridgeConfig.fees
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Polygon bridge error:', error);
     throw error;
   }
@@ -176,6 +178,7 @@ async function executeMultichainBridge(params: BridgeTransferParams): Promise<Br
       fees: params.bridgeConfig.fees
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Multichain bridge error:', error);
     throw error;
   }
@@ -228,6 +231,7 @@ async function executeArbitrumBridge(params: BridgeTransferParams): Promise<Brid
       fees: params.bridgeConfig.fees
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Arbitrum bridge error:', error);
     throw error;
   }
@@ -248,6 +252,7 @@ export async function getBridgeStatus(txHash: string, bridge: string): Promise<s
         throw new Error(`Unsupported bridge: ${bridge}`);
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error getting bridge status:', error);
     return 'unknown';
   }
@@ -277,6 +282,7 @@ async function getPolygonBridgeStatus(txHash: string): Promise<string> {
         return 'unknown';
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error getting Polygon bridge status:', error);
     return 'unknown';
   }
@@ -306,6 +312,7 @@ async function getMultichainBridgeStatus(txHash: string): Promise<string> {
         return 'unknown';
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error getting Multichain bridge status:', error);
     return 'unknown';
   }
@@ -335,6 +342,7 @@ async function getArbitrumBridgeStatus(txHash: string): Promise<string> {
         return 'unknown';
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error getting Arbitrum bridge status:', error);
     return 'unknown';
   }
@@ -360,6 +368,7 @@ export async function getBridgeFees(fromChain: string, toChain: string, token: s
           }
         }
       } catch (apiError) {
+        // eslint-disable-next-line no-console
         console.warn(`Failed to fetch fees from ${api}:`, apiError);
         continue;
       }
@@ -377,6 +386,7 @@ export async function getBridgeFees(fromChain: string, toChain: string, token: s
     
     return feeMap[fromChain] || feeMap[toChain] || '0.15%';
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error getting bridge fees:', error);
     return '0.15%';
   }

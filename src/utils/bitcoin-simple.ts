@@ -39,6 +39,7 @@ export async function getBitcoinBalance(
     
     return balanceBTC.toFixed(8);
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Bitcoin balance:', error);
     return '0';
   }
@@ -74,6 +75,7 @@ export async function getBitcoinTransactions(
       address
     }));
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Bitcoin transactions:', error);
     return [];
   }
@@ -102,11 +104,10 @@ export async function getBitcoinFeeEstimate(
     // Return fee for 1 block confirmation (sat/vB)
     return (feeEstimates['1'] || 10) / 100000000; // Convert to BTC
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Bitcoin fee estimate:', error);
     return 0.001; // Default fee
   }
 }
-
-
 
 

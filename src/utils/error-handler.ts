@@ -159,6 +159,7 @@ export class ErrorHandler {
 
     // Log to console in development
     if ((import.meta as any).env?.DEV) {
+      // eslint-disable-next-line no-console
       console.error('App Error:', {
         message: error.message,
         code: error.code,

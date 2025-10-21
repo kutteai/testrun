@@ -38,15 +38,16 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       
       try {
         setIsLoading(true);
-        console.log('🔄 Loading accounts for wallet:', wallet.id);
+
         const walletAccounts = await getWalletAccounts();
-        console.log('✅ Loaded accounts:', walletAccounts);
+
         setAccounts(walletAccounts);
         
         // Set current account
         const currentAccount = await getCurrentAccount();
         setSelectedAccount(currentAccount);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load accounts:', error);
       } finally {
         setIsLoading(false);
@@ -63,8 +64,9 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         try {
           const currentAccount = await getCurrentAccount();
           setSelectedAccount(currentAccount);
-          console.log('🔄 Updated selected account from wallet change:', currentAccount?.id);
+
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Failed to update selected account:', error);
         }
       }
@@ -87,15 +89,16 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Listen for wallet changes to refresh accounts
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
-      console.log('🔄 Wallet changed event received in AccountsScreen:', event.detail);
+
       try {
         const walletAccounts = await getWalletAccounts();
-        console.log('✅ Refreshed accounts after wallet change:', walletAccounts);
+
         setAccounts(walletAccounts);
         
         const currentAccount = await getCurrentAccount();
         setSelectedAccount(currentAccount);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to refresh accounts after wallet change:', error);
       }
     };
@@ -129,6 +132,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       } else {
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to pin account:', error);
     }
   };
@@ -147,6 +151,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       }
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to hide account:', error);
     }
   };
@@ -166,30 +171,30 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       if (!password) {
         return;
       }
-      
-      console.log('🔄 Creating new account with name:', newAccountName);
+
       await addAccount(password, newAccountName.trim());
       
       // Wait a moment for the account to be properly created and saved
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Refresh accounts list
-      console.log('🔄 Refreshing accounts list...');
+
       const updatedAccounts = await getWalletAccounts();
-      console.log('✅ Updated accounts:', updatedAccounts);
+
       setAccounts(updatedAccounts);
       
       if (updatedAccounts.length > 0) {
         const newAccount = updatedAccounts[updatedAccounts.length - 1];
         if (newAccount && newAccount.address) {
           setSelectedAccount(newAccount);
-          console.log('✅ New account selected:', newAccount);
+
         }
       }
       
       setShowCreateAccountModal(false);
       setNewAccountName('');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to create new account:', error);
     }
   };
@@ -221,6 +226,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setShowSecretPhrase(true);
       setSecretPhrasePassword('');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Invalid password:', error);
       // Show error to user with better UX
       setSecretPhrasePassword('');
@@ -285,16 +291,15 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Handle account selection and switching
   const handleAccountSelect = async (account: any) => {
     try {
-      console.log('🔄 Switching to account:', account.id);
-      
+
       // Switch to the selected account using the wallet context
       await switchAccount(account.id);
       
       // Update local state
       setSelectedAccount(account);
-      
-      console.log('✅ Account switched successfully:', account.id);
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Failed to switch account:', error);
       // You could add a toast notification here for error feedback
     }

@@ -100,6 +100,7 @@ export class SolanaWalletGenerator {
       const balance = await this.connection.getBalance(publicKey);
       return balance / LAMPORTS_PER_SOL;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Solana balance:', error);
       return 0;
     }
@@ -124,6 +125,7 @@ export class SolanaWalletGenerator {
         };
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching token accounts:', error);
       return [];
     }
@@ -159,6 +161,7 @@ export class SolanaWalletGenerator {
 
       return signature;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating associated token account:', error);
       throw error;
     }
@@ -190,6 +193,7 @@ export class SolanaWalletGenerator {
 
       return { success: true, signature };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error sending SOL:', error);
       return { success: false, error: error.message };
     }
@@ -251,6 +255,7 @@ export class SolanaWalletGenerator {
 
       return { success: true, signature };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error sending token:', error);
       return { success: false, error: error.message };
     }
@@ -328,12 +333,14 @@ export class SolanaWalletGenerator {
             }
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Error processing transaction:', error);
         }
       }
       
       return transactions.sort((a, b) => b.timestamp - a.timestamp);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Solana transactions:', error);
       return [];
     }
@@ -345,6 +352,7 @@ export class SolanaWalletGenerator {
       // Get token metadata first to find the CoinGecko ID
       const metadata = await this.getTokenMetadata(tokenMint);
       if (!metadata) {
+        // eslint-disable-next-line no-console
         console.error('Token metadata not found for price lookup');
         return null;
       }
@@ -353,6 +361,7 @@ export class SolanaWalletGenerator {
       const response = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${metadata.symbol.toLowerCase()}&vs_currencies=usd`);
       
       if (!response.ok) {
+        // eslint-disable-next-line no-console
         console.error('Failed to fetch token price from CoinGecko');
         return null;
       }
@@ -362,6 +371,7 @@ export class SolanaWalletGenerator {
       
       return price || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching token price:', error);
       return null;
     }
@@ -381,6 +391,7 @@ export class SolanaWalletGenerator {
       
       return { success: true, signature };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error airdropping SOL:', error);
       return { success: false, error: error.message };
     }
@@ -410,6 +421,7 @@ export class SolanaAPI {
         clusterNodes: clusterNodes.length
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching network status:', error);
       return { slot: 0, blockHeight: 0, clusterNodes: 0 };
     }
@@ -429,6 +441,7 @@ export class SolanaAPI {
       
       return { tps: 0, avgBlockTime: 0 };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching performance:', error);
       return { tps: 0, avgBlockTime: 0 };
     }
@@ -451,6 +464,7 @@ export class SolanaAPI {
       
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching token metadata:', error);
       return null;
     }

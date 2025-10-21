@@ -8,8 +8,7 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 
 const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
-  console.log('🎨 NFTsScreen: Component rendered');
-  
+
   const { wallet, currentNetwork } = useWallet();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -19,26 +18,26 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [isSettingProfile, setIsSettingProfile] = useState(false);
 
   useEffect(() => {
-    console.log('🔄 NFTsScreen: useEffect triggered, wallet address:', wallet?.address, 'network:', currentNetwork?.id);
+
     if (wallet?.address) {
       loadNFTs();
       loadProfilePicture();
     } else {
-      console.log('❌ NFTsScreen: No wallet address available');
+
     }
   }, [wallet?.address, currentNetwork?.id]);
 
   // Listen for network changes to refresh NFTs
   useEffect(() => {
     const handleNetworkChange = async (event: CustomEvent) => {
-      console.log('🔄 Network changed event received in NFTsScreen:', event.detail);
+
       if (wallet?.address) {
         await loadNFTs();
       }
     };
 
     const handleAccountSwitched = async (event: CustomEvent) => {
-      console.log('🔄 Account switched event received in NFTsScreen:', event.detail);
+
       if (wallet?.address) {
         await loadNFTs();
         await loadProfilePicture();
@@ -55,7 +54,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
 
   const loadNFTs = async () => {
     if (!wallet?.address) {
-      console.log('❌ NFTsScreen: No wallet address available');
+
       return;
     }
 
@@ -63,14 +62,11 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     try {
       const network = currentNetwork?.id || wallet.currentNetwork || 'ethereum';
       const rpcUrl = getNetworkRPCUrl(network);
-      
-      console.log('🔍 NFTsScreen: Loading NFTs for address:', wallet.address);
-      console.log('🔍 NFTsScreen: Network:', network);
-      console.log('🔍 NFTsScreen: RPC URL:', rpcUrl);
-      
+
+
       const ownedNFTs = await getOwnedNFTs(wallet.address, rpcUrl, network);
-      
-      console.log('✅ NFTsScreen: Loaded NFTs:', ownedNFTs.length);
+
+      // eslint-disable-next-line no-console
       console.log('📊 NFTsScreen: NFT details:', ownedNFTs.map(nft => ({
         name: nft.metadata.name,
         collection: nft.name,
@@ -80,12 +76,13 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setNfts(ownedNFTs);
       
       if (ownedNFTs.length === 0) {
-        console.log('ℹ️ NFTsScreen: No NFTs found, showing demo NFTs');
+
         toast.success('No NFTs found in your wallet');
       } else {
         toast.success(`Found ${ownedNFTs.length} NFTs`);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ NFTsScreen: Error loading NFTs:', error);
       toast.error('Failed to load NFTs');
     } finally {
@@ -98,6 +95,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const currentProfile = await getProfilePicture();
       setProfilePicture(currentProfile);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading profile picture:', error);
     }
   };
@@ -109,6 +107,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setProfilePicture(nft);
       toast.success(`${nft.metadata.name} set as profile picture!`);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error setting profile picture:', error);
       toast.error('Failed to set profile picture');
     } finally {
@@ -122,6 +121,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setProfilePicture(null);
       toast.success('Profile picture removed');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error removing profile picture:', error);
       toast.error('Failed to remove profile picture');
     }
@@ -269,6 +269,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                     alt={nft.metadata.name}
                     className="w-full h-full object-cover"
                     onError={(e) => {
+// Line too long - review manually
                       e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjODg4Ii8+CjxwYXRoIGQ9Ik0xMDAgMTAwQzEzMy4xMzcgMTAwIDE2MCA3My4xMzcgMTYwIDQwQzE2MCA2Ljg2MyAxMzMuMTM3IC0yMCAxMDAgLTIwQzY2Ljg2MyAtMjAgNDAgNi44NjMgNDAgNDBDNDAgNzMuMTM3IDY2Ljg2MyAxMDAgMTAwIDEwMFoiIGZpbGw9IiNBQUEiLz4KPHBhdGggZD0iTTE2MCAxNjBDMTYwIDEyNi44NjMgMTMzLjEzNyAxMDAgMTAwIDEwMEM2Ni44NjMgMTAwIDQwIDEyNi44NjMgNDAgMTYwSDE2MFoiIGZpbGw9IiNBQUEiLz4KPC9zdmc+';
                     }}
                   />

@@ -40,6 +40,7 @@ const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         setTonWallets(stored.tonWallets);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load TON wallets:', error);
     }
   };
@@ -50,6 +51,7 @@ const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       await storage.set({ tonWallets: wallets });
       setTonWallets(wallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save TON wallets:', error);
     }
   };
@@ -73,6 +75,7 @@ const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setNewWalletName('');
       toast.success('TON wallet created successfully!');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating TON wallet:', error);
       toast.error('Failed to create TON wallet');
     } finally {
@@ -98,6 +101,7 @@ const TonScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setTonWallets(updatedWallets);
       await saveTonWallets(updatedWallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading wallet data:', error);
     }
   };

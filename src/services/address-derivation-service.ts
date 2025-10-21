@@ -49,6 +49,7 @@ export class AddressDerivationService {
         return await this.deriveNonEvmAddress(seedPhrase, network, accountIndex);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error(`Address derivation failed for ${networkId}:`, error);
       throw new Error(`Failed to derive ${networkId} address: ${error.message}`);
     }
@@ -82,7 +83,6 @@ export class AddressDerivationService {
         throw new Error('Generated invalid address format');
       }
 
-      console.log(`✅ Derived EVM address: ${address}`);
       return address;
     } catch (error) {
       throw new Error(`EVM address derivation failed: ${error.message}`);
@@ -379,6 +379,7 @@ export class AddressDerivationService {
       try {
         addresses[network] = await this.deriveAddress(seedPhrase, network, accountIndex);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Failed to derive ${network} address:`, error);
         addresses[network] = `Error: ${error.message}`;
       }

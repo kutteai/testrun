@@ -159,10 +159,11 @@ export class XrpWalletGenerator {
       const data = await response.json();
       
       if (data.result && data.result.account_data) {
-        return parseInt(data.result.account_data.Balance) / 1_000_000; // Convert from drops to XRP
+        return parseInt(data.result.account_data.Balance, 10) / 1_000_000; // Convert from drops to XRP
       }
       return 0;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP balance:', error);
       return 0;
     }
@@ -189,13 +190,14 @@ export class XrpWalletGenerator {
       
       if (data.result && data.result.account_data) {
         return {
-          balance: parseInt(data.result.account_data.Balance) / 1_000_000,
+          balance: parseInt(data.result.account_data.Balance, 10) / 1_000_000,
           sequence: data.result.account_data.Sequence,
           flags: data.result.account_data.Flags
         };
       }
       return { balance: 0, sequence: 0, flags: 0 };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP account info:', error);
       return { balance: 0, sequence: 0, flags: 0 };
     }
@@ -246,6 +248,7 @@ export class XrpWalletGenerator {
         };
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error sending XRP:', error);
       return { success: false, error: error.message };
     }
@@ -279,7 +282,7 @@ export class XrpWalletGenerator {
         ledgerIndex: tx.tx.ledger_index,
         timestamp: tx.tx.date * 1000, // Convert to milliseconds
         amount: this.parseAmount(tx.tx.Amount),
-        fee: parseInt(tx.tx.Fee) / 1_000_000,
+        fee: parseInt(tx.tx.Fee, 10) / 1_000_000,
         type: this.getTransactionType(tx.tx.TransactionType),
         from: tx.tx.Account,
         to: tx.tx.Destination || '',
@@ -288,6 +291,7 @@ export class XrpWalletGenerator {
         validated: true
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP transactions:', error);
       return [];
     }
@@ -296,7 +300,7 @@ export class XrpWalletGenerator {
   // Parse XRP amount
   private parseAmount(amount: any): number {
     if (typeof amount === 'string') {
-      return parseInt(amount) / 1_000_000; // Convert drops to XRP
+      return parseInt(amount, 10) / 1_000_000; // Convert drops to XRP
     }
     if (typeof amount === 'object' && amount.currency) {
       return parseFloat(amount.value);
@@ -347,6 +351,7 @@ export class XrpWalletGenerator {
         balance: parseFloat(line.balance)
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP token balances:', error);
       return [];
     }
@@ -376,6 +381,7 @@ export class XrpWalletGenerator {
       }
       return { ledgerIndex: 0, validatedLedger: 0, serverTime: Date.now() };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP server info:', error);
       return { ledgerIndex: 0, validatedLedger: 0, serverTime: Date.now() };
     }
@@ -407,13 +413,14 @@ export class XrpAPI {
       
       if (data.result && data.result.info) {
         return {
-          ledgerIndex: parseInt(data.result.info.complete_ledgers.split('-')[1]) || 0,
+          ledgerIndex: parseInt(data.result.info.complete_ledgers.split('-', 10)[1]) || 0,
           validatedLedger: data.result.info.validated_ledger?.seq || 0,
           serverTime: data.result.info.time * 1000
         };
       }
       return { ledgerIndex: 0, validatedLedger: 0, serverTime: Date.now() };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP network status:', error);
       return { ledgerIndex: 0, validatedLedger: 0, serverTime: Date.now() };
     }
@@ -445,7 +452,7 @@ export class XrpAPI {
         ledgerIndex: data.result.ledger_index,
         timestamp: data.result.date * 1000,
         amount: this.parseAmount(data.result.Amount),
-        fee: parseInt(data.result.Fee) / 1_000_000,
+        fee: parseInt(data.result.Fee, 10) / 1_000_000,
         type: 'payment',
         from: data.result.Account,
         to: data.result.Destination || '',
@@ -454,6 +461,7 @@ export class XrpAPI {
         validated: true
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP transaction:', error);
       return null;
     }
@@ -462,7 +470,7 @@ export class XrpAPI {
   // Parse XRP amount
   private parseAmount(amount: any): number {
     if (typeof amount === 'string') {
-      return parseInt(amount) / 1_000_000; // Convert drops to XRP
+      return parseInt(amount, 10) / 1_000_000; // Convert drops to XRP
     }
     if (typeof amount === 'object' && amount.currency) {
       return parseFloat(amount.value);
@@ -487,13 +495,14 @@ export class XrpAPI {
       
       if (data.result && data.result.drops) {
         return {
-          slow: parseInt(data.result.drops.minimum_fee) / 1_000_000,
-          medium: parseInt(data.result.drops.median_fee) / 1_000_000,
-          fast: parseInt(data.result.drops.open_ledger_fee) / 1_000_000
+          slow: parseInt(data.result.drops.minimum_fee, 10) / 1_000_000,
+          medium: parseInt(data.result.drops.median_fee, 10) / 1_000_000,
+          fast: parseInt(data.result.drops.open_ledger_fee, 10) / 1_000_000
         };
       }
       return { slow: 0.00001, medium: 0.00001, fast: 0.00001 };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching XRP fee estimate:', error);
       return { slow: 0.00001, medium: 0.00001, fast: 0.00001 };
     }
@@ -523,6 +532,7 @@ export class XrpAPI {
         return { success: false, error: data.result?.engine_result_message || 'Unknown error' };
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error submitting XRP transaction:', error);
       return { success: false, error: 'Network error' };
     }

@@ -58,6 +58,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         // Get transaction data from session storage (set by SendScreen)
         const txData = sessionStorage.getItem('pendingTransaction');
         if (!txData) {
+          // eslint-disable-next-line no-console
           console.warn('No transaction data found in session storage');
           // Set default values if no data found
           setTransactionDetails({
@@ -75,13 +76,13 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         }
 
         const parsedData = JSON.parse(txData);
-        console.log('Loaded transaction data:', parsedData);
-        
+
         // Get current account and network info
         const accountAddress = wallet?.address || wallet?.accounts?.[0]?.addresses?.ethereum || '';
         const networkInfo = network || currentNetwork;
         
         if (!accountAddress || !networkInfo) {
+          // eslint-disable-next-line no-console
           console.warn('Wallet or network not available, using defaults');
           setTransactionDetails({
             amount: parsedData.amount || '0',
@@ -104,13 +105,15 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         try {
           gasEst = await estimateGas(parsedData.toAddress, parsedData.amount, networkInfo);
         } catch (gasError) {
+          // eslint-disable-next-line no-console
           console.warn('Gas estimation failed, using default:', gasError);
         }
         
         try {
           currentGasPrice = await getCurrentGasPrice(networkInfo);
-          console.log('✅ Real gas price fetched:', currentGasPrice, 'gwei');
+
         } catch (gasPriceError) {
+          // eslint-disable-next-line no-console
           console.warn('Failed to fetch real gas price, using fallback:', gasPriceError);
           // Try to get gas price from gas-utils as backup
           try {
@@ -118,9 +121,10 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
             const prices = await getCurrentGasPrices(networkInfo.rpcUrl);
             if (prices.gasPrice && prices.gasPrice !== '0') {
               currentGasPrice = ethers.formatUnits(prices.gasPrice, 'gwei');
-              console.log('✅ Backup gas price fetched:', currentGasPrice, 'gwei');
+
             }
           } catch (backupError) {
+            // eslint-disable-next-line no-console
             console.warn('Backup gas price fetch also failed:', backupError);
           }
         }
@@ -133,6 +137,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           fiatValue = await getFiatConversion(parsedData.amount, networkInfo.symbol || 'ethereum');
           transactionSpeed = calculateTransactionSpeed(currentGasPrice, networkInfo);
         } catch (conversionError) {
+          // eslint-disable-next-line no-console
           console.warn('Fiat conversion failed, using defaults:', conversionError);
         }
         
@@ -154,6 +159,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         setGasEstimate(gasEst.toString());
         setGasPrice(currentGasPrice);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error getting transaction data:', error);
         toast.error(`Failed to load transaction details: ${error.message}`);
       }
@@ -273,6 +279,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         toast.success('Transaction sent successfully!');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Transaction failed:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Transaction failed');
       setShowErrorModal(true);
@@ -313,6 +320,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       
       return receipt.hash;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Transaction sending failed:', error);
       throw error;
     }
@@ -332,14 +340,14 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       // Update transaction details with new gas price
       setTransactionDetails(prev => ({
         ...prev,
-        networkFee: calculateNetworkFee(parseInt(gasEstimate), value, currentNetwork || network)
+        networkFee: calculateNetworkFee(parseInt(gasEstimate, 10), value, currentNetwork || network)
       }));
     } else if (type === 'gasLimit') {
       setGasEstimate(value);
       // Update transaction details with new gas limit
       setTransactionDetails(prev => ({
         ...prev,
-        networkFee: calculateNetworkFee(parseInt(value), gasPrice, currentNetwork || network)
+        networkFee: calculateNetworkFee(parseInt(value, 10), gasPrice, currentNetwork || network)
       }));
     }
   };
@@ -362,7 +370,7 @@ const ReviewSendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     setGasPrice(newGasPrice);
     setTransactionDetails(prev => ({
       ...prev,
-      networkFee: calculateNetworkFee(parseInt(gasEstimate), newGasPrice, currentNetwork || network)
+      networkFee: calculateNetworkFee(parseInt(gasEstimate, 10), newGasPrice, currentNetwork || network)
     }));
     
     toast.success(`Gas price set to ${preset} speed`);

@@ -3,39 +3,30 @@
 
 export async function debugWalletPassword(testPassword?: string) {
   try {
-    console.log('🔍 Debugging wallet password verification...');
-    
+
     // Get current storage data
     const storageData = await new Promise((resolve) => {
       chrome.storage.local.get(null, resolve);
     });
     
+    // eslint-disable-next-line no-console
     console.log('📦 Storage keys found:', Object.keys(storageData));
     
     const wallet = (storageData as any).wallet;
     const passwordHash = (storageData as any).passwordHash;
     const walletState = (storageData as any).walletState;
-    
-    console.log('📋 Wallet analysis:');
-    console.log('  - Has wallet:', !!wallet);
-    console.log('  - Has password hash:', !!passwordHash);
-    console.log('  - Has wallet state:', !!walletState);
-    
+
+
     if (wallet) {
-      console.log('  - Wallet ID:', wallet.id);
-      console.log('  - Wallet name:', wallet.name);
-      console.log('  - Has encrypted seed phrase:', !!wallet.encryptedSeedPhrase);
-      console.log('  - Has legacy password:', !!wallet.password);
-      console.log('  - Current address:', wallet.address);
+
+
     }
     
     if (!testPassword) {
-      console.log('ℹ️ No test password provided. Storage analysis complete.');
+
       return;
     }
-    
-    console.log('🔐 Testing password verification methods...');
-    
+
     // Test 1: Hash verification
     if (passwordHash) {
       try {
@@ -47,14 +38,16 @@ export async function debugWalletPassword(testPassword?: string) {
         const testHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         
         const hashMatch = testHash === passwordHash;
-        console.log('✅ Hash verification:', hashMatch ? 'PASS' : 'FAIL');
+
+        // eslint-disable-next-line no-console
         console.log('  - Test hash:', testHash.substring(0, 20) + '...');
+        // eslint-disable-next-line no-console
         console.log('  - Stored hash:', passwordHash.substring(0, 20) + '...');
       } catch (error) {
-        console.log('❌ Hash verification error:', error.message);
+
       }
     } else {
-      console.log('⚠️ No password hash found in storage');
+
     }
     
     // Test 2: Seed phrase decryption
@@ -68,13 +61,8 @@ export async function debugWalletPassword(testPassword?: string) {
         const salt = data.slice(0, 16);
         const iv = data.slice(16, 28);
         const encrypted = data.slice(28);
-        
-        console.log('🔍 Encrypted data structure:');
-        console.log('  - Total length:', data.length);
-        console.log('  - Salt length:', salt.length);
-        console.log('  - IV length:', iv.length);
-        console.log('  - Encrypted length:', encrypted.length);
-        
+
+
         // Try to derive key and decrypt
         const encoder = new TextEncoder();
         const keyMaterial = await crypto.subtle.importKey(
@@ -106,28 +94,29 @@ export async function debugWalletPassword(testPassword?: string) {
         
         const seedPhrase = new TextDecoder().decode(decrypted);
         const words = seedPhrase.trim().split(' ');
-        
-        console.log('✅ Seed phrase decryption: PASS');
-        console.log('  - Decrypted length:', seedPhrase.length);
-        console.log('  - Word count:', words.length);
+
+
+        // eslint-disable-next-line no-console
         console.log('  - First 3 words:', words.slice(0, 3).join(' ') + '...');
         
       } catch (error) {
-        console.log('❌ Seed phrase decryption: FAIL');
-        console.log('  - Error:', error.message);
+
+
       }
     } else {
-      console.log('⚠️ No encrypted seed phrase found');
+
     }
     
     // Test 3: Legacy password check
     if (wallet && wallet.password) {
       const legacyMatch = wallet.password === testPassword;
-      console.log('✅ Legacy password check:', legacyMatch ? 'PASS' : 'FAIL');
+
+      // eslint-disable-next-line no-console
       console.log('  - Stored password:', wallet.password.substring(0, 3) + '***');
+      // eslint-disable-next-line no-console
       console.log('  - Test password:', testPassword.substring(0, 3) + '***');
     } else {
-      console.log('⚠️ No legacy password found');
+
     }
     
     // Test 4: Send message to background script
@@ -138,15 +127,13 @@ export async function debugWalletPassword(testPassword?: string) {
           password: testPassword
         }, resolve);
       });
-      
-      console.log('📨 Background script response:', response);
+
     } catch (error) {
-      console.log('❌ Background script communication error:', error.message);
+
     }
-    
-    console.log('🏁 Password debugging complete!');
-    
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ Debug function error:', error);
   }
 }
@@ -154,6 +141,8 @@ export async function debugWalletPassword(testPassword?: string) {
 // Make it available globally for console use
 if (typeof window !== 'undefined') {
   (window as any).debugWalletPassword = debugWalletPassword;
+  // eslint-disable-next-line no-console
   console.log('🔧 Wallet debug tool loaded. Use: debugWalletPassword("your-password")');
+  // eslint-disable-next-line no-console
   console.log('🔧 Or just: debugWalletPassword() to analyze storage without testing password');
 }

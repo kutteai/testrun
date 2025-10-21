@@ -1,18 +1,16 @@
 // PayCio Content Script - Simple version without modules
-console.log('🚀 PayCio Content Script Loading...');
 
 // Prevent multiple injections
 if (window.paycioContentScriptLoaded) {
-  console.log('PayCio content script already loaded');
+
 } else {
   window.paycioContentScriptLoaded = true;
 
   // Create provider directly in content script context (CSP-compliant)
-  console.log('🚀 PayCio Provider Injecting...');
 
   // Prevent multiple injections
   if (window.paycioProviderInjected) {
-    console.log('PayCio provider already injected');
+
   } else {
     window.paycioProviderInjected = true;
 
@@ -70,8 +68,7 @@ if (window.paycioContentScriptLoaded) {
         });
         
         window.dispatchEvent(new Event('ethereum#initialized'));
-        
-        console.log('✅ PayCio Provider announced');
+
       },
 
       _handleMessage: function(data) {
@@ -227,6 +224,7 @@ if (window.paycioContentScriptLoaded) {
         }
         
         if (this._events[event].length >= this._maxListeners) {
+           
           console.warn('MaxListenersExceededWarning for event:', event);
         }
         
@@ -283,6 +281,7 @@ if (window.paycioContentScriptLoaded) {
           try {
             listeners[i].apply(this, args);
           } catch (error) {
+             
             console.error('Error in event listener:', error);
           }
         }
@@ -309,14 +308,14 @@ if (window.paycioContentScriptLoaded) {
         writable: false,
         configurable: false
       });
-      console.log('✅ PayCio Provider set as window.ethereum');
+
     } else {
       if (window.ethereum.providers) {
         window.ethereum.providers.push(paycioProvider);
       } else {
         window.ethereum.providers = [window.ethereum, paycioProvider];
       }
-      console.log('✅ PayCio Provider added to providers array');
+
     }
 
     // Also expose as window.paycio
@@ -326,7 +325,6 @@ if (window.paycioContentScriptLoaded) {
       configurable: false
     });
 
-    console.log('✅ PayCio Provider ready!');
   }
 
   // Message handler for provider requests
@@ -341,9 +339,7 @@ if (window.paycioContentScriptLoaded) {
     var params = event.data.params;
     var requestId = event.data.requestId;
     var origin = event.data.origin;
-    
-    console.log('PayCio Content Script: Handling request:', method);
-    
+
     chrome.runtime.sendMessage({
       type: 'WALLET_REQUEST',
       method: method,
@@ -351,6 +347,7 @@ if (window.paycioContentScriptLoaded) {
       origin: origin
     }, function(response) {
       if (chrome.runtime.lastError) {
+         
         console.error('Background script error:', chrome.runtime.lastError);
         window.postMessage({
           source: 'paycio-content',
@@ -375,8 +372,7 @@ if (window.paycioContentScriptLoaded) {
 
   // Listen for background script messages
   chrome.runtime.onMessage.addListener(function(message, sender, sendResponse) {
-    console.log('PayCio Content Script: Background message:', message.type);
-    
+
     if (message.type && message.type.startsWith('PAYCIO_')) {
       window.postMessage({
         source: 'paycio-content',
@@ -391,5 +387,4 @@ if (window.paycioContentScriptLoaded) {
     return true;
   });
 
-  console.log('✅ PayCio Content Script Ready!');
 }

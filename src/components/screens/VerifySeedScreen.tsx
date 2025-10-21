@@ -23,6 +23,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       const result = await storage.get(['currentSeedPhrase']);
       return result.currentSeedPhrase || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load seed phrase:', error);
       return null;
     }
@@ -33,6 +34,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       await storage.set({ seedPhraseVerified: true });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save verification status:', error);
     }
   };
@@ -55,6 +57,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           onNavigate('create');
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Error getting seed phrase:', error);
         toast.error('Failed to load seed phrase');
         onNavigate('create');
@@ -71,6 +74,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     const isCorrect = userInput.trim().toLowerCase() === currentWord.toLowerCase();
     
     // Debug logging
+    // eslint-disable-next-line no-console
     console.log('Verification attempt:', {
       userInput: userInput.trim().toLowerCase(),
       expectedWord: currentWord.toLowerCase(),
@@ -127,6 +131,7 @@ const VerifySeedScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               onNavigate('dashboard');
             }, 1500);
           } catch (walletError) {
+            // eslint-disable-next-line no-console
             console.error('Failed to create wallet:', walletError);
             const errorMessage = walletError instanceof Error ? walletError.message : 'Verification successful but wallet creation failed';
             toast.error(errorMessage);

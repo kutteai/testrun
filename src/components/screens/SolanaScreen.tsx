@@ -33,7 +33,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Listen for network changes
   useEffect(() => {
     const handleNetworkChange = async (event: CustomEvent) => {
-      console.log('🔄 Network changed event received in SolanaScreen:', event.detail);
+
       if (currentNetwork?.id === 'solana') {
         // Refresh Solana data when switching to Solana network
         await loadSolanaWallets();
@@ -65,6 +65,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load Solana wallets:', error);
     }
   };
@@ -75,6 +76,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       await storage.set({ solanaWallets: wallets });
       setSolanaWallets(wallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save Solana wallets:', error);
     }
   };
@@ -89,6 +91,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         avgBlockTime: performance.avgBlockTime
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading network status:', error);
     }
   };
@@ -99,6 +102,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const data = await response.json();
       setSolPrice(data.solana?.usd || 0);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading SOL price:', error);
       setSolPrice(0);
     }
@@ -124,6 +128,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setSolanaWallets(updatedWallets);
       await saveSolanaWallets(updatedWallets);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error loading wallet data:', error);
     }
   };
@@ -147,6 +152,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       setNewWalletName('');
       toast.success('Solana wallet created successfully!');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating Solana wallet:', error);
       toast.error('Failed to create Solana wallet');
     } finally {
@@ -167,6 +173,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         toast.error(result.error || 'Failed to airdrop SOL');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error airdropping SOL:', error);
       toast.error('Failed to airdrop SOL');
     } finally {
@@ -183,6 +190,7 @@ const SolanaScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       await loadNetworkStatus();
       toast.success('Wallet refreshed successfully');
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error refreshing wallet:', error);
       toast.error('Failed to refresh wallet');
     } finally {

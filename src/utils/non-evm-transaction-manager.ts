@@ -40,10 +40,10 @@ export class BitcoinTransactionManager {
       const txHash = tx.getId();
       
       // In a real implementation, you would broadcast this to a Bitcoin node
-      console.log('Bitcoin transaction created:', txHash);
-      
+
       return { txHash, success: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Bitcoin transaction failed:', error);
       return { txHash: '', success: false };
     }
@@ -89,6 +89,7 @@ export class SolanaTransactionManager {
       
       return { txHash, success: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Solana transaction failed:', error);
       return { txHash: '', success: false };
     }
@@ -133,6 +134,7 @@ export class TronTransactionManager {
       
       return { txHash: result.txid, success: result.result };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('TRON transaction failed:', error);
       return { txHash: '', success: false };
     }
@@ -181,6 +183,7 @@ export class TONTransactionManager {
       
       return { txHash: result.toString(), success: true };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('TON transaction failed:', error);
       return { txHash: '', success: false };
     }
@@ -227,6 +230,7 @@ export class XRPTransactionManager {
       
       return { txHash: result.result.hash, success: result.result.validated };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('XRP transaction failed:', error);
       return { txHash: '', success: false };
     }

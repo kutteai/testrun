@@ -110,6 +110,7 @@ async function fetchOpenSeaNFTMetadata(contractAddress: string, tokenId: string,
       }
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching OpenSea metadata:', error);
     throw error;
   }
@@ -150,6 +151,7 @@ async function fetchAlchemyNFTMetadata(contractAddress: string, tokenId: string,
       metadata: data.rawMetadata || {}
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching Alchemy metadata:', error);
     throw error;
   }
@@ -202,6 +204,7 @@ async function fetchBlockchainNFTMetadata(contractAddress: string, tokenId: stri
       metadata: metadata
     };
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching blockchain metadata:', error);
     throw error;
   }
@@ -227,6 +230,7 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
           }));
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load NFTs:', error);
       }
     };
@@ -242,6 +246,7 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
         nfts: nfts
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save NFTs:', error);
     }
   };
@@ -374,6 +379,7 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
               metadata: metadata.metadata
             };
           } catch (error) {
+            // eslint-disable-next-line no-console
             console.warn(`Failed to refresh NFT ${nft.id}:`, error);
             return nft; // Keep original if refresh fails
           }

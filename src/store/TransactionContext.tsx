@@ -76,6 +76,7 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
           }));
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load transactions:', error);
       }
     };
@@ -95,6 +96,7 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
         pendingTransactions: transactions.filter(tx => tx.status === 'pending')
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save transactions:', error);
     }
   };
@@ -166,6 +168,7 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
         pendingTransactions: []
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to clear transactions:', error);
     }
   };
@@ -193,6 +196,7 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
             // For now, keep transactions as pending until real implementation
             return tx;
           } catch (error) {
+            // eslint-disable-next-line no-console
             console.error('Error checking transaction status:', error);
             return tx;
           }

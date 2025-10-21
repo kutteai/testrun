@@ -152,6 +152,7 @@ export class TronWalletGenerator {
       }
       return 0;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRON balance:', error);
       return 0;
     }
@@ -168,6 +169,7 @@ export class TronWalletGenerator {
         bandwidth: data.NetUsed || 0
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRON resources:', error);
       return { energy: 0, bandwidth: 0 };
     }
@@ -184,6 +186,7 @@ export class TronWalletGenerator {
       }
       return 0;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRC20 balance:', error);
       return 0;
     }
@@ -212,6 +215,7 @@ export class TronWalletGenerator {
       }
       return { success: false, error: 'Broadcast failed' };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error sending TRX:', error);
       return { success: false, error: error.message };
     }
@@ -241,6 +245,7 @@ export class TronWalletGenerator {
       }
       return { success: false, error: 'Token transfer failed' };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error sending TRC20 token:', error);
       return { success: false, error: error.message };
     }
@@ -266,6 +271,7 @@ export class TronWalletGenerator {
         confirmed: tx.ret?.[0]?.contractRet === 'SUCCESS'
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRON transactions:', error);
       return [];
     }
@@ -300,6 +306,7 @@ export class TronWalletGenerator {
       }
       return null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching token metadata:', error);
       return null;
     }
@@ -326,6 +333,7 @@ export class TronAPI {
         tps: data.tps || 0
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRON network status:', error);
       return { blockHeight: 0, totalSupply: 0, tps: 0 };
     }
@@ -351,6 +359,7 @@ export class TronAPI {
         confirmed: data.ret?.[0]?.contractRet === 'SUCCESS'
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRON transaction:', error);
       return null;
     }
@@ -364,6 +373,7 @@ export class TronAPI {
       
       return data.energyPrice || 420;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching TRON energy price:', error);
       return 420; // Default energy price
     }

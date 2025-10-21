@@ -203,8 +203,6 @@ export class CrossChainBridge {
   }
 
 
-
-
   // Execute real cross-chain transfer
   async executeTransfer(
     fromChain: string,
@@ -243,6 +241,7 @@ export class CrossChainBridge {
         fees: result.fees
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error executing cross-chain transfer:', error);
       return {
         success: false,

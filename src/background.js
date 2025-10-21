@@ -1,22 +1,19 @@
 // background.js - Service Worker for PayCio Wallet
-console.log('PayCio Background Script Starting...');
 
 // Handle extension installation and updates
 chrome.runtime.onInstalled.addListener((details) => {
-  console.log('PayCio Extension installed/updated:', details.reason);
-  
+
   if (details.reason === 'install') {
     // First installation - could open welcome page
-    console.log('First time installation');
+
   } else if (details.reason === 'update') {
-    console.log('Extension updated from', details.previousVersion);
+
   }
 });
 
 // Message handler for content scripts and popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Background received message:', request.type, request);
-  
+
   // Handle wallet requests from content scripts
   if (request.type === 'WALLET_REQUEST') {
     handleWalletRequest(request, sender, sendResponse);
@@ -46,7 +43,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       return true;
       
     default:
-      console.log('Unknown message type:', request.type);
+
       sendResponse({
         success: false,
         error: 'Unknown request type'
@@ -57,9 +54,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Handle wallet requests from DApps
 async function handleWalletRequest(request, sender, sendResponse) {
   const { method, params = [], origin } = request;
-  
-  console.log(`Handling wallet request: ${method} from ${origin || 'unknown'}`);
-  
+
   try {
     // Check if wallet exists and is unlocked
     const walletStatus = await getWalletStatus();
@@ -151,6 +146,7 @@ async function handleWalletRequest(request, sender, sendResponse) {
     });
     
   } catch (error) {
+     
     console.error('Wallet request error:', error);
     sendResponse({
       success: false,
@@ -168,6 +164,7 @@ async function getWalletStatus() {
       unlocked: !!data.isUnlocked
     };
   } catch (error) {
+     
     console.error('Error getting wallet status:', error);
     return { exists: false, unlocked: false };
   }
@@ -213,6 +210,7 @@ async function handleGetAccounts(origin) {
     return [primaryAccount.address];
     
   } catch (error) {
+     
     console.error('Error getting accounts:', error);
     throw error;
   }
@@ -243,6 +241,7 @@ async function requestUserApproval(origin) {
       chrome.windows.onRemoved.addListener(listener);
     });
   } catch (error) {
+     
     console.error('Error requesting approval:', error);
     return false;
   }
@@ -283,7 +282,7 @@ async function handleSwitchChain({ chainId }) {
 
 async function handleAddChain(chainConfig) {
   // For now, just return success for standard chains
-  console.log('Add chain requested:', chainConfig);
+
   return null;
 }
 
@@ -291,7 +290,7 @@ async function handleAddChain(chainConfig) {
 async function handleGetBalance(address, blockTag = 'latest') {
   // This would typically call an RPC endpoint
   // For now, return a mock balance
-  console.log('Get balance for:', address, blockTag);
+
   return '0x0'; // 0 ETH
 }
 
@@ -323,13 +322,14 @@ async function handleSendTransaction(txParams, origin) {
       chrome.windows.onRemoved.addListener(listener);
     });
   } catch (error) {
+     
     console.error('Error handling transaction:', error);
     throw error;
   }
 }
 
 async function handleSignTransaction(txParams) {
-  console.log('Sign transaction:', txParams);
+
   // Similar to sendTransaction but only returns signed tx
   throw new Error('Sign transaction not implemented yet');
 }
@@ -361,6 +361,7 @@ async function handlePersonalSign(message, address) {
       chrome.windows.onRemoved.addListener(listener);
     });
   } catch (error) {
+     
     console.error('Error handling personal sign:', error);
     throw error;
   }
@@ -368,6 +369,7 @@ async function handlePersonalSign(message, address) {
 
 async function handleEthSign(address, message) {
   // eth_sign is deprecated and dangerous
+   
   console.warn('eth_sign is deprecated and dangerous');
   throw new Error('eth_sign is not supported for security reasons');
 }
@@ -398,6 +400,7 @@ async function handleSignTypedData(method, address, typedData) {
       chrome.windows.onRemoved.addListener(listener);
     });
   } catch (error) {
+     
     console.error('Error handling typed data sign:', error);
     throw error;
   }
@@ -405,7 +408,7 @@ async function handleSignTypedData(method, address, typedData) {
 
 // Asset management
 async function handleWatchAsset(asset) {
-  console.log('Watch asset requested:', asset);
+
   // For now, always return true
   return true;
 }
@@ -440,6 +443,7 @@ async function handleUnlockWallet(request, sendResponse) {
     });
     
   } catch (error) {
+     
     console.error('Unlock error:', error);
     sendResponse({
       success: false,
@@ -460,7 +464,7 @@ async function handleLockWallet(sendResponse) {
 
 async function handleCreateWallet(request, sendResponse) {
   // Implement wallet creation logic
-  console.log('Create wallet requested');
+
   sendResponse({
     success: false,
     error: 'Wallet creation not implemented'
@@ -469,7 +473,7 @@ async function handleCreateWallet(request, sendResponse) {
 
 async function handleImportWallet(request, sendResponse) {
   // Implement wallet import logic
-  console.log('Import wallet requested');
+
   sendResponse({
     success: false,
     error: 'Wallet import not implemented'
@@ -516,8 +520,6 @@ function notifyAccountsChanged(accounts) {
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'autoLock') {
     chrome.storage.local.set({ isUnlocked: false });
-    console.log('Wallet auto-locked');
+
   }
 });
-
-console.log('PayCio Background Script Ready');

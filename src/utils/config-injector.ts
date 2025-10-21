@@ -12,13 +12,13 @@ export function initializeConfig() {
       // If PAYCIO_CONFIG is available from webpack, use it
       if (typeof PAYCIO_CONFIG !== 'undefined') {
         (window as any).CONFIG = PAYCIO_CONFIG;
-        console.log('✅ PayCio: CONFIG injected from webpack');
+
         return PAYCIO_CONFIG;
       }
       
       // If CONFIG is already available, use it
       if ((window as any).CONFIG) {
-        console.log('✅ PayCio: CONFIG already available');
+
         return (window as any).CONFIG;
       }
     }
@@ -121,10 +121,10 @@ export function initializeConfig() {
     if (typeof window !== 'undefined') {
       (window as any).CONFIG = defaultConfig;
     }
-    
-    console.log('⚠️ PayCio: Using default CONFIG');
+
     return defaultConfig;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ PayCio: Failed to initialize CONFIG:', error);
     return null;
   }
@@ -146,6 +146,7 @@ export function getConfig() {
     // Initialize and return default config
     return initializeConfig();
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ PayCio: Failed to get CONFIG:', error);
     return initializeConfig();
   }
@@ -155,13 +156,5 @@ export function getConfig() {
 if (typeof window !== 'undefined') {
   initializeConfig();
 }
-
-
-
-
-
-
-
-
 
 

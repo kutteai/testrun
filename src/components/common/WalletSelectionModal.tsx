@@ -42,6 +42,7 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({
         }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load accounts:', error);
       toast.error('Failed to load accounts');
     }
@@ -236,13 +237,5 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({
 };
 
 export default WalletSelectionModal;
-
-
-
-
-
-
-
-
 
 

@@ -37,8 +37,7 @@ export class NetworkNavigationManager {
     
     this.navigationStack.push(state);
     this.currentNetwork = network;
-    
-    console.log('📍 Navigation state saved:', state);
+
   }
 
   // Restore navigation state after network switch
@@ -62,7 +61,7 @@ export class NetworkNavigationManager {
 
     if (isNetworkSpecific && lastState.networkAtNavigation !== newNetwork) {
       // Network-specific screen is no longer valid, navigate to dashboard
-      console.log('📍 Network-specific screen invalid after switch, redirecting to dashboard');
+
       return {
         currentScreen: 'dashboard',
         navigationHistory: ['dashboard'],
@@ -77,7 +76,6 @@ export class NetworkNavigationManager {
       networkAtNavigation: newNetwork
     };
 
-    console.log('📍 Navigation state restored:', restoredState);
     return restoredState;
   }
 
@@ -110,7 +108,7 @@ export class NetworkNavigationManager {
 
     if (isNetworkDependent) {
       // For network-dependent screens, preserve the screen but update context
-      console.log(`📍 Preserving network-dependent screen: ${currentScreen}`);
+
       return {
         screen: currentScreen,
         history: opts.preserveHistory ? navigationHistory : [opts.fallbackScreen, currentScreen]
@@ -121,7 +119,7 @@ export class NetworkNavigationManager {
     const networkManagementScreens = ['networks', 'manage-networks', 'add-custom-network'];
     
     if (networkManagementScreens.includes(currentScreen)) {
-      console.log(`📍 In network management screen: ${currentScreen}, preserving navigation`);
+
       return {
         screen: currentScreen,
         history: navigationHistory
@@ -180,7 +178,7 @@ export class NetworkNavigationManager {
   // Clear navigation stack (useful for wallet lock/unlock)
   clearNavigationStack(): void {
     this.navigationStack = [];
-    console.log('📍 Navigation stack cleared');
+
   }
 
   // Get current navigation info for debugging

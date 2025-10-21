@@ -89,6 +89,7 @@ export async function getMultiChainTokenBalance(
 ): Promise<MultiChainTokenBalance | null> {
   const chainType = getChainTypeForNetwork(network);
   if (!chainType) {
+    // eslint-disable-next-line no-console
     console.error(`Unsupported network: ${network}`);
     return null;
   }
@@ -112,10 +113,12 @@ export async function getMultiChainTokenBalance(
       case 'sui':
         return await getSuiTokenBalance(tokenAddress, walletAddress, network);
       default:
+        // eslint-disable-next-line no-console
         console.error(`Balance fetching not implemented for chain type: ${chainType}`);
         return null;
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Error fetching balance for ${tokenAddress} on ${network}:`, error);
     return null;
   }
@@ -173,6 +176,7 @@ async function getEVMTokenBalance(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`EVM balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -254,7 +258,7 @@ async function getSolanaTokenBalance(
       const metadataData = await metadataResponse.json();
       const decimals = metadataData.result?.value?.data?.parsed?.info?.decimals || 9;
       
-      const balance = (parseInt(tokenInfo.tokenAmount.amount) / Math.pow(10, decimals)).toString();
+      const balance = (parseInt(tokenInfo.tokenAmount.amount, 10) / Math.pow(10, decimals)).toString();
       
       return {
         address: tokenAddress,
@@ -271,6 +275,7 @@ async function getSolanaTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Solana balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -326,6 +331,7 @@ async function getBitcoinTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Bitcoin balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -392,6 +398,7 @@ async function getTronTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`TRON balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -415,7 +422,7 @@ async function getCosmosTokenBalance(
       if (data.balances) {
         const atomBalance = data.balances.find((b: any) => b.denom === 'uatom');
         if (atomBalance) {
-          const balance = (parseInt(atomBalance.amount) / 1e6).toString(); // Convert uatom to ATOM
+          const balance = (parseInt(atomBalance.amount, 10) / 1e6).toString(); // Convert uatom to ATOM
           
           return {
             address: 'uatom',
@@ -434,6 +441,7 @@ async function getCosmosTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Cosmos balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -468,7 +476,7 @@ async function getNearTokenBalance(
 
       const data = await response.json();
       if (data.result) {
-        const balance = (parseInt(data.result.amount) / 1e24).toString(); // Convert yoctoNEAR to NEAR
+        const balance = (parseInt(data.result.amount, 10) / 1e24).toString(); // Convert yoctoNEAR to NEAR
         
         return {
           address: 'native',
@@ -486,6 +494,7 @@ async function getNearTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`NEAR balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -507,7 +516,7 @@ async function getAptosTokenBalance(
       const data = await response.json();
       
       if (data.data) {
-        const balance = (parseInt(data.data.coin.value) / 1e8).toString(); // Convert to APT
+        const balance = (parseInt(data.data.coin.value, 10) / 1e8).toString(); // Convert to APT
         
         return {
           address: 'native',
@@ -525,6 +534,7 @@ async function getAptosTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Aptos balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -555,7 +565,7 @@ async function getSuiTokenBalance(
 
       const data = await response.json();
       if (data.result) {
-        const balance = (parseInt(data.result.totalBalance) / 1e9).toString(); // Convert to SUI
+        const balance = (parseInt(data.result.totalBalance, 10) / 1e9).toString(); // Convert to SUI
         
         return {
           address: 'native',
@@ -573,6 +583,7 @@ async function getSuiTokenBalance(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Sui balance fetch failed for ${tokenAddress}:`, error);
     return null;
   }
@@ -659,6 +670,7 @@ export async function getMultiChainTokenPrice(
     return null;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching token price:', error);
     return null;
   }
@@ -670,12 +682,12 @@ export async function detectMultiChainTokensWithBalances(
   network: string,
   tokenList?: string[]
 ): Promise<MultiChainTokenBalance[]> {
-  console.log(`🔍 Auto-detecting tokens with balances on ${network} for:`, walletAddress);
-  
+
   const tokensWithBalances: MultiChainTokenBalance[] = [];
   const chainType = getChainTypeForNetwork(network);
   
   if (!chainType) {
+    // eslint-disable-next-line no-console
     console.error(`Unsupported network: ${network}`);
     return [];
   }
@@ -690,7 +702,7 @@ export async function detectMultiChainTokensWithBalances(
         nativeBalance.usdValue = parseFloat(nativeBalance.balance) * price;
       }
       tokensWithBalances.push(nativeBalance);
-      console.log(`✅ Found ${nativeBalance.symbol}: ${nativeBalance.balance}`);
+
     }
 
     // Check provided token list or popular tokens
@@ -707,18 +719,19 @@ export async function detectMultiChainTokensWithBalances(
           }
           
           tokensWithBalances.push(balance);
-          console.log(`✅ Found ${balance.symbol}: ${balance.balance}`);
+
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Error checking token ${tokenAddress}:`, error);
       }
     }
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error(`Error detecting tokens on ${network}:`, error);
   }
 
-  console.log(`🎯 Found ${tokensWithBalances.length} tokens with balances on ${network}`);
   return tokensWithBalances;
 }
 

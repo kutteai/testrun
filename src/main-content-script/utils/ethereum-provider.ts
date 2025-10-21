@@ -1,0 +1,197 @@
+import EventEmitter from 'events';
+import { getBrowser } from '../../utils/browser';
+import { ExtensionMessage, ExtensionResponse, WalletState } from '../../types/content-script';
+import { NetworkManager } from '../../core/network-manager';
+import { WalletManager } from '../../core/wallet-manager';
+import { PaycioTransaction } from '../../types/transaction';
+import { ToastManager } from './toast-manager';
+import { ConnectionManager } from './connection-manager';
+import { WalletConnectManager } from './wallet-connect-integration';
+import { ProviderInitializer } from './ethereum-provider/provider-initializer';
+import { ProviderEventHandler } from './ethereum-provider/provider-event-handler';
+import { ProviderRequestProcessor } from './ethereum-provider/provider-request-processor';
+import { ProviderRequestHandler } from './ethereum-provider/provider-request-handler';
+
+interface ProviderRequest {
+  method: string;
+  params?: any[];
+}
+
+declare global {
+  interface Window {
+    paycioProvider: any; // Or a more specific type if available
+  }
+}
+
+class PaycioEthereumProvider extends EventEmitter {
+  private isPaycio: boolean;
+  private isMetaMask: boolean;
+  private isCoinbaseWallet: boolean;
+  private isTrust: boolean;
+  private isWalletConnect: boolean;
+
+  public chainId: string;
+  public selectedAddress: string | null;
+  public networkVersion: string;
+
+  private _isConnected: boolean;
+  private _accounts: string[];
+  private _initialized: boolean;
+  private _connecting: boolean;
+
+  private _requestId: number;
+  private _pendingRequests: Map<string, any>;
+  public _requestQueue: any[];
+  public _processing: boolean;
+
+  private _subscriptions: Map<string, any>;
+  private _filters: Map<string, any>;
+
+  private toast: ToastManager;
+  private connectionManager: ConnectionManager;
+  private walletConnect: WalletConnectManager;
+  private browserAPI: typeof chrome | ReturnType<typeof getBrowser>;
+  private initializer: ProviderInitializer; // Add initializer instance
+  private eventHandler: ProviderEventHandler; // Add event handler instance
+  private requestProcessor: ProviderRequestProcessor; // Add request processor instance
+  private requestHandler: ProviderRequestHandler; // Add request handler instance
+
+  constructor(toast: ToastManager, connectionManager: ConnectionManager, walletConnect: WalletConnectManager, browserAPI: typeof chrome | ReturnType<typeof getBrowser>) {
+    super();
+    this.toast = toast;
+    this.connectionManager = connectionManager;
+    this.walletConnect = walletConnect;
+    this.browserAPI = browserAPI;
+
+    // Provider identification
+    this.isPaycio = true;
+    this.isMetaMask = false;
+    this.isCoinbaseWallet = false;
+    this.isTrust = false;
+    this.isWalletConnect = false;
+
+    // Network state
+    this.chainId = '0x1';
+    this.selectedAddress = null;
+    this.networkVersion = '1';
+
+    // Connection state
+    this._isConnected = false;
+    this._accounts = [];
+    this._initialized = false;
+    this._connecting = false;
+
+    // Request tracking
+    this._requestId = 0;
+    this._pendingRequests = new Map();
+    this._requestQueue = [];
+    this._processing = false;
+
+    // Advanced features
+    this._subscriptions = new Map();
+    this._filters = new Map();
+
+    this.initializer = new ProviderInitializer(this, toast, connectionManager);
+    this.initializer.initialize();
+    this.eventHandler = new ProviderEventHandler(this, toast);
+    this.requestProcessor = new ProviderRequestProcessor(this);
+    this.requestHandler = new ProviderRequestHandler(this, connectionManager, toast, walletConnect);
+  }
+
+  updateProviderState(data: any) {
+    this._isConnected = data?.isConnected || false;
+    this._accounts = data?.accounts || [];
+    this.selectedAddress = data?.selectedAddress || null;
+    this.chainId = data?.chainId || '0x1';
+    this.networkVersion = data?.networkVersion || '1';
+  }
+
+  handleProviderEvent(eventData: any) {
+    this.eventHandler.handleProviderEvent(eventData);
+  }
+
+  async handleRequest(method: string, params: any): Promise<any> {
+    return this.requestHandler.handleRequest(method, params);
+  }
+
+  isConnected(): boolean {
+    return this._isConnected;
+  }
+
+  createProviderError(code: number, message: string): Error & { code?: number, name?: string } {
+    const error: Error & { code?: number, name?: string } = new Error(message);
+    error.code = code;
+
+    switch (code) {
+      case 4001:
+        error.name = 'UserRejectedRequestError';
+        break;
+      case 4100:
+        error.name = 'UnauthorizedError';
+        break;
+      case 4200:
+        error.name = 'UnsupportedMethodError';
+        break;
+      case 4900:
+        error.name = 'DisconnectedError';
+        break;
+      case 4901:
+        error.name = 'ChainDisconnectedError';
+        break;
+      case 4902:
+        error.name = 'UnrecognizedChainError';
+        break;
+    }
+
+    return error;
+  }
+
+  // Utility methods
+  isValidAddress(address: string): boolean {
+    return this.requestHandler.isValidAddress(address);
+  }
+
+  isValidChainId(chainId: string): boolean {
+    return this.requestHandler.isValidChainId(chainId);
+  }
+
+  // Legacy support methods
+  async enable(): Promise<string[]> {
+    return await this.requestHandler.enable();
+  }
+
+  async send(method: string, params: any[] = []): Promise<any> {
+    return await this.requestHandler.send(method, params);
+  }
+
+  sendAsync(payload: any, callback: (error: Error | null, result?: any) => void) {
+    this.requestHandler.sendAsync(payload, callback);
+  }
+
+  // Advanced connection methods
+  async connectWalletConnect(uri: string): Promise<any> {
+    return await this.requestHandler.connectWalletConnect(uri);
+  }
+
+  async getConnectedDapps(): Promise<string[]> {
+    return await this.requestHandler.getConnectedDapps();
+  }
+
+  async disconnectDapp(origin: string) {
+    await this.requestHandler.disconnectDapp(origin);
+  }
+
+  // Cleanup method
+  destroy() {
+    this.removeAllListeners();
+    this._pendingRequests.forEach(({ timeout }) => clearTimeout(timeout));
+    this._pendingRequests.clear();
+    this._subscriptions.clear();
+    this._filters.clear();
+    this._isConnected = false;
+    this._accounts = [];
+    this.selectedAddress = null;
+  }
+}
+
+export { PaycioEthereumProvider };

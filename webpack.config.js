@@ -24,7 +24,7 @@ module.exports = (env, argv) => {
       asyncWebAssembly: true,
       syncWebAssembly: true,
       layers: true,
-      topLevelAwait: true
+      topLevelAwait: true,
     },
 
     entry: {
@@ -33,7 +33,7 @@ module.exports = (env, argv) => {
       'content-script': './src/content-script/index.ts',
       'injected/provider': './src/injected/provider.js',
       options: './src/options/index.tsx',
-      expand: './src/expand.tsx'
+      expand: './src/expand.tsx',
     },
     output: {
       path: path.resolve(__dirname, `dist/${browser}`),
@@ -60,79 +60,79 @@ module.exports = (env, argv) => {
             options: {
               transpileOnly: true,
               experimentalWatchApi: false,
-              configFile: path.resolve(__dirname, 'tsconfig.json')
-            }
+              configFile: path.resolve(__dirname, 'tsconfig.json'),
+            },
           },
-          exclude: /node_modules/
+          exclude: /node_modules/,
         },
         {
           test: /\.css$/,
           use: [
             MiniCssExtractPlugin.loader,
             'css-loader',
-            'postcss-loader'
-          ]
+            'postcss-loader',
+          ],
         },
         {
           test: /\.(png|jpg|jpeg|gif|svg|ico)$/,
           type: 'asset/resource',
           generator: {
-            filename: 'assets/[name].[hash][ext]'
-          }
+            filename: 'assets/[name].[hash][ext]',
+          },
         },
         {
           test: /\.(woff|woff2|eot|ttf|otf)$/,
           type: 'asset/resource',
           generator: {
-            filename: 'fonts/[name].[hash][ext]'
-          }
+            filename: 'fonts/[name].[hash][ext]',
+          },
         },
         // Add WebAssembly module rule to fix tiny-secp256k1 issues
         {
           test: /\.wasm$/,
-          type: 'webassembly/async'
+          type: 'webassembly/async',
         },
         // Handle mjs files properly
         {
           test: /\.m?js$/,
           resolve: {
-            fullySpecified: false // disable the behaviour
-          }
-        }
-      ]
+            fullySpecified: false, // disable the behaviour
+          },
+        },
+      ],
     },
     resolve: {
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.wasm', '.mjs'],
       alias: {
-        '@': path.resolve(__dirname, 'src')
+        '@': path.resolve(__dirname, 'src'),
       },
       fallback: {
-        "process": require.resolve("process/browser.js"),
-        "buffer": require.resolve("buffer"),
-        "crypto": require.resolve("crypto-browserify"),
-        "stream": require.resolve("stream-browserify"),
-        "path": require.resolve("path-browserify"),
-        "fs": false,
-        "net": false,
-        "tls": false,
-        "http": require.resolve("stream-http"),
-        "https": require.resolve("https-browserify"),
-        "zlib": require.resolve("browserify-zlib"),
-        "url": require.resolve("url/"),
-        "assert": require.resolve("assert/"),
-        "util": require.resolve("util/"),
-        "os": require.resolve("os-browserify/browser"),
-        "vm": require.resolve("vm-browserify")
+        process: require.resolve('process/browser.js'),
+        buffer: require.resolve('buffer'),
+        crypto: require.resolve('crypto-browserify'),
+        stream: require.resolve('stream-browserify'),
+        path: require.resolve('path-browserify'),
+        fs: false,
+        net: false,
+        tls: false,
+        http: require.resolve('stream-http'),
+        https: require.resolve('https-browserify'),
+        zlib: require.resolve('browserify-zlib'),
+        url: require.resolve('url/'),
+        assert: require.resolve('assert/'),
+        util: require.resolve('util/'),
+        os: require.resolve('os-browserify/browser'),
+        vm: require.resolve('vm-browserify'),
       },
       // Add module resolution for node_modules
       modules: [
         'node_modules',
-        path.resolve(__dirname, 'src')
+        path.resolve(__dirname, 'src'),
       ],
       // Handle ESM modules properly
       extensionAlias: {
-        ".js": [".js", ".ts", ".tsx", ".mjs"]
-      }
+        '.js': ['.js', '.ts', '.tsx', '.mjs'],
+      },
     },
     plugins: [
       // Environment variables
@@ -140,24 +140,24 @@ module.exports = (env, argv) => {
         'process.env': JSON.stringify({
           ...process.env,
           NODE_ENV: argv.mode,
-          BROWSER: browser
+          BROWSER: browser,
         }),
         'process.env.NODE_ENV': JSON.stringify(argv.mode),
         'process.env.BROWSER': JSON.stringify(browser),
-        'global': 'globalThis',
+        global: 'globalThis',
         // Define process for browser compatibility
         'process.browser': JSON.stringify(true),
         'process.version': JSON.stringify(''),
         'process.versions': JSON.stringify({}),
         // Inject CONFIG as a global constant
-        'PAYCIO_CONFIG': JSON.stringify(CONFIG),
+        PAYCIO_CONFIG: JSON.stringify(CONFIG),
       }),
 
       // Provide Buffer and process globals
       new webpack.ProvidePlugin({
         Buffer: ['buffer', 'Buffer'],
         process: 'process/browser.js',
-        global: 'globalThis'
+        global: 'globalThis',
       }),
 
       // HTML files
@@ -171,8 +171,8 @@ module.exports = (env, argv) => {
           collapseWhitespace: true,
           removeRedundantAttributes: true,
           removeScriptTypeAttributes: true,
-          removeStyleLinkTypeAttributes: true
-        } : false
+          removeStyleLinkTypeAttributes: true,
+        } : false,
       }),
 
       new HtmlWebpackPlugin({
@@ -185,8 +185,8 @@ module.exports = (env, argv) => {
           collapseWhitespace: true,
           removeRedundantAttributes: true,
           removeScriptTypeAttributes: true,
-          removeStyleLinkTypeAttributes: true
-        } : false
+          removeStyleLinkTypeAttributes: true,
+        } : false,
       }),
 
       new HtmlWebpackPlugin({
@@ -199,13 +199,13 @@ module.exports = (env, argv) => {
           collapseWhitespace: true,
           removeRedundantAttributes: true,
           removeScriptTypeAttributes: true,
-          removeStyleLinkTypeAttributes: true
-        } : false
+          removeStyleLinkTypeAttributes: true,
+        } : false,
       }),
 
       // CSS extraction
       new MiniCssExtractPlugin({
-        filename: '[name].css'
+        filename: '[name].css',
       }),
 
       // Copy manifest and assets
@@ -216,7 +216,7 @@ module.exports = (env, argv) => {
             to: 'manifest.json',
             transform: (content) => {
               const manifest = JSON.parse(content.toString());
-              
+
               // Update manifest for different browsers
               if (browser === 'firefox') {
                 // Firefox specific changes
@@ -225,26 +225,26 @@ module.exports = (env, argv) => {
               } else if (browser === 'edge') {
                 // Edge specific changes if needed
               }
-              
+
               return JSON.stringify(manifest, null, 2);
-            }
+            },
           },
           {
             from: 'src/assets',
             to: 'assets',
-            noErrorOnMissing: true
+            noErrorOnMissing: true,
           },
           {
             from: 'src/ui/popup.html',
             to: 'ui/popup.html',
-            noErrorOnMissing: true
+            noErrorOnMissing: true,
           },
           {
             from: 'src/ui/styles',
             to: 'ui/styles',
-            noErrorOnMissing: true
+            noErrorOnMissing: true,
           },
-        ]
+        ],
       }),
 
       // Compression for production
@@ -253,9 +253,9 @@ module.exports = (env, argv) => {
           test: /\.(js|css|html|svg)$/,
           algorithm: 'gzip',
           threshold: 10240,
-          minRatio: 0.8
-        })
-      ] : [])
+          minRatio: 0.8,
+        }),
+      ] : []),
     ],
     optimization: {
       minimize: isProduction,
@@ -264,15 +264,15 @@ module.exports = (env, argv) => {
           terserOptions: {
             compress: {
               drop_console: isProduction,
-              drop_debugger: isProduction
+              drop_debugger: isProduction,
             },
             mangle: isProduction,
             format: {
-              comments: false
+              comments: false,
             },
           },
-          extractComments: false
-        })
+          extractComments: false,
+        }),
       ],
       splitChunks: {
         chunks: 'all',
@@ -281,22 +281,22 @@ module.exports = (env, argv) => {
             test: /[\\/]node_modules[\\/]/,
             name: 'vendors',
             chunks: 'all',
-            enforce: true
-          }
-        }
-      }
+            enforce: true,
+          },
+        },
+      },
     },
     devtool: isProduction ? false : 'cheap-module-source-map',
     watch: argv.mode === 'development',
     watchOptions: {
       ignored: /node_modules/,
       aggregateTimeout: 300,
-      poll: 1000
+      poll: 1000,
     },
     performance: {
       hints: isProduction ? 'warning' : false,
       maxEntrypointSize: 1024000, // Increased for crypto libraries
-      maxAssetSize: 1024000
+      maxAssetSize: 1024000,
     },
     stats: {
       colors: true,
@@ -304,7 +304,7 @@ module.exports = (env, argv) => {
       children: false,
       chunks: false,
       chunkModules: false,
-      errorDetails: true // This will show more error details
+      errorDetails: true, // This will show more error details
     },
     // Add this to handle Node.js modules properly
     target: 'web',
@@ -312,6 +312,6 @@ module.exports = (env, argv) => {
       global: false,
       __filename: false,
       __dirname: false,
-    }
+    },
   };
 };

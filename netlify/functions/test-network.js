@@ -1,13 +1,13 @@
 // PayCio Wallet - Network Testing Function
 // Test custom network connections
 
-exports.handler = async (event, context) => {
+exports.handler = async (event, _context /* Unused parameter */) => {
   // Enable CORS for Chrome extension
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
   };
 
   // Handle preflight requests
@@ -15,7 +15,7 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 200,
       headers,
-      body: ''
+      body: '',
     };
   }
 
@@ -23,20 +23,20 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 405,
       headers,
-      body: JSON.stringify({ error: 'Method not allowed' })
+      body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
 
   try {
     const { networkId, rpcUrl, chainId } = JSON.parse(event.body);
-    
+
     if (!rpcUrl) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({
-          error: 'RPC URL is required'
-        })
+          error: 'RPC URL is required',
+        }),
       };
     }
 
@@ -55,19 +55,19 @@ exports.handler = async (event, context) => {
           jsonrpc: '2.0',
           method: 'eth_blockNumber',
           params: [],
-          id: 1
-        })
+          id: 1,
+        }),
       });
 
       const data = await response.json();
-      
+
       if (data.error) {
         throw new Error(data.error.message);
       }
 
       if (data.result) {
         blockNumber = parseInt(data.result, 16);
-        
+
         // Get chain ID
         const chainResponse = await fetch(rpcUrl, {
           method: 'POST',
@@ -76,8 +76,8 @@ exports.handler = async (event, context) => {
             jsonrpc: '2.0',
             method: 'eth_chainId',
             params: [],
-            id: 1
-          })
+            id: 1,
+          }),
         });
 
         const chainData = await chainResponse.json();
@@ -92,14 +92,13 @@ exports.handler = async (event, context) => {
           isConnected = true;
         }
       }
-      
     } catch (err) {
       error = err.message;
       console.error('Network test error:', err);
     }
 
     const responseTime = Date.now() - startTime;
-    
+
     const result = {
       networkId: networkId || 'custom',
       rpcUrl,
@@ -109,15 +108,14 @@ exports.handler = async (event, context) => {
       chainId: actualChainId,
       expectedChainId: chainId,
       error,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(result)
+      body: JSON.stringify(result),
     };
-
   } catch (error) {
     console.error('Network test handler error:', error);
     return {
@@ -125,8 +123,8 @@ exports.handler = async (event, context) => {
       headers,
       body: JSON.stringify({
         error: 'Network test failed',
-        message: error.message
-      })
+        message: error.message,
+      }),
     };
   }
 };

@@ -16,6 +16,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       return true;
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('Clipboard API failed:', error);
   }
 
@@ -37,6 +38,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       return true;
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('execCommand fallback failed:', error);
   }
 
@@ -59,6 +61,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
       }
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('Chrome extension fallback failed:', error);
   }
 
@@ -84,13 +87,14 @@ export async function copyToClipboardWithFeedback(
     if (typeof window !== 'undefined' && (window as any).toast) {
       (window as any).toast.success(successMessage);
     } else {
-      console.log(successMessage);
+
     }
   } else {
     // Show error feedback
     if (typeof window !== 'undefined' && (window as any).toast) {
       (window as any).toast.error(errorMessage);
     } else {
+      // eslint-disable-next-line no-console
       console.error(errorMessage);
     }
   }

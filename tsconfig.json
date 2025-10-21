@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
-    "target": "ES2020",
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
@@ -12,36 +12,37 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "isolatedModules": true,
+    "isolatedModules": false,
     "noEmit": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
     "downlevelIteration": true,
-    "allowImportingTsExtensions": false,
-    "paths": {
-      "@/*": ["src/*"],
-      "@components/*": ["src/components/*"],
-      "@hooks/*": ["src/hooks/*"],
-      "@utils/*": ["src/utils/*"],
-      "@store/*": ["src/store/*"],
-      "@assets/*": ["src/assets/*"],
-      "@types/*": ["src/types/*"]
-    },
-    "types": ["chrome", "node"],
+    "allowImportingTsExtensions": true,
+    "types": ["chrome", "node", "webextension-polyfill"],
     "noImplicitAny": false,
-    "noImplicitReturns": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "paths": {
+      "@/*": ["./src/*"],
+      "@components/*": ["./src/components/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@store/*": ["./src/store/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@types/*": ["./src/types/*"]
+    }
   },
   "include": [
-    "src/**/*",
     "src/**/*.ts",
-    "src/**/*.tsx"
+    "src/**/*.tsx",
+    "src/**/*.js"
   ],
   "exclude": [
     "node_modules",
     "dist",
     "build",
-    "src/**/*.js"
+    "src/**/*.js",
+    "backend"
+  ],
+  "files": [
+    "src/global.d.ts"
   ]
-}
+} 

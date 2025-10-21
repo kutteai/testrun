@@ -253,6 +253,7 @@ export class TransactionManager {
           }
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.warn(`Failed to check transaction status: ${error}`);
       }
     };

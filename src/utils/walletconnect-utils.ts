@@ -120,6 +120,7 @@ export class WalletConnectManager {
     try {
       localStorage.setItem(this.sessionStorageKey, JSON.stringify(session));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to save session:', error);
     }
   }
@@ -129,9 +130,10 @@ export class WalletConnectManager {
       const savedSession = localStorage.getItem(this.sessionStorageKey);
       if (savedSession) {
         this.session = JSON.parse(savedSession);
-        console.log('Restored WalletConnect session:', this.session);
+
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to load persisted session:', error);
       this.clearPersistedSession();
     }
@@ -142,6 +144,7 @@ export class WalletConnectManager {
       localStorage.removeItem(this.sessionStorageKey);
       localStorage.removeItem(this.proposalStorageKey);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to clear persisted session:', error);
     }
   }
@@ -150,6 +153,7 @@ export class WalletConnectManager {
     try {
       localStorage.setItem(this.proposalStorageKey, JSON.stringify(proposal));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to save proposal:', error);
     }
   }
@@ -161,6 +165,7 @@ export class WalletConnectManager {
         return JSON.parse(savedProposal);
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to load persisted proposal:', error);
     }
     return null;
@@ -173,8 +178,7 @@ export class WalletConnectManager {
     }
 
     try {
-      console.log('Initializing WalletConnect with project ID:', this.projectId);
-      
+
       this.client = await SignClient.init({
         projectId: this.projectId,
         metadata: {
@@ -186,13 +190,12 @@ export class WalletConnectManager {
         relayUrl: 'wss://relay.walletconnect.com'
       });
 
-      console.log('WalletConnect client initialized successfully');
-      
       // Set up event listeners
       this.setupEventListeners();
 
       return this.client;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('WalletConnect initialization failed:', error);
       throw new Error(`Failed to initialize WalletConnect: ${error}`);
     }
@@ -204,7 +207,7 @@ export class WalletConnectManager {
 
     // Handle session proposals
     this.client.on('session_proposal', async (proposal) => {
-      console.log('Session proposal received:', proposal);
+
       this.proposal = proposal;
       
       // Emit event for UI to show approval dialog
@@ -213,26 +216,25 @@ export class WalletConnectManager {
 
     // Handle session requests
     this.client.on('session_request', async (requestEvent) => {
-      console.log('Session request received:', requestEvent);
-      
+
       // Emit event for UI to show request approval dialog
       this.emit('session_request', requestEvent);
     });
 
     // Handle session events
     this.client.on('session_event', (event) => {
-      console.log('Session event:', event);
+
     });
 
     // Handle session updates
     this.client.on('session_update', (event) => {
-      console.log('Session updated:', event);
+
       this.updateSession(event.topic);
     });
 
     // Handle session deletions
     this.client.on('session_delete', (event) => {
-      console.log('Session deleted:', event);
+
       this.session = null;
       this.cleanup();
     });
@@ -252,10 +254,9 @@ export class WalletConnectManager {
   // Connect to WalletConnect (initiate connection)
   async connect(): Promise<{ uri: string; session?: WalletConnectSession }> {
     try {
-      console.log('Starting WalletConnect connection...');
+
       const client = await this.initialize();
-      
-      console.log('Creating connection proposal...');
+
       const { uri, approval } = await client.connect({
         requiredNamespaces: {
           eip155: {
@@ -340,22 +341,19 @@ export class WalletConnectManager {
         }
       });
 
-      console.log('Connection URI generated:', uri);
       this.uri = uri;
-      
-      console.log('Waiting for session approval...');
+
       // Add timeout to session approval
       const session = await this.withTimeout(
         approval(),
         this.connectionTimeout,
         'Session approval timeout - please try connecting again'
       );
-      console.log('Session approved:', session);
+
       this.session = session as any;
       
       const formattedSession = this.formatSession(session as any);
-      console.log('Formatted session:', formattedSession);
-      
+
       // Start session health monitoring
       this.startSessionHealthCheck();
       
@@ -364,6 +362,7 @@ export class WalletConnectManager {
         session: formattedSession
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('WalletConnect connection failed:', error);
       throw new Error(`WalletConnect connection failed: ${error}`);
     }
@@ -374,12 +373,11 @@ export class WalletConnectManager {
     if (!this.client) return;
 
     try {
-      console.log('Approving session proposal:', proposal.id);
-      
+
       // Check if wallet is unlocked before proceeding
       const walletStatus = await this.checkWalletStatus();
       if (!walletStatus.isUnlocked) {
-        console.log('Wallet is locked, triggering unlock flow...');
+
         // Emit unlock event to trigger WalletUnlockModal
         this.emit('wallet_locked', {
           dAppName: proposal.params.proposer.metadata.name,
@@ -459,8 +457,6 @@ export class WalletConnectManager {
         }
       });
 
-      console.log('Session approved:', topic);
-      
       // Save session for persistence
       this.session = {
         topic,
@@ -485,6 +481,7 @@ export class WalletConnectManager {
       
       this.saveSession(this.session);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to approve session:', error);
       throw error;
     }
@@ -506,6 +503,7 @@ export class WalletConnectManager {
         accounts: response.accounts || []
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to check wallet status:', error);
       return { isUnlocked: false, accounts: [] };
     }
@@ -524,6 +522,7 @@ export class WalletConnectManager {
 
       return response.success || false;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to request wallet unlock:', error);
       return false;
     }
@@ -541,6 +540,7 @@ export class WalletConnectManager {
 
       return response.accounts || [];
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get wallet accounts:', error);
       return [];
     }
@@ -560,11 +560,12 @@ export class WalletConnectManager {
           const currentSession = sessions.find(s => s.topic === this.session?.topic);
           
           if (!currentSession) {
-            console.log('Session no longer exists, cleaning up...');
+
             this.session = null;
             this.emit('session_expired');
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('Session health check failed:', error);
         }
       }
@@ -637,7 +638,7 @@ export class WalletConnectManager {
       if (sensitiveOperations.includes(method)) {
         const walletStatus = await this.checkWalletStatus();
         if (!walletStatus.isUnlocked) {
-          console.log(`Wallet locked for ${method}, requesting unlock...`);
+
           const unlocked = await this.requestWalletUnlock();
           if (!unlocked) {
             return {
@@ -674,7 +675,7 @@ export class WalletConnectManager {
             result: '0x1' // Ethereum mainnet
           };
 
-        case 'eth_getBalance':
+        case 'eth_getBalance': {
           const [address, blockTag] = params;
           const balance = await this.getBalance(address);
           return {
@@ -682,8 +683,9 @@ export class WalletConnectManager {
             jsonrpc: '2.0',
             result: balance
           };
+        }
 
-        case 'eth_sendTransaction':
+        case 'eth_sendTransaction': {
           const [transaction] = params;
           // Forward to background with timeout
           const txHash = await this.withTimeout(
@@ -693,6 +695,7 @@ export class WalletConnectManager {
                 method: 'eth_sendTransaction', 
                 params: [transaction] 
               }, (response) => {
+                }
                 if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
                 if (response?.success) return resolve(response.result);
                 reject(new Error(response?.error || 'eth_sendTransaction failed'));
@@ -708,13 +711,14 @@ export class WalletConnectManager {
           };
 
         case 'eth_sign':
-        case 'personal_sign':
+        case 'personal_sign': {
           const [message, signAddress] = params;
           const signature = await this.withTimeout(
             this.signMessage(message, signAddress),
             15000, // 15 second timeout for signing
             'Signing timeout - please try again'
           );
+          }
           return {
             id: request.id,
             jsonrpc: '2.0',
@@ -722,13 +726,14 @@ export class WalletConnectManager {
           };
 
         case 'eth_signTypedData':
-        case 'eth_signTypedData_v4':
+        case 'eth_signTypedData_v4': {
           const [typedData, typedDataAddress] = params;
           const typedSignature = await this.withTimeout(
             this.signTypedData(typedData, typedDataAddress),
             15000, // 15 second timeout for signing
             'Typed data signing timeout - please try again'
           );
+          }
           return {
             id: request.id,
             jsonrpc: '2.0',
@@ -828,15 +833,14 @@ export class WalletConnectManager {
     if (!this.client) return;
 
     try {
-      console.log('Rejecting session proposal:', proposal.id);
-      
+
       await this.client.reject({
         id: proposal.id,
         reason: getSdkError('USER_REJECTED')
       });
-      
-      console.log('Session rejected');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to reject session:', error);
       throw error;
     }
@@ -862,6 +866,7 @@ export class WalletConnectManager {
         );
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error during disconnect:', error);
     } finally {
       this.session = null;
@@ -888,7 +893,7 @@ export class WalletConnectManager {
     
     return {
       topic: session.topic || '',
-      chainId: parseInt(accounts[0]?.split(':')[1] || '1'),
+      chainId: parseInt(accounts[0]?.split(':')[1], 10),
       accounts: accounts.map(acc => acc.split(':')[2]),
       connected: true,
       namespaces: session.namespaces || {},
@@ -916,7 +921,7 @@ export class WalletConnectManager {
   getChainId(): number {
     if (!this.session) return 1;
     const accounts = this.session.namespaces.eip155?.accounts || [];
-    return parseInt(accounts[0]?.split(':')[1] || '1');
+    return parseInt(accounts[0]?.split(':', 10)[1] || '1');
   }
 
   // Get balance (real implementation)
@@ -926,6 +931,7 @@ export class WalletConnectManager {
       const balance = await getRealBalance(address, 'ethereum');
       return balance;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting balance:', error);
       return '0x0';
     }
@@ -948,6 +954,7 @@ export class WalletConnectManager {
         throw new Error(response?.error || 'Signing failed');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error signing message:', error);
       throw error;
     }
@@ -970,6 +977,7 @@ export class WalletConnectManager {
         throw new Error(response?.error || 'Typed data signing failed');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error signing typed data:', error);
       throw error;
     }
@@ -990,6 +998,7 @@ export class WalletConnectManager {
         throw new Error(response?.error || 'Chain switch failed');
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error switching chain:', error);
       throw error;
     }
@@ -1018,8 +1027,7 @@ export class WalletConnectManager {
     if (!this.client) return;
 
     try {
-      console.log('Approving request:', request.id);
-      
+
       const response = await this.withTimeout(
         this.handleSessionRequest(request),
         30000, // 30 second timeout for request handling
@@ -1030,9 +1038,9 @@ export class WalletConnectManager {
         topic: this.session?.topic || '',
         response
       });
-      
-      console.log('Request approved');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to approve request:', error);
       throw error;
     }
@@ -1043,8 +1051,7 @@ export class WalletConnectManager {
     if (!this.client) return;
 
     try {
-      console.log('Rejecting request:', request.id);
-      
+
       await this.client.respond({
         topic: this.session?.topic || '',
         response: {
@@ -1056,9 +1063,9 @@ export class WalletConnectManager {
           }
         }
       });
-      
-      console.log('Request rejected');
+
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to reject request:', error);
       throw error;
     }

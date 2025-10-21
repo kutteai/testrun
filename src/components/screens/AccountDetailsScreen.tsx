@@ -58,6 +58,7 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         }
         setAccounts(accountsData);
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load account data:', error);
       } finally {
         setIsLoading(false);
@@ -85,10 +86,12 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Handle account name update
   const handleUpdateAccountName = async () => {
     if (!newAccountName.trim() || !currentAccount || !wallet) {
+      // eslint-disable-next-line no-console
       console.log('❌ Missing required data:', { newAccountName: newAccountName.trim(), currentAccount: !!currentAccount, wallet: !!wallet });
       return;
     }
 
+    // eslint-disable-next-line no-console
     console.log('🔄 Starting account name update:', {
       walletId: wallet.id,
       accountId: currentAccount.id,
@@ -103,20 +106,17 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
       // Update the account name in the wallet
       await walletManager.updateAccountName(wallet.id, currentAccount.id, newAccountName.trim());
-      console.log('✅ WalletManager update completed');
 
       // Refresh the wallet state in the context
       await refreshWallet();
-      console.log('✅ Wallet context refreshed');
 
       // Reload the current account data
       const updatedAccount = await getCurrentAccount();
-      console.log('✅ Updated account data:', updatedAccount);
 
       if (updatedAccount) {
         setCurrentAccount(updatedAccount);
         setAccountName(updatedAccount.name);
-        console.log('✅ Local state updated with new account data');
+
       }
 
       // Dispatch wallet changed event to update other screens
@@ -130,7 +130,7 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           }
         });
         window.dispatchEvent(event);
-        console.log('✅ Wallet changed event dispatched');
+
       }
 
       // Close the modal
@@ -138,8 +138,10 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       setIsEditingName(false);
       setNewAccountName('');
 
+      // eslint-disable-next-line no-console
       console.log(`✅ Account name update completed: ${newAccountName.trim()}`);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('❌ Failed to update account name:', error);
       // You could add a toast notification here for error feedback
     }

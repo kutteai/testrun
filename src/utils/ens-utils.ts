@@ -66,6 +66,7 @@ export async function resolveENS(ensName: string, network: string = 'ethereum'):
     
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS resolution failed:', error);
     return null;
   }
@@ -114,11 +115,13 @@ async function resolveBNBDomain(domain: string): Promise<string | null> {
         return address;
       }
     } catch (fallbackError) {
+      // eslint-disable-next-line no-console
       console.warn('Fallback BNB domain resolution failed:', fallbackError);
     }
     
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('BNB domain resolution failed:', error);
     return null;
   }
@@ -137,6 +140,7 @@ async function resolveUnstoppableDomain(domain: string): Promise<string | null> 
     
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Unstoppable domain resolution failed:', error);
     return null;
   }
@@ -153,6 +157,7 @@ async function resolveSolanaDomain(domain: string): Promise<string | null> {
     }
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Solana domain resolution failed:', error);
     return null;
   }
@@ -171,6 +176,7 @@ async function resolveAvalancheDomain(domain: string): Promise<string | null> {
     
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Avalanche domain resolution failed:', error);
     return null;
   }
@@ -185,6 +191,7 @@ export async function lookupENS(address: string): Promise<string | null> {
     const name = await provider.lookupAddress(address);
     return name;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS lookup failed:', error);
     return null;
   }
@@ -228,6 +235,7 @@ export async function getDomainPrice(domainName: string): Promise<number> {
     return priceInEth;
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get domain price from contract:', error);
     
     // Throw error instead of fallback pricing
@@ -272,6 +280,7 @@ export async function getDomainExpiry(domainName: string): Promise<Date | null> 
     return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year from now
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS expiry check failed:', error);
     // Return a default expiry if we can't determine the actual expiry
     return new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
@@ -362,6 +371,7 @@ export async function getENSRecords(ensName: string): Promise<{
     
     return records;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS records fetch failed:', error);
     return {};
   }
@@ -418,6 +428,7 @@ export async function registerENSDomain(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS domain registration failed:', error);
     return { 
       success: false, 
@@ -466,6 +477,7 @@ export async function renewENSDomain(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS domain renewal failed:', error);
     return { 
       success: false, 
@@ -502,6 +514,7 @@ export async function setupENSResolver(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS resolver setup failed:', error);
     return { 
       success: false, 
@@ -545,6 +558,7 @@ export async function setENSTextRecord(
     };
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('ENS text record setting failed:', error);
     return { 
       success: false, 

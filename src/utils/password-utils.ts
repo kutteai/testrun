@@ -35,6 +35,7 @@ export function verifyPassword(password: string, passwordHash: PasswordHash): bo
     const testHash = pbkdf2Sync(password, saltBuffer, iterations, 64, 'sha512');
     return testHash.toString('hex') === hash;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Password verification error:', error);
     return false;
   }
@@ -89,7 +90,7 @@ export function validatePasswordStrength(password: string): {
     score += 1;
   }
   
-  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+  if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
     feedback.push('Password must contain at least one special character');
   } else {
     score += 1;

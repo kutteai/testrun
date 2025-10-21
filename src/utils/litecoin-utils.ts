@@ -194,6 +194,7 @@ export class LitecoinAddressGenerator {
       
       return base58Encode(fullAddress);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error generating legacy address:', error);
       throw new Error('Failed to generate legacy address');
     }
@@ -221,6 +222,7 @@ export class LitecoinAddressGenerator {
       
       return base58Encode(fullAddress);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error generating SegWit address:', error);
       throw new Error('Failed to generate SegWit address');
     }
@@ -239,6 +241,7 @@ export class LitecoinAddressGenerator {
       // Encode as bech32
       return bech32Encode(this.network.segwitPrefix, witnessProgram);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error generating native SegWit address:', error);
       throw new Error('Failed to generate native SegWit address');
     }
@@ -256,6 +259,7 @@ export class LitecoinAddressGenerator {
       
       return base58Encode(fullWif);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error creating WIF:', error);
       throw new Error('Failed to create WIF');
     }
@@ -297,6 +301,7 @@ export class LitecoinAddressGenerator {
       createdAt: Date.now()
     };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error generating Litecoin wallet:', error);
       throw new Error('Failed to generate Litecoin wallet');
     }
@@ -329,6 +334,7 @@ export class LitecoinAPI {
         unconfirmed: ((data.mempool_stats?.funded_txo_sum || 0) - (data.mempool_stats?.spent_txo_sum || 0)) / 100000000
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Litecoin balance:', error);
       throw new Error(`Failed to fetch Litecoin balance: ${error.message}. Real Litecoin API integration required.`);
     }
@@ -358,6 +364,7 @@ export class LitecoinAPI {
         vin: tx.vin?.length || 0
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Litecoin transactions:', error);
       throw new Error(`Failed to fetch Litecoin transactions: ${error.message}. Real Litecoin API integration required.`);
     }
@@ -380,6 +387,7 @@ export class LitecoinAPI {
         fast: data['6'] || 30
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching Litecoin fee rates:', error);
       throw new Error(`Failed to fetch Litecoin fee rates: ${error.message}. Real Litecoin API integration required.`);
     }

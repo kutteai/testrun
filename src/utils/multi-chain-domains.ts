@@ -636,15 +636,13 @@ if (typeof window !== 'undefined') {
       'example.polygon',  // PNS (not implemented)
       'test.arb'          // ANS (not implemented)
     ];
-    
-    console.log('🧪 Testing multi-chain domain resolution...');
-    
+
     for (const domain of testDomains) {
       try {
         const result = await MultiChainDomainResolver.resolveDomain(domain);
-        console.log(`${domain}:`, result);
+
       } catch (error) {
-        console.log(`${domain}: ERROR -`, error.message);
+
       }
     }
   };

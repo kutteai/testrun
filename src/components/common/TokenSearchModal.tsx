@@ -77,6 +77,7 @@ const TokenSearchModal: React.FC<TokenSearchModalProps> = ({
       setSelectedToken(null);
       onClose();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to add token:', error);
       // Don't close modal on error so user can try again
     }

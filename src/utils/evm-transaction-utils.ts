@@ -75,6 +75,7 @@ export async function getEVMTransactions(
           }
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Error fetching block ${blockNumber}:`, error);
         continue;
       }
@@ -84,6 +85,7 @@ export async function getEVMTransactions(
     return transactions.sort((a, b) => b.timestamp - a.timestamp);
     
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching EVM transactions:', error);
     return [];
   }
@@ -107,6 +109,7 @@ export async function getTransactionFromEtherscan(
     
     return data.result;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching transaction from Etherscan:', error);
     return null;
   }
@@ -122,6 +125,7 @@ export async function getTransactionReceipt(
     const receipt = await provider.getTransactionReceipt(txHash);
     return receipt;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching transaction receipt:', error);
     return null;
   }
@@ -136,6 +140,7 @@ export function calculateTransactionFee(
     const fee = ethers.parseUnits(gasUsed, 'wei') * ethers.parseUnits(gasPrice, 'wei');
     return ethers.formatEther(fee);
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error calculating transaction fee:', error);
     return '0';
   }
@@ -158,6 +163,7 @@ export async function getPendingTransactions(
     
     return pendingTxs;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching pending transactions:', error);
     return [];
   }

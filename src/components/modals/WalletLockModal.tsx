@@ -47,7 +47,7 @@ const WalletLockModal: React.FC<WalletLockModalProps> = ({
     const calculateTimeRemaining = () => {
       const unlockTime = localStorage.getItem('unlockTime');
       if (unlockTime) {
-        const elapsed = Date.now() - parseInt(unlockTime);
+        const elapsed = Date.now() - parseInt(unlockTime, 10);
         const currentOption = lockTimeOptions.find(opt => opt.value === currentLockTime);
         const timeoutMs = (currentOption?.minutes || 15) * 60 * 1000;
         const remaining = Math.max(0, timeoutMs - elapsed);
@@ -84,6 +84,7 @@ const WalletLockModal: React.FC<WalletLockModalProps> = ({
       }, 1500);
       
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to lock wallet:', error);
       setLockStatus('error');
       setErrorMessage(error instanceof Error ? error.message : 'Failed to lock wallet');

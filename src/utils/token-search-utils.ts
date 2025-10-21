@@ -196,7 +196,7 @@ export async function searchTokens(query: string, network: string = 'ethereum'):
           });
         }
       } catch (error) {
-        console.log('Failed to fetch token info for address:', error);
+
       }
     }
 
@@ -205,7 +205,7 @@ export async function searchTokens(query: string, network: string = 'ethereum'):
       const coingeckoResults = await searchCoinGecko(normalizedQuery, network);
       suggestions.push(...coingeckoResults);
     } catch (error) {
-      console.log('CoinGecko search failed:', error);
+
     }
 
     // Remove duplicates and limit results
@@ -216,6 +216,7 @@ export async function searchTokens(query: string, network: string = 'ethereum'):
     return uniqueSuggestions.slice(0, 10); // Limit to 10 results
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Token search failed:', error);
     return [];
   }
@@ -265,12 +266,14 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
     }
     
     if (!apiKey) {
+      // eslint-disable-next-line no-console
       console.warn(`No API key for ${network} explorer`);
       // Instead of returning null, throw an error to indicate API integration needed
       throw new Error(`ETHERSCAN_API_KEY required for token validation on ${network}. Please add your Etherscan API key to .env file. With Etherscan API v2, one key works for 60+ chains including Ethereum, BSC, Polygon, Arbitrum, Base, and more.`);
     }
     
     // Fetch token info using multiple API calls for complete data
+    // eslint-disable-next-line no-console
     console.log(`🔍 Fetching token info for ${address} on ${network} (chainId: ${chainId}) using Etherscan API v2 with key: ${apiKey ? 'YES' : 'NO'}`);
     
     // Method 1: Get basic token info using Etherscan API v2
@@ -283,8 +286,7 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
     }
     
     const tokenInfoData = await tokenInfoResponse.json();
-    console.log(`🔍 Token info API response:`, tokenInfoData);
-    
+
     if (tokenInfoData.status === '1' && tokenInfoData.result && tokenInfoData.result.length > 0) {
       const tokenInfo = tokenInfoData.result[0];
       
@@ -300,16 +302,17 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
           if (decimalsData.status === '1' && decimalsData.result && decimalsData.result !== '0x') {
             // Convert hex result to decimal
             decimals = parseInt(decimalsData.result, 16);
-            console.log(`✅ Real decimals fetched: ${decimals}`);
+
           }
         }
       } catch (decimalsError) {
+        // eslint-disable-next-line no-console
         console.warn('Failed to fetch decimals via contract call:', decimalsError);
         // Try to parse from tokenInfo if available
         if (tokenInfo.divisor) {
-          decimals = parseInt(tokenInfo.divisor);
+          decimals = parseInt(tokenInfo.divisor, 10);
         } else if (tokenInfo.decimals) {
-          decimals = parseInt(tokenInfo.decimals);
+          decimals = parseInt(tokenInfo.decimals, 10);
         }
       }
       
@@ -330,10 +333,11 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
               // Decode hex string to ASCII
               const hexStr = symbolData.result.slice(2);
               symbol = Buffer.from(hexStr, 'hex').toString('ascii').replace(/\0/g, '');
-              console.log(`✅ Real symbol fetched: ${symbol}`);
+
             }
           }
         } catch (symbolError) {
+          // eslint-disable-next-line no-console
           console.warn('Failed to fetch symbol via contract call:', symbolError);
         }
       }
@@ -351,10 +355,11 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
               // Decode hex string to ASCII
               const hexStr = nameData.result.slice(2);
               name = Buffer.from(hexStr, 'hex').toString('ascii').replace(/\0/g, '');
-              console.log(`✅ Real name fetched: ${name}`);
+
             }
           }
         } catch (nameError) {
+          // eslint-disable-next-line no-console
           console.warn('Failed to fetch name via contract call:', nameError);
         }
       }
@@ -368,8 +373,7 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
         isVerified: true,
         source: 'explorer' as const
       };
-      
-      console.log(`✅ Final token info:`, result);
+
       return result;
     } else {
       // More descriptive error messages for common cases
@@ -377,10 +381,12 @@ async function fetchTokenInfoFromExplorer(address: string, network: string): Pro
       if (errorMessage === 'NOTOK') {
         errorMessage = `Token contract not found on ${network} explorer. This could mean:\n• Invalid contract address\n• Token not deployed on this network\n• Explorer API is temporarily unavailable\n• API key issues`;
       }
+      // eslint-disable-next-line no-console
       console.error(`❌ Token validation failed: ${errorMessage}`);
       throw new Error(errorMessage);
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to fetch token info from explorer:', error);
     return null;
   }
@@ -391,6 +397,7 @@ async function searchCoinGecko(query: string, network: string): Promise<TokenSea
   try {
     const config = getConfig();
     if (!config.COINGECKO_API_KEY) {
+      // eslint-disable-next-line no-console
       console.warn('No CoinGecko API key available');
       // Throw error instead of returning empty array to indicate API integration needed
       throw new Error('CoinGecko API key required for token search. Please add COINGECKO_API_KEY to config. Real CoinGecko API integration required.');
@@ -452,6 +459,7 @@ async function searchCoinGecko(query: string, network: string): Promise<TokenSea
     }];
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('CoinGecko search failed:', error);
     return [];
   }
@@ -483,6 +491,7 @@ export async function getTokenDetails(address: string, network: string): Promise
 
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to get token details:', error);
     return null;
   }
@@ -497,6 +506,7 @@ export async function validateTokenContract(address: string, network: string): P
       return true;
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('Explorer API validation failed:', error.message);
   }
 
@@ -507,6 +517,7 @@ export async function validateTokenContract(address: string, network: string): P
       return true;
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('RPC validation failed:', error.message);
   }
 
@@ -514,10 +525,12 @@ export async function validateTokenContract(address: string, network: string): P
     // Method 3: Basic address format validation
     const isValidFormat = validateTokenAddressFormat(address, network);
     if (isValidFormat) {
+      // eslint-disable-next-line no-console
       console.warn('Using basic address validation only - contract existence not verified');
       return true;
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.warn('Address format validation failed:', error.message);
   }
 
@@ -558,6 +571,7 @@ async function validateTokenContractViaRPC(address: string, network: string): Pr
     
     return false;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('RPC validation error:', error);
     return false;
   }
@@ -736,6 +750,7 @@ export async function addCustomToken(tokenInput: CustomTokenInput): Promise<{
     return { success: true, token: customToken };
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to add custom token:', error);
     return { success: false, error: 'Failed to add custom token' };
   }
@@ -751,6 +766,7 @@ export function removeCustomToken(address: string, network: string): boolean {
     customTokensStorage.set(network, filteredTokens);
     return true;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Failed to remove custom token:', error);
     return false;
   }
@@ -864,6 +880,7 @@ async function enhancedSearchTokens(
     return finalResults;
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Token search failed:', error);
     return suggestions.slice(0, limit);
   }
@@ -944,12 +961,13 @@ async function searchSolanaTokens(query: string, options: any): Promise<TokenSea
           }
         }
       } catch (error) {
-        console.log('Jupiter API search failed:', error);
+
       }
     }
 
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Solana token search failed:', error);
     return [];
   }
@@ -976,6 +994,7 @@ async function searchBitcoinTokens(query: string, options: any): Promise<TokenSe
     
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Bitcoin token search failed:', error);
     return [];
   }
@@ -1020,6 +1039,7 @@ async function searchTronTokens(query: string, options: any): Promise<TokenSearc
 
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('TRON token search failed:', error);
     return [];
   }
@@ -1056,6 +1076,7 @@ async function searchCosmosTokens(query: string, networks: string[], options: an
 
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Cosmos token search failed:', error);
     return [];
   }
@@ -1086,6 +1107,7 @@ async function searchNearTokens(query: string, options: any): Promise<TokenSearc
 
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('NEAR token search failed:', error);
     return [];
   }
@@ -1115,6 +1137,7 @@ async function searchAptosTokens(query: string, options: any): Promise<TokenSear
 
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Aptos token search failed:', error);
     return [];
   }
@@ -1144,6 +1167,7 @@ async function searchSuiTokens(query: string, options: any): Promise<TokenSearch
 
     return results;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Sui token search failed:', error);
     return [];
   }
@@ -1184,7 +1208,7 @@ function sortTokenResultsWithCustomPriority(
         return (b.marketCap || 0) - (a.marketCap || 0);
       case 'volume':
         return (b.volume24h || 0) - (a.volume24h || 0);
-      case 'price':
+      case 'price': {
         return (b.price || 0) - (a.price || 0);
       default: // relevance
         // Sort by symbol/name match relevance
@@ -1197,6 +1221,7 @@ function sortTokenResultsWithCustomPriority(
         const aNameMatch = a.name.toLowerCase().startsWith(normalizedQuery);
         const bNameMatch = b.name.toLowerCase().startsWith(normalizedQuery);
         
+        }
         if (aNameMatch && !bNameMatch) return -1;
         if (!aNameMatch && bNameMatch) return 1;
         
@@ -1334,7 +1359,7 @@ async function getTokenByAddress(address: string, network: string): Promise<Toke
         return result as TokenSearchSuggestion;
       }
     } catch (error) {
-      console.log(`Token fetch failed for ${address}:`, error);
+
       continue;
     }
   }
@@ -1389,6 +1414,7 @@ async function searchDexScreener(query: string, networks: string[]): Promise<Tok
       }));
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('DexScreener search failed:', error);
     return [];
   }
@@ -1443,6 +1469,7 @@ async function searchMoralisAPI(query: string, networks: string[]): Promise<Toke
     return results;
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Moralis search failed:', error);
     return [];
   }
@@ -1531,6 +1558,7 @@ async function searchCoinGeckoV3(query: string, networks: string[]): Promise<Tok
     return results;
 
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('CoinGecko V3 search failed:', error);
     return [];
   }
@@ -1979,6 +2007,7 @@ async function fetchTokenFromMoralis(address: string, network: string): Promise<
 
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Moralis token fetch failed:', error);
     return null;
   }
@@ -2010,6 +2039,7 @@ async function fetchTokenFromDexScreener(address: string, network: string): Prom
 
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('DexScreener token fetch failed:', error);
     return null;
   }
@@ -2043,6 +2073,7 @@ async function fetchTokenFromCoinGecko(address: string, network: string): Promis
 
     return null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('CoinGecko token fetch failed:', error);
     return null;
   }

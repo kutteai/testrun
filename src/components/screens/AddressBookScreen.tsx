@@ -61,6 +61,7 @@ const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const result = await storage.get(['addressBook']);
       setContacts(result.addressBook || []);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load contacts:', error);
       toast.error('Failed to load contacts');
     } finally {
@@ -73,6 +74,7 @@ const AddressBookScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       await storage.set({ addressBook: updatedContacts });
       setContacts(updatedContacts);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save contacts:', error);
       toast.error('Failed to save contacts');
     }

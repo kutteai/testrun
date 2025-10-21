@@ -44,21 +44,19 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       }
       
       try {
-        console.log('🔄 SendScreen: Loading data for wallet:', wallet);
-        
+
         // Load accounts
         const walletAccounts = await getWalletAccounts();
-        console.log('📊 SendScreen: Loaded accounts:', walletAccounts);
+
         setAccounts(walletAccounts);
         
         // Get current account with proper fallback
         let current = await getCurrentAccount();
-        console.log('👤 SendScreen: Current account:', current);
-        
+
         // If no current account, use the first available account
         if (!current && walletAccounts.length > 0) {
           current = walletAccounts[0];
-          console.log('🔄 SendScreen: Using first account as fallback:', current);
+
         }
         
         setFromAccount(current);
@@ -66,17 +64,18 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         // Load contacts from storage
         const storedContacts = await storage.get(['addressBook']);
         const contactsData = storedContacts?.addressBook || [];
-        console.log('📇 SendScreen: Loaded contacts:', contactsData);
+
         setContacts(contactsData);
         
         // If still no account, try to get from wallet directly
         if (!current && wallet.accounts && wallet.accounts.length > 0) {
           const directAccount = wallet.accounts.find((acc: any) => acc.isActive) || wallet.accounts[0];
-          console.log('🔄 SendScreen: Using direct wallet account:', directAccount);
+
           setFromAccount(directAccount);
         }
         
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ SendScreen: Error loading data:', error);
         handleError(error, {
           context: { operation: 'loadSendScreenData', screen: 'SendScreen' },
@@ -93,19 +92,18 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Listen for wallet changes to refresh data
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
-      console.log('🔄 Wallet changed event received in SendScreen:', event.detail);
+
       try {
         const walletAccounts = await getWalletAccounts();
-        console.log('📊 SendScreen: Refreshed accounts after wallet change:', walletAccounts);
+
         setAccounts(walletAccounts);
         
         let current = await getCurrentAccount();
-        console.log('👤 SendScreen: Refreshed current account:', current);
-        
+
         // Fallback to first account if no current account
         if (!current && walletAccounts.length > 0) {
           current = walletAccounts[0];
-          console.log('🔄 SendScreen: Using first account as fallback after wallet change:', current);
+
         }
         
         setFromAccount(current);
@@ -116,6 +114,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         setContacts(contactsData);
         
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ SendScreen: Error refreshing after wallet change:', error);
         handleError(error, {
           context: { operation: 'refreshAccountsAfterWalletChange', screen: 'SendScreen' },
@@ -125,15 +124,16 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     };
 
     const handleAccountSwitched = async (event: CustomEvent) => {
-      console.log('🔄 Account switched event received in SendScreen:', event.detail);
+
       try {
         // Update the from account immediately
         const current = await getCurrentAccount();
         if (current) {
           setFromAccount(current);
-          console.log('✅ SendScreen: Updated from account after switch:', current);
+
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ SendScreen: Error updating after account switch:', error);
       }
     };
@@ -153,22 +153,22 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       // Refresh accounts when network changes
       const refreshData = async () => {
         try {
-          console.log('🔄 SendScreen: Refreshing data for network change to:', currentNetwork.id);
+
           const walletAccounts = await getWalletAccounts();
-          console.log('📊 SendScreen: Refreshed accounts for network:', walletAccounts);
+
           setAccounts(walletAccounts);
           
           let current = await getCurrentAccount();
-          console.log('👤 SendScreen: Refreshed current account for network:', current);
-          
+
           // Fallback to first account if no current account
           if (!current && walletAccounts.length > 0) {
             current = walletAccounts[0];
-            console.log('🔄 SendScreen: Using first account as fallback for network:', current);
+
           }
           
           setFromAccount(current);
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('❌ SendScreen: Error refreshing accounts on network change:', error);
         }
       };
@@ -242,15 +242,14 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         throw new Error(`Unsupported network: ${networkId}`);
       }
 
-      console.log(`🔍 Calculating gas fee for ${networkId}...`);
-
       // Try real-time gas service first
       let gasPriceData;
       try {
         const { realTimeGasService } = await import('../../utils/real-time-gas-prices');
         gasPriceData = await realTimeGasService.getGasPrices(networkId);
-        console.log(`✅ Real-time gas price: ${gasPriceData.gasPrice} Gwei`);
+
       } catch (realTimeError) {
+        // eslint-disable-next-line no-console
         console.warn('Real-time gas service failed, using RPC fallback:', realTimeError);
         // Fallback to RPC
         const gasPrice = await getGasPrice(networkId);
@@ -278,12 +277,6 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const totalFeeWei = gasPriceWei * gasLimitBigInt;
       const totalFeeEth = ethers.formatEther(totalFeeWei);
 
-      console.log(`💰 Gas fee calculation:`, {
-        gasPrice: `${gasPriceData.standard} Gwei`,
-        gasLimit: gasLimit,
-        totalFee: `${totalFeeEth} ${networkConfig.symbol}`
-      });
-
       return {
         gasPrice: gasPriceWei.toString(),
         gasLimit: gasLimit,
@@ -294,6 +287,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         fastGasPrice: gasPriceData.fast
       };
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Gas fee calculation failed:', error);
       return {
         gasPrice: '0',
@@ -314,72 +308,72 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     if (addressType === 'address') {
       const networkId = currentNetwork?.id || 'ethereum';
       let isValid = false;
-      
-      console.log('🔍 Address validation debug:');
-      console.log('  - Address:', value);
-      console.log('  - Address type:', addressType);
-      console.log('  - Current network:', networkId);
-      console.log('  - Address length:', value.length);
-      
+
+
       switch (networkId) {
         case 'ethereum':
         case 'polygon':
         case 'bsc':
         case 'avalanche':
         case 'arbitrum':
-        case 'optimism':
+        case 'optimism': {
           // EVM networks - Ethereum address format
           const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
           isValid = ethAddressRegex.test(value);
-          console.log('  - EVM network detected');
-          console.log('  - Regex test result:', isValid);
-          console.log('  - Regex pattern:', ethAddressRegex);
+
+
+          }
           break;
           
-        case 'bitcoin':
+        case 'bitcoin': {
           // Bitcoin address validation (P2PKH, P2SH, Bech32)
           const btcAddressRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/;
           isValid = btcAddressRegex.test(value);
+          }
           break;
           
-        case 'solana':
+        case 'solana': {
           // Solana address validation (Base58, 32-44 characters)
           const solAddressRegex = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
           isValid = solAddressRegex.test(value);
+          }
           break;
           
-        case 'tron':
+        case 'tron': {
           // TRON address validation (Base58, starts with 'T')
           const tronAddressRegex = /^T[A-Za-z1-9]{33}$/;
           isValid = tronAddressRegex.test(value);
+          }
           break;
           
-        case 'xrp':
+        case 'xrp': {
           // XRP address validation (Base58, starts with 'r')
           const xrpAddressRegex = /^r[a-km-zA-HJ-NP-Z1-9]{25,34}$/;
           isValid = xrpAddressRegex.test(value);
+          }
           break;
           
-        case 'ton':
+        case 'ton': {
           // TON address validation (Base64, starts with 'EQ' or 'UQ')
           const tonAddressRegex = /^(EQ|UQ)[A-Za-z0-9_-]{44,48}$/;
           isValid = tonAddressRegex.test(value);
+          }
           break;
           
-        case 'litecoin':
+        case 'litecoin': {
           // Litecoin address validation (similar to Bitcoin)
           const ltcAddressRegex = /^[LM3][a-km-zA-HJ-NP-Z1-9]{26,33}$|^ltc1[a-z0-9]{39,59}$/;
           isValid = ltcAddressRegex.test(value);
           break;
-          
+        }
+
         default:
           // Fallback to Ethereum validation for unknown networks
           const fallbackRegex = /^0x[a-fA-F0-9]{40}$/;
           isValid = fallbackRegex.test(value);
           break;
       }
-      
-      console.log('  - Final validation result:', isValid);
+
       setIsAddressValid(isValid);
       
     } else if (addressType === 'ens') {
@@ -393,43 +387,49 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         case 'polygon':
         case 'arbitrum':
         case 'optimism':
-        case 'base':
+        case 'base': {
           // Ethereum-based networks support .eth domains
           const ensRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.eth$/;
           isValid = ensRegex.test(value.toLowerCase());
+          }
           break;
           
         case 'bsc':
-        case 'binance':
+        case 'binance': {
           // BSC network supports .bnb domains (Space ID)
           const bnbRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.bnb$/;
           isValid = bnbRegex.test(value.toLowerCase());
+          }
           break;
-          
-        case 'polygon':
-          // Polygon supports .polygon domains
-          const polygonRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.polygon$/;
-          isValid = polygonRegex.test(value.toLowerCase());
-          break;
-          
-        case 'avalanche':
+
+        // case 'polygon': { // Duplicate case - commented out
+        //   // Polygon supports .polygon domains
+        //   const polygonRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.polygon$/;
+        //   isValid = polygonRegex.test(value.toLowerCase());
+        //   }
+        //   break;
+
+        case 'avalanche': {
           // Avalanche supports .avax domains
           const avaxRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.avax$/;
           isValid = avaxRegex.test(value.toLowerCase());
+          }
           break;
           
-        case 'solana':
+        case 'solana': {
           // Solana supports .sol domains
           const solRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.sol$/;
           isValid = solRegex.test(value.toLowerCase());
+          }
           break;
           
-        case 'tron':
+        case 'tron': {
           // TRON supports .trx domains
           const trxRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.trx$/;
           isValid = trxRegex.test(value.toLowerCase());
           break;
-          
+        }
+
         default:
           // Multi-chain domains (Unstoppable Domains)
           const multiChainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.(crypto|nft|blockchain|bitcoin|dao|888|wallet|x|klever|zil)$/;
@@ -448,22 +448,24 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
 
   // Test function for debugging address validation
   const testAddressValidation = (testAddress: string) => {
-    console.log('🧪 Testing address validation for:', testAddress);
-    console.log('  - Current network:', currentNetwork?.id);
-    console.log('  - Address type:', addressType);
-    
+
+
     const networkId = currentNetwork?.id || 'ethereum';
     const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
     const isValid = ethAddressRegex.test(testAddress);
-    
-    console.log('  - Regex test result:', isValid);
-    console.log('  - Address length:', testAddress.length);
+
+
+    // eslint-disable-next-line no-console
     console.log('  - Starts with 0x:', testAddress.startsWith('0x'));
+    // eslint-disable-next-line no-console
     console.log('  - Hex part length:', testAddress.substring(2).length);
     
     // Check for hidden characters
+    // eslint-disable-next-line no-console
     console.log('  - Character codes:', testAddress.split('').map(c => c.charCodeAt(0)));
+    // eslint-disable-next-line no-console
     console.log('  - Has whitespace:', testAddress !== testAddress.trim());
+    // eslint-disable-next-line no-console
     console.log('  - Trimmed address:', `"${testAddress.trim()}"`);
     
     return isValid;
@@ -472,7 +474,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Test the specific failing address
   const testFailingAddress = () => {
     const failingAddress = '0x100A87f0755545bB9B7ab096B2E2a3A3e083e4A4';
-    console.log('🔍 Testing the specific failing address...');
+
     return testAddressValidation(failingAddress);
   };
 
@@ -483,7 +485,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       // Enhanced domain resolution with multi-chain support
       if (addressType === 'ens') {
         try {
-          console.log('🔍 Resolving domain:', toAddress);
+
           const networkId = currentNetwork?.id || 'ethereum';
           
           // Use multi-chain domain resolver
@@ -492,17 +494,14 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
           
           if (resolutionResult.success && resolutionResult.address) {
             resolvedAddress = resolutionResult.address;
-            console.log('✅ Domain resolved to:', resolvedAddress);
-            console.log('✅ Resolution details:', {
-              network: resolutionResult.network,
-              service: resolutionResult.service,
-              isGlobal: resolutionResult.isGlobal
-            });
+
+
           } else {
             toast.error(`Could not resolve domain: ${toAddress}`);
             return;
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('❌ Domain resolution failed:', error);
           toast.error(`Failed to resolve domain: ${toAddress}`);
           return;
@@ -512,22 +511,20 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       // UCPI ID resolution
       if (addressType === 'ucpi') {
         try {
-          console.log('🔍 Resolving UCPI ID:', toAddress);
+
           const { ucpiService } = await import('../../services/ucpi-service');
           const resolutionResult = await ucpiService.resolveUCPI(toAddress);
           
           if (resolutionResult && resolutionResult.address) {
             resolvedAddress = resolutionResult.address;
-            console.log('✅ UCPI ID resolved to:', resolvedAddress);
-            console.log('✅ UCPI resolution details:', {
-              isGlobal: resolutionResult.isGlobal,
-              isLocal: resolutionResult.isLocal
-            });
+
+
           } else {
             toast.error(`Could not resolve UCPI ID: ${toAddress}`);
             return;
           }
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.error('❌ UCPI resolution failed:', error);
           toast.error(`Failed to resolve UCPI ID: ${toAddress}`);
           return;
@@ -637,7 +634,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                 </div>
                 <div className="text-[13px] text-gray-600">
                   {fromAccount?.address || fromAccount?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
-                    `${(fromAccount.address || fromAccount.addresses?.[currentNetwork?.id || 'ethereum']).substring(0, 6)}...${(fromAccount.address || fromAccount.addresses?.[currentNetwork?.id || 'ethereum']).substring((fromAccount.address || fromAccount.addresses?.[currentNetwork?.id || 'ethereum']).length - 4)}` : 
+                    `${(fromAccount.address || fromAccount.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring(0, 6)}...${(fromAccount.address || fromAccount.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring((fromAccount.address || fromAccount.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).length - 4)}` : 
                     'No address'
                   }
                 </div>
@@ -857,7 +854,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                       </div>
                       <div className="text-[13px] text-gray-600">
                         {account?.address || account?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
-                          `${(account.address || account.addresses?.[currentNetwork?.id || 'ethereum']).substring(0, 6)}...${(account.address || account.addresses?.[currentNetwork?.id || 'ethereum']).substring((account.address || account.addresses?.[currentNetwork?.id || 'ethereum']).length - 4)}` : 
+                          `${(account.address || account.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring(0, 6)}...${(account.address || account.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring((account.address || account.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).length - 4)}` : 
                           'No address'
                         }
                       </div>

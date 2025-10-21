@@ -358,15 +358,13 @@ if (typeof window !== 'undefined') {
   // Quick test function
   (window as any).testGasPrices = async () => {
     const networks = ['ethereum', 'bsc', 'polygon'];
-    
-    console.log('🧪 Testing real-time gas prices...');
-    
+
     for (const network of networks) {
       try {
         const gasData = await realTimeGasService.getGasPrices(network);
-        console.log(`${network}:`, gasData);
+
       } catch (error) {
-        console.log(`${network}: ERROR -`, error.message);
+
       }
     }
   };

@@ -94,6 +94,7 @@ class ENSRegistrationService {
       const fullDomain = domain.endsWith('.eth') ? domain : `${domain}.eth`;
       return await checkDomainAvailability(fullDomain);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS availability check failed:', error);
       return false;
     }
@@ -129,7 +130,7 @@ class ENSRegistrationService {
       const bridgePrivateKey = config.BRIDGE_SENDER_PRIVATE_KEY;
       
       if (bridgePrivateKey) {
-        console.log('🔧 Using bridge sender private key for ENS registration gas fees');
+
         return await this.registerWithBridgeKey(fullDomain, walletAddress, duration, bridgePrivateKey);
       }
 
@@ -165,6 +166,7 @@ class ENSRegistrationService {
       }
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS registration failed:', error);
       return {
         success: false,
@@ -190,14 +192,11 @@ class ENSRegistrationService {
       
       // Create wallet from bridge private key
       const bridgeWallet = new ethers.Wallet(bridgePrivateKey, provider);
-      
-      console.log('🔧 Bridge wallet address:', bridgeWallet.address);
-      
+
       // Check bridge wallet balance
       const balance = await provider.getBalance(bridgeWallet.address);
       const balanceEth = ethers.formatEther(balance);
-      console.log('🔧 Bridge wallet balance:', balanceEth, 'ETH');
-      
+
       if (balance === 0n) {
         return {
           success: false,
@@ -210,7 +209,7 @@ class ENSRegistrationService {
       const result = await registerENSDomain(domain, walletAddress, durationInSeconds, bridgeWallet);
 
       if (result.success) {
-        console.log('✅ ENS domain registered successfully using bridge wallet');
+
         return {
           success: true,
           transactionHash: result.txHash,
@@ -225,6 +224,7 @@ class ENSRegistrationService {
       }
 
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('ENS registration with bridge key failed:', error);
       return {
         success: false,
@@ -243,6 +243,7 @@ class ENSRegistrationService {
       const data = await response.json();
       return data.ethereum?.usd || this.ETH_TO_USD_RATE;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to fetch ETH price, using fallback:', error);
       return this.ETH_TO_USD_RATE;
     }
@@ -340,6 +341,7 @@ class ENSRegistrationService {
         };
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.warn('Failed to estimate gas cost:', error);
     }
 

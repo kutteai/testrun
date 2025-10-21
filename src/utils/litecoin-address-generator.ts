@@ -104,20 +104,16 @@ export const generateLitecoinAddress = async (seedPhrase: string, accountIndex: 
     publicKey: string;
 }> => {
     try {
-        console.log('🚀 Generating Litecoin Address from seed phrase...');
-        
+
         // Generate deterministic private key from seed phrase
         const privateKey = await generatePrivateKeyFromSeed(seedPhrase, accountIndex);
-        console.log('🔑 Private Key generated from seed');
-        
+
         // Generate public key
         const publicKey = await generatePublicKey(privateKey);
-        console.log('🔓 Public Key generated');
-        
+
         // Generate address
         const address = await generateAddress(publicKey);
-        console.log('💰 Litecoin Address generated:', address);
-        
+
         return {
             address: address,
             privateKey: privateKey,
@@ -125,6 +121,7 @@ export const generateLitecoinAddress = async (seedPhrase: string, accountIndex: 
         };
         
     } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('❌ Error generating Litecoin address:', error);
         throw new Error(`Failed to generate Litecoin address: ${error.message}`);
     }
@@ -140,8 +137,7 @@ export const generateMultipleLitecoinAddresses = async (
     publicKey: string;
     accountIndex: number;
 }>> => {
-    console.log(`🎯 Generating ${count} Litecoin addresses from seed phrase...`);
-    
+
     const addresses = [];
     
     for (let i = 0; i < count; i++) {
@@ -151,8 +147,9 @@ export const generateMultipleLitecoinAddresses = async (
                 ...result,
                 accountIndex: i
             });
-            console.log(`✅ Address ${i + 1}/${count}: ${result.address}`);
+
         } catch (error) {
+            // eslint-disable-next-line no-console
             console.error(`❌ Failed to generate address ${i + 1}:`, error);
         }
     }
@@ -187,6 +184,7 @@ export const validateLitecoinAddress = (address: string): boolean => {
         return isValidBase58;
         
     } catch (error) {
+        // eslint-disable-next-line no-console
         console.error('Litecoin address validation error:', error);
         return false;
     }

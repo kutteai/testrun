@@ -64,6 +64,7 @@ export class NFTManager {
         this.collections = result.nftCollections;
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to load NFT data:', error);
     }
   }
@@ -76,6 +77,7 @@ export class NFTManager {
         nftCollections: this.collections
       });
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save NFT data:', error);
     }
   }
@@ -86,6 +88,7 @@ export class NFTManager {
       const result = await storage.get(['wallet']);
       return result.wallet || null;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to get wallet from storage:', error);
       return null;
     }
@@ -126,6 +129,7 @@ export class NFTManager {
 
       return nfts;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to import NFTs:', error);
       throw error;
     }
@@ -171,6 +175,7 @@ export class NFTManager {
         lastUpdated: Date.now()
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching from OpenSea:', error);
       return [];
     }
@@ -217,6 +222,7 @@ export class NFTManager {
         lastUpdated: Date.now()
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching from Alchemy:', error);
       return [];
     }
@@ -272,6 +278,7 @@ export class NFTManager {
         lastUpdated: Date.now()
       }));
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error fetching from PolygonScan:', error);
       return [];
     }
@@ -309,6 +316,7 @@ export class NFTManager {
 
       return metadata;
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Error getting NFT metadata:', error);
       return null;
     }
@@ -332,10 +340,12 @@ export class NFTManager {
         try {
           await this.importNFTs(walletData.address, network);
         } catch (error) {
+          // eslint-disable-next-line no-console
           console.warn(`Failed to refresh NFTs for ${network}:`, error);
         }
       }
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to refresh NFTs:', error);
       throw error;
     }

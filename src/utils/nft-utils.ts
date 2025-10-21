@@ -91,6 +91,7 @@ export async function fetchNFTMetadata(uri: string): Promise<NFTMetadata | null>
     const metadata = await response.json();
     return metadata;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error fetching NFT metadata:', error);
     return null;
   }
@@ -102,14 +103,11 @@ export async function getOwnedNFTs(
   rpcUrl: string,
   network: string
 ): Promise<NFT[]> {
-  console.log('🔍 NFT Utils: Starting NFT detection for:', walletAddress);
-  console.log('🔍 NFT Utils: Network:', network);
-  console.log('🔍 NFT Utils: RPC URL:', rpcUrl);
-  
+
+
   try {
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    console.log('✅ NFT Utils: Provider created successfully');
-    
+
     // Popular NFT collections to check
     const popularCollections = [
       {
@@ -193,26 +191,26 @@ export async function getOwnedNFTs(
                 allNFTs.push(nft);
               }
             } catch (error) {
+              // eslint-disable-next-line no-console
               console.error(`Error fetching token ${tokenId} metadata:`, error);
             }
           }
         }
       } catch (error) {
+        // eslint-disable-next-line no-console
         console.error(`Error checking collection ${collection.name}:`, error);
       }
     }
-    
-    console.log('📊 NFT Utils: Real NFTs found:', allNFTs.length);
-    
+
     // If no NFTs found, return empty array (no dummy data)
     if (allNFTs.length === 0) {
-      console.log('ℹ️ NFT Utils: No NFTs found for this wallet');
+
       return [];
     }
-    
-    console.log('🎯 NFT Utils: Total NFTs to return:', allNFTs.length);
+
     return allNFTs;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ NFT Utils: Error fetching owned NFTs:', error);
     // Return empty array on error (no dummy data)
     return [];
@@ -230,8 +228,9 @@ export async function setNFTAsProfilePicture(nft: NFT): Promise<void> {
     };
     
     await storage.set({ profilePicture });
-    console.log('✅ NFT set as profile picture:', nft.metadata.name);
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error setting NFT as profile picture:', error);
     throw error;
   }
@@ -243,6 +242,7 @@ export async function getProfilePicture(): Promise<NFT | null> {
     const result = await storage.get(['profilePicture']);
     return result.profilePicture?.nft || null;
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error getting profile picture:', error);
     return null;
   }
@@ -252,8 +252,9 @@ export async function getProfilePicture(): Promise<NFT | null> {
 export async function removeProfilePicture(): Promise<void> {
   try {
     await storage.remove(['profilePicture']);
-    console.log('✅ Profile picture removed');
+
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('Error removing profile picture:', error);
     throw error;
   }

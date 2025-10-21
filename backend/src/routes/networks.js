@@ -1,6 +1,7 @@
-const express = require('express');
-const axios = require('axios');
-const NodeCache = require('node-cache');
+import express from 'express';
+import axios from 'axios';
+import NodeCache from 'node-cache';
+
 const router = express.Router();
 
 // Cache for 5 minutes
@@ -14,7 +15,7 @@ const SUPPORTED_NETWORKS = {
     chainId: 1,
     rpc: process.env.ETHEREUM_RPC || 'https://eth.llamarpc.com',
     explorer: 'https://etherscan.io',
-    type: 'evm'
+    type: 'evm',
   },
   bsc: {
     name: 'BNB Smart Chain',
@@ -22,7 +23,7 @@ const SUPPORTED_NETWORKS = {
     chainId: 56,
     rpc: process.env.BSC_RPC || 'https://bsc-dataseed1.binance.org',
     explorer: 'https://bscscan.com',
-    type: 'evm'
+    type: 'evm',
   },
   polygon: {
     name: 'Polygon',
@@ -30,7 +31,7 @@ const SUPPORTED_NETWORKS = {
     chainId: 137,
     rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com',
     explorer: 'https://polygonscan.com',
-    type: 'evm'
+    type: 'evm',
   },
   arbitrum: {
     name: 'Arbitrum',
@@ -38,7 +39,7 @@ const SUPPORTED_NETWORKS = {
     chainId: 42161,
     rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     explorer: 'https://arbiscan.io',
-    type: 'evm'
+    type: 'evm',
   },
   optimism: {
     name: 'Optimism',
@@ -46,7 +47,7 @@ const SUPPORTED_NETWORKS = {
     chainId: 10,
     rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io',
     explorer: 'https://optimistic.etherscan.io',
-    type: 'evm'
+    type: 'evm',
   },
   avalanche: {
     name: 'Avalanche',
@@ -54,27 +55,27 @@ const SUPPORTED_NETWORKS = {
     chainId: 43114,
     rpc: process.env.AVALANCHE_RPC || 'https://api.avax.network/ext/bc/C/rpc',
     explorer: 'https://snowtrace.io',
-    type: 'evm'
+    type: 'evm',
   },
   bitcoin: {
     name: 'Bitcoin',
     symbol: 'BTC',
     explorer: 'https://blockstream.info',
-    type: 'utxo'
+    type: 'utxo',
   },
   litecoin: {
     name: 'Litecoin',
     symbol: 'LTC',
     explorer: 'https://blockchair.com/litecoin',
-    type: 'utxo'
+    type: 'utxo',
   },
   solana: {
     name: 'Solana',
     symbol: 'SOL',
     rpc: 'https://api.mainnet-beta.solana.com',
     explorer: 'https://solscan.io',
-    type: 'solana'
-  }
+    type: 'solana',
+  },
 };
 
 // Get all supported networks
@@ -83,14 +84,14 @@ router.get('/', (req, res) => {
     const networks = Object.entries(SUPPORTED_NETWORKS).map(([id, config]) => ({
       id,
       ...config,
-      isSupported: true
+      isSupported: true,
     }));
 
-    res.json({ networks });
+    return res.json({ networks });
   } catch (error) {
     console.error('Get networks error:', error);
-    res.status(500).json({
-      error: { message: 'Failed to get networks', status: 500 }
+    return res.status(500).json({
+      error: { message: 'Failed to get networks', status: 500 },
     });
   }
 });
@@ -100,22 +101,22 @@ router.get('/:networkId', (req, res) => {
   try {
     const { networkId } = req.params;
     const network = SUPPORTED_NETWORKS[networkId.toLowerCase()];
-    
+
     if (!network) {
       return res.status(404).json({
-        error: { message: `Network ${networkId} not found`, status: 404 }
+        error: { message: `Network ${networkId} not found`, status: 404 },
       });
     }
 
-    res.json({
+    return res.json({
       id: networkId,
       ...network,
-      isSupported: true
+      isSupported: true,
     });
   } catch (error) {
     console.error('Get network error:', error);
-    res.status(500).json({
-      error: { message: 'Failed to get network info', status: 500 }
+    return res.status(500).json({
+      error: { message: 'Failed to get network info', status: 500 },
     });
   }
 });
@@ -124,10 +125,10 @@ router.get('/:networkId', (req, res) => {
 router.post('/test', async (req, res) => {
   try {
     const { networkId, rpcUrl } = req.body;
-    
+
     if (!networkId) {
       return res.status(400).json({
-        error: { message: 'Network ID is required', status: 400 }
+        error: { message: 'Network ID is required', status: 400 },
       });
     }
 
@@ -139,17 +140,17 @@ router.post('/test', async (req, res) => {
 
     const network = SUPPORTED_NETWORKS[networkId.toLowerCase()];
     const testRpcUrl = rpcUrl || network?.rpc;
-    
+
     if (!testRpcUrl) {
       return res.status(400).json({
-        error: { message: 'No RPC URL available for network', status: 400 }
+        error: { message: 'No RPC URL available for network', status: 400 },
       });
     }
 
     const startTime = Date.now();
     let isConnected = false;
     let blockNumber = null;
-    let error = null;
+    let errorMessage = null; // Renamed 'error' to 'errorMessage'
 
     try {
       if (network?.type === 'evm') {
@@ -157,7 +158,7 @@ router.post('/test', async (req, res) => {
           jsonrpc: '2.0',
           method: 'eth_blockNumber',
           params: [],
-          id: 1
+          id: 1,
         }, { timeout: 10000 });
 
         if (response.data.result) {
@@ -168,7 +169,7 @@ router.post('/test', async (req, res) => {
         const response = await axios.post(testRpcUrl, {
           jsonrpc: '2.0',
           id: 1,
-          method: 'getSlot'
+          method: 'getSlot',
         }, { timeout: 10000 });
 
         if (response.data.result !== undefined) {
@@ -177,26 +178,26 @@ router.post('/test', async (req, res) => {
         }
       } else {
         // For non-RPC networks like Bitcoin, just test HTTP connectivity
-        const response = await axios.get(testRpcUrl.replace('/api', ''), { 
+        const response = await axios.get(testRpcUrl.replace('/api', ''), {
           timeout: 10000,
-          validateStatus: () => true 
+          validateStatus: () => true,
         });
         isConnected = response.status < 500;
       }
     } catch (err) {
-      error = err.message;
+      errorMessage = err.message;
     }
 
     const responseTime = Date.now() - startTime;
-    
+
     const result = {
       networkId,
       rpcUrl: testRpcUrl,
       isConnected,
       responseTime,
       blockNumber,
-      error,
-      timestamp: new Date().toISOString()
+      error: errorMessage, // Use errorMessage here
+      timestamp: new Date().toISOString(),
     };
 
     // Cache successful connections for 1 minute
@@ -204,11 +205,11 @@ router.post('/test', async (req, res) => {
       cache.set(cacheKey, result, 60);
     }
 
-    res.json(result);
+    return res.json(result);
   } catch (error) {
     console.error('Network test error:', error);
-    res.status(500).json({
-      error: { message: 'Network test failed', status: 500 }
+    return res.status(500).json({
+      error: { message: 'Network test failed', status: 500 },
     });
   }
 });
@@ -216,18 +217,20 @@ router.post('/test', async (req, res) => {
 // Add custom network (validation only - storage handled by frontend)
 router.post('/validate', async (req, res) => {
   try {
-    const { name, symbol, chainId, rpcUrl, explorerUrl } = req.body;
-    
+    const {
+      name, symbol, chainId, rpcUrl, explorerUrl,
+    } = req.body;
+
     if (!name || !symbol || !rpcUrl) {
       return res.status(400).json({
-        error: { message: 'Name, symbol, and RPC URL are required', status: 400 }
+        error: { message: 'Name, symbol, and RPC URL are required', status: 400 },
       });
     }
 
     // Test the RPC connection
     const testResult = await axios.post(`http://localhost:${process.env.PORT || 3001}/api/networks/test`, {
       networkId: 'custom',
-      rpcUrl
+      rpcUrl,
     });
 
     const validation = {
@@ -240,16 +243,16 @@ router.post('/validate', async (req, res) => {
       responseTime: testResult.data.responseTime,
       blockNumber: testResult.data.blockNumber,
       error: testResult.data.error,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
-    res.json(validation);
+    return res.json(validation);
   } catch (error) {
     console.error('Network validation error:', error);
-    res.status(500).json({
-      error: { message: 'Network validation failed', status: 500 }
+    return res.status(500).json({
+      error: { message: 'Network validation failed', status: 500 },
     });
   }
 });
 
-module.exports = router;
+export default router;

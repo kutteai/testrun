@@ -55,7 +55,7 @@ export const openExpandedView = async (options: ExpandOptions = {}): Promise<voi
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
           } else {
-            console.log('✅ Expanded view opened in Chrome:', window?.id);
+
             resolve();
           }
         });
@@ -71,13 +71,14 @@ export const openExpandedView = async (options: ExpandOptions = {}): Promise<voi
         focused: windowOptions.focused,
         type: windowOptions.type as browser.windows.CreateType
       });
-      console.log('✅ Expanded view opened in Firefox:', window.id);
+
     } else {
       // Fallback: open in new tab
-      console.log('⚠️ Windows API not available, opening in new tab');
+
       await openInNewTab(expandUrl);
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ Failed to open expanded view:', error);
     throw error;
   }
@@ -97,7 +98,7 @@ export const openInNewTab = async (url: string): Promise<void> => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
           } else {
-            console.log('✅ Opened in new tab:', tab?.id);
+
             resolve();
           }
         });
@@ -105,13 +106,14 @@ export const openInNewTab = async (url: string): Promise<void> => {
     } else if (typeof browser !== 'undefined' && browser.tabs) {
       // Firefox extension
       const tab = await browser.tabs.create({ url });
-      console.log('✅ Opened in new tab:', tab.id);
+
     } else {
       // Fallback: use window.open
-      console.log('⚠️ Tabs API not available, using window.open');
+
       window.open(url, '_blank');
     }
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ Failed to open in new tab:', error);
     throw error;
   }
@@ -139,6 +141,7 @@ export const getExpandUrl = (): string => {
     const runtimeAPI = runtime();
     return runtimeAPI.getURL('expand.html');
   } catch (error) {
+    // eslint-disable-next-line no-console
     console.error('❌ Failed to get expand URL:', error);
     return 'expand.html';
   }
