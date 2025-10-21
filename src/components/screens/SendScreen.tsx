@@ -634,7 +634,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                 </div>
                 <div className="text-[13px] text-gray-600">
                   {fromAccount?.address || fromAccount?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
-                    `${(fromAccount.address || fromAccount.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring(0, 6)}...${(fromAccount.address || fromAccount.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring((fromAccount.address || fromAccount.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).length - 4)}` : 
+                    `${(fromAccount.address || fromAccount.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring(0, 6)}...${(fromAccount.address || fromAccount.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring((fromAccount.address || fromAccount.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).length - 4)}` : 
                     'No address'
                   }
                 </div>
@@ -854,7 +854,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                       </div>
                       <div className="text-[13px] text-gray-600">
                         {account?.address || account?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
-                          `${(account.address || account.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring(0, 6)}...${(account.address || account.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).substring((account.address || account.addresses?.[(currentNetwork?.id ?? 0) || 'ethereum']).length - 4)}` : 
+                          `${(account.address || account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring(0, 6)}...${(account.address || account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring((account.address || account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).length - 4)}` : 
                           'No address'
                         }
                       </div>

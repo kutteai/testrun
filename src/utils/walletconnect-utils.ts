@@ -695,7 +695,6 @@ export class WalletConnectManager {
                 method: 'eth_sendTransaction', 
                 params: [transaction] 
               }, (response) => {
-                }
                 if (chrome.runtime.lastError) return reject(new Error(chrome.runtime.lastError.message));
                 if (response?.success) return resolve(response.result);
                 reject(new Error(response?.error || 'eth_sendTransaction failed'));
@@ -709,6 +708,7 @@ export class WalletConnectManager {
             jsonrpc: '2.0',
             result: txHash
           };
+        }
 
         case 'eth_sign':
         case 'personal_sign': {
@@ -718,13 +718,13 @@ export class WalletConnectManager {
             15000, // 15 second timeout for signing
             'Signing timeout - please try again'
           );
-          }
+          
           return {
             id: request.id,
             jsonrpc: '2.0',
             result: signature
           };
-
+        }
         case 'eth_signTypedData':
         case 'eth_signTypedData_v4': {
           const [typedData, typedDataAddress] = params;
@@ -733,12 +733,12 @@ export class WalletConnectManager {
             15000, // 15 second timeout for signing
             'Typed data signing timeout - please try again'
           );
-          }
+          
           return {
             id: request.id,
             jsonrpc: '2.0',
             result: typedSignature
-          };
+          };}
 
         case 'wallet_switchEthereumChain':
           await this.switchChain(params[0].chainId);

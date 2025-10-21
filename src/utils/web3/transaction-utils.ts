@@ -1,5 +1,5 @@
-import { getNetworks } from '../network-utils';
-import { getGasPrice } from '../gas-utils';
+import { getNetworks } from './network-utils';
+import { getGasPrice } from './gas-utils';
 
 // Estimate gas limit (real implementation)
 export async function estimateGas(

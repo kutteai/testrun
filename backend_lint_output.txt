@@ -1,3 +1,0 @@
-yarn run v1.22.22
-$ /Users/mac/Desktop/desktop2/untitled_folder_2/sow/node_modules/.bin/eslint -c eslint.config.mjs backend/src/routes/tokens.js
-Done in 2.56s.

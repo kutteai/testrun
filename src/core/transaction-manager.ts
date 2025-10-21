@@ -285,7 +285,7 @@ export class TransactionManager {
     data: string = '0x', 
     network: string
   ): Promise<string> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const networkConfig = NETWORKS[network];
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${network}`);
@@ -318,7 +318,7 @@ export class TransactionManager {
 
   // Get gas price for a network
   async getGasPrice(network: string): Promise<string> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const { getGasPrice } = await import('../utils/web3-utils');
       return await getGasPrice(network);
     } catch (error) {
@@ -330,7 +330,7 @@ export class TransactionManager {
 
   // Get transaction count (nonce) for an address
   async getTransactionCount(address: string, network: string): Promise<number> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const { getTransactionCount } = await import('../utils/web3-utils');
       const nonceString = await getTransactionCount(address, network);
       return parseInt(nonceString, 16);
@@ -343,7 +343,7 @@ export class TransactionManager {
 
   // Sign a transaction
   async signTransaction(transaction: any, privateKey: string, network: string): Promise<string> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const { signTransaction } = await import('../utils/web3-utils');
       return await signTransaction(transaction, privateKey, network);
     } catch (error) {
@@ -355,7 +355,7 @@ export class TransactionManager {
 
   // Send a signed transaction
   async sendSignedTransaction(signedTx: string, network: string): Promise<string> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const { sendSignedTransaction } = await import('../utils/web3-utils');
       return await sendSignedTransaction(signedTx, network);
     } catch (error) {
@@ -367,7 +367,7 @@ export class TransactionManager {
 
   // Get transaction receipt
   async getTransactionReceipt(hash: string, network: string): Promise<any> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const { getTransactionReceipt } = await import('../utils/web3-utils');
       return await getTransactionReceipt(hash, network);
     } catch (error) {
@@ -379,7 +379,7 @@ export class TransactionManager {
 
   // Get balance for an address
   async getBalance(address: string, network: string): Promise<string> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const { getRealBalance } = await import('../utils/web3-utils');
       return await getRealBalance(address, network);
     } catch (error) {

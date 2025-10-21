@@ -78,9 +78,10 @@ export class PrivateKeyAddressUtils {
         case 'bsc':
         case 'polygon':
         case 'arbitrum':
-        case 'optimism':
+        case 'optimism': {
           const wallet = new ethers.Wallet(privateKey);
           address = wallet.address;
+          }
           break;
         case 'bitcoin':
           address = this.generateBitcoinAddress(privateKey);

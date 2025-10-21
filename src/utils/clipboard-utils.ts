@@ -87,7 +87,7 @@ export async function copyToClipboardWithFeedback(
     if (typeof window !== 'undefined' && (window as any).toast) {
       (window as any).toast.success(successMessage);
     } else {
-
+      // Intentionally empty, no toast available
     }
   } else {
     // Show error feedback

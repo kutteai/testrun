@@ -18,8 +18,7 @@ export async function debugWalletPassword(testPassword?: string) {
 
 
     if (wallet) {
-
-
+      // Intentionally empty for future debugging logic
     }
     
     if (!testPassword) {

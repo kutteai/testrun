@@ -9,7 +9,7 @@ const getConfig = () => {
       return config;
     }
   } catch (error) {
-
+    // Intentionally empty, will return default config if an error occurs
   }
   
   const defaultConfig = {
@@ -33,14 +33,15 @@ const INFURA_PROJECT_ID = 'f9231922e4914834b76b67b67367f3f2';
 const ethereumRpcUrl = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`;
 
 const getSafeConfig = () => {
+  let INFURA_PROJECT_ID_val;
+  let ethereumRpcUrl_val;
   if (!config) {
     try {
       config = getConfig();
 
-
       // Use your specific Infura key directly
-      INFURA_PROJECT_ID = config.INFURA_PROJECT_ID || 'f9231922e4914834b76b67b67367f3f2';
-      ethereumRpcUrl = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`;
+      INFURA_PROJECT_ID_val = config.INFURA_PROJECT_ID || 'f9231922e4914834b76b67b67367f3f2';
+      ethereumRpcUrl_val = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID_val}`;
     } catch (error) {
 
       config = {
@@ -55,8 +56,8 @@ const getSafeConfig = () => {
         DEFI_PULSE_API_KEY: '',
         IPFS_GATEWAY: 'https://ipfs.io/ipfs/'
       };
-      INFURA_PROJECT_ID = 'f9231922e4914834b76b67b67367f3f2';
-      ethereumRpcUrl = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID}`;
+      INFURA_PROJECT_ID_val = 'f9231922e4914834b76b67b67367f3f2';
+      ethereumRpcUrl_val = `https://mainnet.infura.io/v3/${INFURA_PROJECT_ID_val}`;
     }
   }
   return config;

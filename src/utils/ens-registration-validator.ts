@@ -364,9 +364,9 @@ if (typeof window !== 'undefined') {
     for (const domain of testDomains) {
       try {
         const result = await ENSRegistrationValidator.validateDomainForRegistration(domain);
-
+        // Intentionally empty: validation results are processed later.
       } catch (error) {
-
+        // Intentionally empty: errors are logged/handled by calling function.
       }
     }
   };

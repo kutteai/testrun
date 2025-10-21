@@ -93,7 +93,7 @@ class PaycioContentScript {
       const scripts = document.querySelectorAll('script[src*="content-script.js"]');
       if (scripts.length > 0) {
         const src = (scripts[0] as HTMLScriptElement).src;
-        const match = src.match(/chrome-extension:\/\/([^\/]+)\//);
+        const match = src.match(/chrome-extension://([^/]+)//);
         if (match) {
           return match[1];
         }

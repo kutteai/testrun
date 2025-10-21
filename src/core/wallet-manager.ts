@@ -54,7 +54,7 @@ export class WalletManager {
 
   // Load wallets from storage
   private async loadWallets(): Promise<void> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       const result = await storage.get(['wallets']);
       if (result.wallets) {
         this.wallets = result.wallets;
@@ -68,7 +68,7 @@ export class WalletManager {
 
   // Save wallets to storage
   private async saveWallets(): Promise<void> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       await storage.set({ wallets: this.wallets });
     } catch (error) {
        
@@ -98,7 +98,7 @@ export class WalletManager {
 
   // Create a new wallet with real seed phrase generation
   async createWallet(request: CreateWalletRequest): Promise<WalletData> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       // Generate real seed phrase
       const seedPhrase = this.generateSeedPhrase();
       
@@ -263,7 +263,7 @@ export class WalletManager {
 
   // Import wallet from seed phrase
   async importWallet(request: ImportWalletRequest): Promise<WalletData> {
-    try { // TODO: Review useless catch block
+    try { // TODO: Review useless catch block // TODO: Review useless catch block
       // Validate seed phrase
       if (!this.validateSeedPhrase(request.seedPhrase)) {
         throw new Error('Invalid seed phrase');

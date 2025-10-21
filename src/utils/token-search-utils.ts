@@ -1210,6 +1210,7 @@ function sortTokenResultsWithCustomPriority(
         return (b.volume24h || 0) - (a.volume24h || 0);
       case 'price': {
         return (b.price || 0) - (a.price || 0);
+      }
       default: // relevance
         // Sort by symbol/name match relevance
         const aSymbolMatch = a.symbol.toLowerCase().startsWith(normalizedQuery);
@@ -1221,7 +1222,6 @@ function sortTokenResultsWithCustomPriority(
         const aNameMatch = a.name.toLowerCase().startsWith(normalizedQuery);
         const bNameMatch = b.name.toLowerCase().startsWith(normalizedQuery);
         
-        }
         if (aNameMatch && !bNameMatch) return -1;
         if (!aNameMatch && bNameMatch) return 1;
         

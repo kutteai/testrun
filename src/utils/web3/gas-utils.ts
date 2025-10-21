@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import { getNetworks, NetworkConfig } from './network-utils';
+import { getNetworks,  } from './network-utils';
+import { NetworkConfig } from '../../types/network-types';
 import { getSafeConfig } from './config-utils';
 // import { realTimeGasService } from './real-time-gas-prices';
 

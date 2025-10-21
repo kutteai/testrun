@@ -2712,7 +2712,8 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
       // For now, return success to indicate the popup was shown
 
       return { success: true, result: { popupShown: true } };
-    } catch (error) {
+
+    }catch (error) {
       // eslint-disable-next-line no-console
       console.error('SHOW_UNLOCK_POPUP error:', error);
       return { success: false, error: error.message };
@@ -3215,9 +3216,10 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
           address = '0x' + hash.map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 40);
           break;
           
-        case 'bitcoin':
+        case 'bitcoin': {
           const btcAddressBody = hash.slice(0, 25).map(b => base58Chars[b % base58Chars.length]).join('');
           address = '1' + btcAddressBody;
+          }
           break;
           
         case 'litecoin': {

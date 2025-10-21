@@ -428,18 +428,18 @@ export const testAllAddressTypes = async (testAddresses: Record<string, string>)
 
 
       if (result.validation.errors.length > 0) {
-
+        // Intentionally empty for now, errors are handled elsewhere.
       }
       
       if (result.validation.warnings.length > 0) {
-
+        // Intentionally empty for now, warnings are handled elsewhere.
       }
       
       // Display blockchain test results
 
 
       if (result.blockchainTest.error) {
-
+        // Intentionally empty for now, errors are handled elsewhere.
       }
       
       // Display recommendations

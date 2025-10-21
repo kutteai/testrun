@@ -270,6 +270,7 @@ const NFTsScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                     className="w-full h-full object-cover"
                     onError={(e) => {
 // Line too long - review manually
+// Line too long - review manually
                       e.currentTarget.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgdmlld0JveD0iMCAwIDIwMCAyMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSIyMDAiIGhlaWdodD0iMjAwIiBmaWxsPSIjODg4Ii8+CjxwYXRoIGQ9Ik0xMDAgMTAwQzEzMy4xMzcgMTAwIDE2MCA3My4xMzcgMTYwIDQwQzE2MCA2Ljg2MyAxMzMuMTM3IC0yMCAxMDAgLTIwQzY2Ljg2MyAtMjAgNDAgNi44NjMgNDAgNDBDNDAgNzMuMTM3IDY2Ljg2MyAxMDAgMTAwIDEwMFoiIGZpbGw9IiNBQUEiLz4KPHBhdGggZD0iTTE2MCAxNjBDMTYwIDEyNi44NjMgMTMzLjEzNyAxMDAgMTAwIDEwMEM2Ni44NjMgMTAwIDQwIDEyNi44NjMgNDAgMTYwSDE2MFoiIGZpbGw9IiNBQUEiLz4KPC9zdmc+';
                     }}
                   />
