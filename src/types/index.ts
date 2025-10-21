@@ -72,8 +72,8 @@ export interface WalletAccount {
   addresses: {           // Multiple addresses for different networks
     [networkId: string]: string;
   };
-  privateKey: string;
-  publicKey: string;
+  // privateKey: string; // Removed for security
+  // publicKey: string;  // Removed for security
   derivationPath: string;
   networks: string[];    // Multiple networks this account supports
   balances: {            // Multiple balances for different networks
@@ -86,14 +86,16 @@ export interface WalletAccount {
   encryptedSeedPhrase: string;
   isActive: boolean;
   accountType?: 'seed-phrase' | 'private-key' | 'hardware'; // Type of account
+  getPrivateKey: (password: string) => Promise<string | null>; // New method for secure privateKey access
+  getPublicKey: (password: string) => Promise<string | null>;   // New method for secure publicKey access
 }
 
 export interface WalletData {
   id: string;
   name: string;
   address: string;
-  privateKey: string;
-  publicKey: string;
+  // privateKey: string; // Removed for security
+  // publicKey: string;  // Removed for security
   encryptedSeedPhrase: string;
   accounts: WalletAccount[];
   networks: string[];
@@ -104,6 +106,8 @@ export interface WalletData {
   lastUsed: number;
   lastAccessed?: number; // Add lastAccessed property for multi-wallet support
   decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
+  getPrivateKey: (password: string) => Promise<string | null>; // New method for secure privateKey access
+  getPublicKey: (password: string) => Promise<string | null>;   // New method for secure publicKey access
 }
 
 // Alias for backward compatibility

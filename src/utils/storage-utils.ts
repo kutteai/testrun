@@ -1,5 +1,6 @@
 // Enhanced storage utility with better error handling and session management
 import type { StorageAPI, BrowserAPIs } from '../types/browser-apis';
+import SecureSessionManager from './secure-session-manager';
 
 // Cross-browser storage getter
 const getStorageAPI = () => {
@@ -224,162 +225,6 @@ export const storage = {
   }
 };
 
-// Enhanced session manager with persistent storage
-class SecureSessionManager {
-  private static readonly SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutes
-  private static readonly STORAGE_KEY = 'paycio_session';
-  private static readonly PASSWORD_KEY = 'paycio_temp_password';
-  
-  static async createSession(password: string): Promise<{ sessionId: string; timestamp: number }> {
-    try {
-      const sessionId = crypto.randomUUID();
-      const timestamp = Date.now();
-      
-      const sessionData = {
-        sessionId,
-        timestamp,
-        isValid: true,
-        passwordHash: await this.hashPassword(password)
-      };
-      
-      // Store session data in LOCAL storage (persistent)
-      await storage.set({ [this.STORAGE_KEY]: sessionData });
-      
-      // Store password temporarily in LOCAL storage for immediate use
-      // This will persist across browser sessions until explicitly cleared
-      await storage.set({ [this.PASSWORD_KEY]: password });
-      
-      // Also store in session storage for immediate access
-      await storage.setSession({ sessionPassword: password });
-
-      return { sessionId, timestamp };
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Session creation failed:', error);
-      throw new Error('Failed to create session');
-    }
-  }
-  
-  static async validateSession(): Promise<boolean> {
-    try {
-      // Check LOCAL storage first (persistent)
-      let result = await storage.get([this.STORAGE_KEY]);
-      let sessionData = result[this.STORAGE_KEY];
-      
-      // Fallback to session storage if not found in local
-      if (!sessionData) {
-        result = await storage.getSession([this.STORAGE_KEY]);
-        sessionData = result[this.STORAGE_KEY];
-      }
-      
-      if (!sessionData || !sessionData.sessionId || !sessionData.timestamp) {
-
-        return false;
-      }
-      
-      const now = Date.now();
-      const sessionAge = now - sessionData.timestamp;
-      
-      if (sessionAge > this.SESSION_TIMEOUT) {
-
-        await this.destroySession();
-        return false;
-      }
-
-      return true;
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Session validation failed:', error);
-      return false;
-    }
-  }
-  
-  static async extendSession(): Promise<boolean> {
-    try {
-      // Check LOCAL storage first
-      let result = await storage.get([this.STORAGE_KEY]);
-      let sessionData = result[this.STORAGE_KEY];
-      
-      // Fallback to session storage
-      if (!sessionData) {
-        result = await storage.getSession([this.STORAGE_KEY]);
-        sessionData = result[this.STORAGE_KEY];
-      }
-      
-      if (!sessionData || !sessionData.isValid) {
-        return false;
-      }
-      
-      // Update timestamp
-      const updatedSessionData = {
-        ...sessionData,
-        timestamp: Date.now()
-      };
-      
-      // Update in LOCAL storage (persistent)
-      await storage.set({ [this.STORAGE_KEY]: updatedSessionData });
-      
-      // Also update in session storage
-      await storage.setSession({ [this.STORAGE_KEY]: updatedSessionData });
-
-      return true;
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Session extension failed:', error);
-      return false;
-    }
-  }
-
-  static async destroySession(): Promise<void> {
-    try {
-      // Clear from LOCAL storage (persistent)
-      await storage.remove([this.STORAGE_KEY, this.PASSWORD_KEY]);
-      
-      // Clear from session storage
-      await storage.removeSession([this.STORAGE_KEY, 'sessionPassword']);
-
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Session destruction failed:', error);
-    }
-  }
-
-  static async getSessionPassword(): Promise<string | null> {
-    try {
-      // Try session storage first (immediate access)
-      let result = await storage.getSession(['sessionPassword']);
-      if (result.sessionPassword) {
-        return result.sessionPassword;
-      }
-      
-      // Fallback to LOCAL storage (persistent)
-      result = await storage.get([this.PASSWORD_KEY]);
-      if (result[this.PASSWORD_KEY]) {
-        // Restore to session storage for immediate access
-        await storage.setSession({ sessionPassword: result[this.PASSWORD_KEY] });
-        return result[this.PASSWORD_KEY];
-      }
-      
-      return null;
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to get session password:', error);
-      return null;
-    }
-  }
-  
-  private static async hashPassword(password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  }
-}
-
 
 // Enhanced storage utilities
 export const storageUtils = {
@@ -421,69 +266,15 @@ export const storageUtils = {
 
   // Enhanced password storage with persistence
   async storePassword(password: string): Promise<void> {
-    try {
-      if (!password || typeof password !== 'string') {
-        throw new Error('Invalid password');
-      }
-      
-      // Store in session storage for immediate access
-      await storage.setSession({ sessionPassword: password });
-      
-      // Store in LOCAL storage for persistence across browser sessions
-      await storage.set({ 
-        sessionPassword: password,
-        backupPassword: btoa(password) // Encoded backup
-      });
-
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to store password:', error);
-      throw error;
+    if (!password || typeof password !== 'string') {
+      throw new Error('Invalid password');
     }
+    await SecureSessionManager.createSession(password);
   },
 
   // Enhanced password retrieval with persistence
   async getPassword(): Promise<string | null> {
-    try {
-      // Try session storage first (immediate access)
-      let result = await storage.getSession(['sessionPassword']);
-      if (result.sessionPassword) {
-
-        return result.sessionPassword;
-      }
-      
-      // Try LOCAL storage (persistent)
-      result = await storage.get(['sessionPassword']);
-      if (result.sessionPassword) {
-        // Restore to session storage for immediate access
-        await storage.setSession({ sessionPassword: result.sessionPassword });
-
-        return result.sessionPassword;
-      }
-      
-      // Try backup storage (encoded)
-      result = await storage.get(['backupPassword']);
-      if (result.backupPassword) {
-        try {
-          const decoded = atob(result.backupPassword);
-          // Restore to both storages
-          await storage.setSession({ sessionPassword: decoded });
-          await storage.set({ sessionPassword: decoded });
-
-          return decoded;
-        } catch (decodeError) {
-          // eslint-disable-next-line no-console
-          console.warn('Failed to decode backup password:', decodeError);
-        }
-      }
-
-      return null;
-      
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to get password:', error);
-      return null;
-    }
+    return await SecureSessionManager.getSessionPassword();
   },
 
   // Clear sensitive data (session only, preserves wallet data)
@@ -492,7 +283,6 @@ export const storageUtils = {
       await Promise.all([
         storage.removeSession(['sessionPassword']),
         storage.remove(['sessionPassword', 'backupPassword', 'tempPassword', 'unlockTime']),
-        SecureSessionManager.destroySession()
       ]);
 
     } catch (error) {
@@ -577,6 +367,3 @@ export const storageUtils = {
     }
   }
 };
-
-// Export the session manager
-export { SecureSessionManager };

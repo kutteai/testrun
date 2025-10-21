@@ -1,6 +1,8 @@
 import { ethers } from 'ethers';
-import { NETWORKS } from '../utils/web3-utils';
 import { storage } from '../utils/storage-utils';
+import { NETWORK_CONFIGS } from '../background/index'; // Import NETWORK_CONFIGS for consistent network info
+
+const IPFS_GATEWAY = 'https://ipfs.io/ipfs/'; // Define IPFS Gateway as a constant
 
 export interface NFT {
   id: string;
@@ -97,56 +99,114 @@ export class NFTManager {
   // Import NFTs for a wallet address
   async importNFTs(address: string, network: string): Promise<NFT[]> {
     try {
-      const networkConfig = NETWORKS[network];
+      const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
       if (!networkConfig) {
-        throw new Error(`Unsupported network: ${network}`);
+        console.warn(`Unsupported network for NFT import: ${network}`);
+        return [];
       }
 
-      const config = this.getConfig();
       const nfts: NFT[] = [];
+      const collectionsToUpdate = new Map<string, NFTCollection>();
 
-      // Use OpenSea API for Ethereum mainnet
-      if (network === 'ethereum') {
-        const openSeaNfts = await this.fetchFromOpenSea(address, config.OPENSEA_API_KEY);
-        nfts.push(...openSeaNfts);
+      // Attempt to fetch from various sources with graceful fallback
+      const fetchedOpenSea = await this.fetchFromOpenSea(address, network);
+      if (fetchedOpenSea) {
+        nfts.push(...fetchedOpenSea);
       }
 
-      // Use Alchemy API for other networks
-      if (networkConfig.rpcUrl) {
-        const alchemyNfts = await this.fetchFromAlchemy(address, networkConfig.rpcUrl, config.ALCHEMY_API_KEY);
-        nfts.push(...alchemyNfts);
+      const fetchedAlchemy = await this.fetchFromAlchemy(address, network);
+      if (fetchedAlchemy) {
+        nfts.push(...fetchedAlchemy);
       }
 
-      // Use network-specific APIs
-      if (network === 'polygon') {
-        const polygonNfts = await this.fetchFromPolygonScan(address, config.POLYGONSCAN_API_KEY);
-        nfts.push(...polygonNfts);
+      const fetchedPolygonScan = await this.fetchFromPolygonScan(address, network);
+      if (fetchedPolygonScan) {
+        nfts.push(...fetchedPolygonScan);
       }
 
-      // Add to existing NFTs
-      this.nfts.push(...nfts);
+      // Deduplicate and merge NFTs
+      const uniqueNfts = new Map<string, NFT>();
+      nfts.forEach(nft => {
+        const key = `${nft.contractAddress}-${nft.tokenId}`;
+        uniqueNfts.set(key, { ...uniqueNfts.get(key), ...nft });
+      });
+
+      const finalNfts = Array.from(uniqueNfts.values());
+
+      // Update collections based on imported NFTs
+      finalNfts.forEach(nft => {
+        if (nft.collection) {
+          const collectionKey = `${nft.collection.name}-${nft.network}`;
+          const existingCollection = collectionsToUpdate.get(collectionKey) || {
+            id: collectionKey,
+            name: nft.collection.name,
+            symbol: nft.collection.symbol || '',
+            contractAddress: nft.contractAddress,
+            network: nft.network,
+            totalSupply: 0,
+            owners: 0,
+          };
+          collectionsToUpdate.set(collectionKey, existingCollection);
+        }
+      });
+
+      // Update internal state and storage
+      this.nfts = [...this.nfts.filter(existingNft => !finalNfts.some(newNft => newNft.id === existingNft.id)), ...finalNfts];
+      
+      collectionsToUpdate.forEach(updatedCollection => {
+        const existingIndex = this.collections.findIndex(c => c.id === updatedCollection.id);
+        if (existingIndex > -1) {
+          this.collections[existingIndex] = { ...this.collections[existingIndex], ...updatedCollection };
+        } else {
+          this.collections.push(updatedCollection);
+        }
+      });
+
       await this.saveNFTData();
-
-      return nfts;
+      return finalNfts;
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to import NFTs:', error);
-      throw error;
+      return [];
     }
   }
 
   // Fetch NFTs from OpenSea API
-  private async fetchFromOpenSea(address: string, apiKey?: string): Promise<NFT[]> {
+  private async fetchFromOpenSea(address: string, network: string): Promise<NFT[] | null> {
     try {
-      const baseUrl = 'https://api.opensea.io/api/v1';
-      const url = apiKey 
-        ? `${baseUrl}/assets?owner=${address}&order_direction=desc&offset=0&limit=50&X-API-KEY=${apiKey}`
-        : `${baseUrl}/assets?owner=${address}&order_direction=desc&offset=0&limit=50`;
+      const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
+      if (!networkConfig || !networkConfig.apiKey) {
+        console.warn(`OpenSea API key or network config not found for ${network}`);
+        return null; // Return null for graceful fallback
+      }
+      const apiKey = networkConfig.apiKey; // Use apiKey from NETWORK_CONFIGS
 
-      const response = await fetch(url);
+      // OpenSea API endpoints (these might need to be configurable in NETWORK_CONFIGS if they vary a lot)
+      const openseaApiEndpoints: Record<string, string> = {
+        ethereum: 'https://api.opensea.io/api/v1',
+        goerli: 'https://testnets-api.opensea.io/api/v1',
+        polygon: 'https://api.opensea.io/api/v1', // OpenSea supports Polygon mainnet
+        // Add other networks as OpenSea supports them
+      };
+
+      const baseUrl = openseaApiEndpoints[network.toLowerCase()];
+      if (!baseUrl) {
+        console.warn(`OpenSea API endpoint not configured for network: ${network}`);
+        return null; // Return null for graceful fallback
+      }
+
+      const url = `${baseUrl}/assets?owner=${address}&order_direction=desc&offset=0&limit=50`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'X-API-KEY': apiKey, // Use the API key from network config
+          'Accept': 'application/json'
+        }
+      });
 
       if (!response.ok) {
-        throw new Error(`OpenSea API error: ${response.status}`);
+        console.warn(`OpenSea API error for ${address} on ${network}: HTTP status ${response.status}`);
+        return null; // Return null for graceful fallback
       }
 
       const data = await response.json();
@@ -160,7 +220,7 @@ export class NFTManager {
         imageUrl: asset.image_url || asset.image_thumbnail_url || '',
         metadata: asset.traits || {},
         owner: address,
-        network: 'ethereum',
+        network: network,
         collection: {
           name: asset.asset_contract.name,
           symbol: asset.asset_contract.symbol,
@@ -177,26 +237,36 @@ export class NFTManager {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching from OpenSea:', error);
-      return [];
+      return null; // Return null for graceful fallback
     }
   }
 
   // Fetch NFTs from Alchemy API
-  private async fetchFromAlchemy(address: string, alchemyUrl: string, apiKey?: string): Promise<NFT[]> {
+  private async fetchFromAlchemy(address: string, network: string): Promise<NFT[] | null> {
     try {
-      const url = `${alchemyUrl}/getNFTs/?owner=${address}`;
+      const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
+      if (!networkConfig || !networkConfig.apiKey || !networkConfig.rpcUrl) {
+        console.warn(`Alchemy API key or network config not found for ${network}`);
+        return null; // Return null for graceful fallback
+      }
+      const alchemyApiKey = networkConfig.apiKey; // Assuming apiKey in NETWORK_CONFIGS is Alchemy API key
+      const alchemyRpcUrl = networkConfig.rpcUrl; // Assuming rpcUrl can be used as Alchemy base URL
+
+      // Alchemy API base URL typically includes the API key in the URL itself for NFT API
+      // This might need adjustment if the actual Alchemy API usage is different.
+      // For now, we'll construct a general Alchemy NFT API URL.
+      const alchemyBaseUrl = alchemyRpcUrl.replace(/v3\/[^/]+/, `v3/${alchemyApiKey}`);
+      
+      const url = `${alchemyBaseUrl}/getNFTs/?owner=${address}`;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
 
-      if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
-      }
-
       const response = await fetch(url, { headers });
 
       if (!response.ok) {
-        throw new Error(`Alchemy API error: ${response.status}`);
+        console.warn(`Alchemy API error for ${address} on ${network}: HTTP status ${response.status}`);
+        return null; // Return null for graceful fallback
       }
 
       const data = await response.json();
@@ -210,7 +280,7 @@ export class NFTManager {
         imageUrl: nft.media?.[0]?.gateway || nft.media?.[0]?.raw || '',
         metadata: nft.metadata?.attributes || {},
         owner: address,
-        network: 'ethereum', // Alchemy primarily supports Ethereum
+        network: network, 
         collection: {
           name: nft.contract.name,
           symbol: nft.contract.symbol
@@ -224,34 +294,43 @@ export class NFTManager {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching from Alchemy:', error);
-      return [];
+      return null; // Return null for graceful fallback
     }
   }
 
   // Fetch NFTs from PolygonScan API
-  private async fetchFromPolygonScan(address: string, apiKey?: string): Promise<NFT[]> {
+  private async fetchFromPolygonScan(address: string, network: string): Promise<NFT[] | null> {
     try {
+      const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
+      if (!networkConfig || !networkConfig.apiKey) {
+        console.warn(`PolygonScan API key or network config not found for ${network}`);
+        return null; // Return null for graceful fallback
+      }
+      const apiKey = networkConfig.apiKey;
+
       const baseUrl = 'https://api.polygonscan.com/api';
-      const url = apiKey 
-        ? `${baseUrl}?module=account&action=tokennfttx&address=${address}&apikey=${apiKey}`
-        : `${baseUrl}?module=account&action=tokennfttx&address=${address}`;
+      const url = `${baseUrl}?module=account&action=tokennfttx&address=${address}&apikey=${apiKey}`;
 
       const response = await fetch(url);
 
       if (!response.ok) {
-        throw new Error(`PolygonScan API error: ${response.status}`);
+        console.warn(`PolygonScan API error for ${address} on ${network}: HTTP status ${response.status}`);
+        return null; // Return null for graceful fallback
       }
 
       const data = await response.json();
       
       if (data.status !== '1') {
-        throw new Error(`PolygonScan API error: ${data.message}`);
+        console.warn(`PolygonScan API error for ${address} on ${network}: ${data.message}`);
+        return null; // Return null for graceful fallback
       }
+
+      const nftTransactions = data.result;
 
       // Group by contract and token ID to get current ownership
       const ownershipMap = new Map<string, any>();
       
-      data.result.forEach((tx: any) => {
+      nftTransactions.forEach((tx: any) => {
         const key = `${tx.contractAddress}-${tx.tokenID}`;
         if (tx.to.toLowerCase() === address.toLowerCase()) {
           ownershipMap.set(key, tx);
@@ -260,39 +339,90 @@ export class NFTManager {
         }
       });
 
-      // Convert to NFT objects
-      return Array.from(ownershipMap.values()).map((tx: any) => ({
-        id: `${tx.contractAddress}-${tx.tokenID}`,
-        tokenId: tx.tokenID,
-        contractAddress: tx.contractAddress,
-        name: `NFT #${tx.tokenID}`,
-        description: '',
-        imageUrl: '', // Would need additional API call to get metadata
-        metadata: {},
-        owner: address,
-        network: 'polygon',
-        collection: {
-          name: tx.tokenName || 'Unknown Collection',
-          symbol: tx.tokenSymbol || 'NFT'
-        },
-        lastUpdated: Date.now()
-      }));
+      // Fetch full metadata for each owned NFT
+      const ownedNfts: NFT[] = [];
+      for (const tx of Array.from(ownershipMap.values())) {
+        try {
+          const metadata = await this.getNFTMetadata(tx.contractAddress, tx.tokenID, network);
+          if (metadata) {
+            ownedNfts.push({
+              id: `${tx.contractAddress}-${tx.tokenID}`,
+              tokenId: tx.tokenID,
+              contractAddress: tx.contractAddress,
+              name: metadata.name || `NFT #${tx.tokenID}`,
+              description: metadata.description || '',
+              imageUrl: metadata.image?.replace('ipfs://', IPFS_GATEWAY) || '',
+              metadata: metadata,
+              owner: address,
+              network: network,
+              collection: {
+                name: tx.tokenName || metadata.collection || 'Unknown Collection',
+                symbol: tx.tokenSymbol || 'NFT',
+                description: metadata.description,
+                imageUrl: metadata.image?.replace('ipfs://', IPFS_GATEWAY),
+              },
+              attributes: metadata.attributes || [],
+              lastUpdated: Date.now()
+            });
+          } else {
+            console.warn(`Failed to fetch metadata for NFT ${tx.contractAddress}/${tx.tokenID} on ${network}`);
+            ownedNfts.push({
+              id: `${tx.contractAddress}-${tx.tokenID}`,
+              tokenId: tx.tokenID,
+              contractAddress: tx.contractAddress,
+              name: `NFT #${tx.tokenID}`,
+              description: '',
+              imageUrl: '',
+              metadata: {},
+              owner: address,
+              network: network,
+              collection: {
+                name: tx.tokenName || 'Unknown Collection',
+                symbol: tx.tokenSymbol || 'NFT'
+              },
+              lastUpdated: Date.now()
+            });
+          }
+        } catch (metadataError) {
+          console.error(`Error fetching metadata for ${tx.contractAddress}/${tx.tokenID}:`, metadataError);
+          ownedNfts.push({
+            id: `${tx.contractAddress}-${tx.tokenID}`,
+            tokenId: tx.tokenID,
+            contractAddress: tx.contractAddress,
+            name: `NFT #${tx.tokenID}`,
+            description: '',
+            imageUrl: '',
+            metadata: {},
+            owner: address,
+            network: network,
+            collection: {
+              name: tx.tokenName || 'Unknown Collection',
+              symbol: tx.tokenSymbol || 'NFT'
+            },
+            lastUpdated: Date.now()
+          });
+        }
+      }
+
+      return ownedNfts;
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error fetching from PolygonScan:', error);
-      return [];
+      return null; // Return null for graceful fallback
     }
   }
 
   // Get NFT metadata from contract
-  async getNFTMetadata(contractAddress: string, tokenId: string, network: string): Promise<any> {
+  async getNFTMetadata(contractAddress: string, tokenId: string, network: string): Promise<any | null> {
     try {
-      const networkConfig = NETWORKS[network];
-      if (!networkConfig) {
-        throw new Error(`Unsupported network: ${network}`);
+      const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
+      if (!networkConfig || !networkConfig.rpcUrl) {
+        console.warn(`RPC URL not configured for network: ${network}`);
+        return null;
       }
+      const rpcUrl = networkConfig.rpcUrl;
 
-      const provider = new ethers.JsonRpcProvider(networkConfig.rpcUrl);
+      const provider = new ethers.JsonRpcProvider(rpcUrl);
       
       // ERC-721 metadata interface
       const abi = [
@@ -309,7 +439,7 @@ export class NFTManager {
       // Fetch metadata from URI
       const metadataUrl = tokenURI.startsWith('http') 
         ? tokenURI 
-        : `https://ipfs.io/ipfs/${tokenURI.replace('ipfs://', '')}`;
+        : `${IPFS_GATEWAY}${tokenURI.replace('ipfs://', '')}`;
       
       const response = await fetch(metadataUrl);
       const metadata = await response.json();
@@ -330,14 +460,15 @@ export class NFTManager {
         throw new Error('No wallet found');
       }
 
-      // Clear existing NFTs
+      // Clear existing NFTs and re-import for all configured networks
       this.nfts = [];
+      this.collections = []; // Clear collections as well for a full refresh
       
-      // Re-import NFTs for all supported networks
-      const networks = ['ethereum', 'polygon', 'bsc', 'avalanche'];
+      const networks = Object.keys(NETWORK_CONFIGS);
       
       for (const network of networks) {
         try {
+          // Using the updated importNFTs which handles multiple sources and fallbacks
           await this.importNFTs(walletData.address, network);
         } catch (error) {
           // eslint-disable-next-line no-console
@@ -431,7 +562,8 @@ export class NFTManager {
     return {
       OPENSEA_API_KEY: '',
       ALCHEMY_API_KEY: '',
-      POLYGONSCAN_API_KEY: ''
+      POLYGONSCAN_API_KEY: '',
+      IPFS_GATEWAY: 'https://ipfs.io/ipfs/'
     };
   }
 } 

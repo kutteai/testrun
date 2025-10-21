@@ -283,7 +283,7 @@ export class LedgerSDK extends HardwareWalletSDK {
     const pathBytes: Buffer[] = [];
     
     for (const segment of pathArray) {
-      const value = parseInt(segment.replace("'", ""));
+      const value = parseInt(segment.replace("'", ""), 10);
       const isHardened = segment.includes("'");
       const pathBuffer = Buffer.alloc(4);
       

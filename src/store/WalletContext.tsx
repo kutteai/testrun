@@ -12,6 +12,7 @@ import {
   WalletContextType, 
   Network
 } from '../types/index';
+import SecureSessionManager from '../../utils/secure-session-manager';
 
 // ============================================================================
 // SECURE CRYPTO UTILITIES - ALIGNED WITH BACKGROUND SCRIPT
@@ -2673,106 +2674,19 @@ const importWalletFromPrivateKey = async (privateKey: string, network: string, p
 
   // Password storage utility functions
   const storePassword = async (password: string): Promise<boolean> => {
-    try {
-      // Store in session storage (plain text for immediate access)
-      await storage.setSession({ sessionPassword: password });
-      
-      // Store in local storage as backup (encoded for security)
-      const encodedPassword = btoa(password);
-      await storage.set({ sessionPassword: encodedPassword });
-      
-      // Store in alternative backup locations
-      await storage.setSession({ backupPassword: password });
-      await storage.set({ backupPassword: encodedPassword });
-
-      // Verify storage worked
-      const verifyResult = await storage.getSession(['sessionPassword']);
-      if (verifyResult.sessionPassword) {
-
-        return true;
-      } else {
-
-        return true; // Still return true since we have local storage backup
-      }
-    } catch (error) {
-
-      return false;
-    }
+    return await SecureSessionManager.createSession(password);
   };
 
   const getPassword = async (): Promise<string | null> => {
-    try {
-      // Try session storage first
-      const sessionResult = await storage.getSession(['sessionPassword']);
-      if (sessionResult.sessionPassword) {
-
-        return sessionResult.sessionPassword;
-      }
-      
-      // Try local storage as fallback (this was incorrectly using getSession)
-      const localResult = await storage.get(['sessionPassword']);
-      if (localResult.sessionPassword) {
-        try {
-          const decodedPassword = atob(localResult.sessionPassword);
-
-          // Restore to session storage
-          await storage.setSession({ sessionPassword: decodedPassword });
-
-          return decodedPassword;
-        } catch (decodeError) {
-
-        }
-      }
-      
-      // Try alternative storage keys
-      const altSessionResult = await storage.getSession(['backupPassword']);
-      if (altSessionResult.backupPassword) {
-
-        return altSessionResult.backupPassword;
-      }
-      
-      const altLocalResult = await storage.get(['backupPassword']);
-      if (altLocalResult.backupPassword) {
-        try {
-          const decodedPassword = atob(altLocalResult.backupPassword);
-
-          // Restore to session storage
-          await storage.setSession({ sessionPassword: decodedPassword });
-
-          return decodedPassword;
-        } catch (decodeError) {
-
-        }
-      }
-      
-      // Try to get password from global state if available
-      if (state.globalPassword) {
-
-        // Restore to session storage
-        await storage.setSession({ sessionPassword: state.globalPassword });
-        return state.globalPassword;
-      }
-
-      return null;
-    } catch (error) {
-
-      return null;
-    }
+    return await SecureSessionManager.getSessionPassword();
   };
 
   const clearPassword = async (): Promise<void> => {
-    try {
-      // Clear from session storage
-      await storage.removeSession(['sessionPassword']);
-      // Clear from local storage
-      await storage.remove(['sessionPassword']);
-      // Clear alternative storage keys
-      await storage.removeSession(['backupPassword']);
-      await storage.remove(['backupPassword']);
+    await SecureSessionManager.clearSession();
+  };
 
-    } catch (error) {
-
-    }
+  const hasActiveSession = async (): Promise<boolean> => {
+    return await SecureSessionManager.hasActiveSession();
   };
 
   // Method to decrypt private key from wallet data

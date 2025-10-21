@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import toast from 'react-hot-toast';
 import { ethers } from 'ethers';
 import { storage } from '../utils/storage-utils';
+import { NETWORK_CONFIGS } from '../background/index'; // Import NETWORK_CONFIGS from background
 
 interface NFT {
   id: string;
@@ -71,9 +72,19 @@ async function fetchOpenSeaNFTMetadata(contractAddress: string, tokenId: string,
       throw new Error('OpenSea API key not configured');
     }
 
-    const baseUrl = network === 'ethereum' 
-      ? 'https://api.opensea.io/api/v1'
-      : 'https://testnets-api.opensea.io/api/v1';
+    // Dynamically determine OpenSea API endpoint based on network
+    const openseaApiEndpoints: Record<string, string> = {
+      ethereum: 'https://api.opensea.io/api/v1',
+      goerli: 'https://testnets-api.opensea.io/api/v1',
+      polygon: 'https://api.opensea.io/api/v1', // OpenSea supports Polygon mainnet
+      // Add other networks as OpenSea supports them, mapping to their mainnet or testnet APIs
+    };
+
+    const baseUrl = openseaApiEndpoints[network.toLowerCase()];
+    if (!baseUrl) {
+      // Instead of throwing, return null for graceful fallback in importNFT
+      return null;
+    }
 
     const response = await fetch(
       `${baseUrl}/asset/${contractAddress}/${tokenId}/?include_orders=false`,
@@ -86,7 +97,9 @@ async function fetchOpenSeaNFTMetadata(contractAddress: string, tokenId: string,
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Log the error but return null for graceful fallback
+      console.warn(`OpenSea API error for ${contractAddress}/${tokenId}: HTTP status ${response.status}`);
+      return null;
     }
 
     const data = await response.json();
@@ -110,9 +123,10 @@ async function fetchOpenSeaNFTMetadata(contractAddress: string, tokenId: string,
       }
     };
   } catch (error) {
+    // Log the error but return null for graceful fallback
     // eslint-disable-next-line no-console
     console.error('Error fetching OpenSea metadata:', error);
-    throw error;
+    return null;
   }
 }
 
@@ -123,7 +137,8 @@ async function fetchAlchemyNFTMetadata(contractAddress: string, tokenId: string,
     const apiKey = config.ALCHEMY_NFT_API_KEY;
     
     if (!apiKey) {
-      throw new Error('Alchemy API key not configured');
+      // Instead of throwing, return null for graceful fallback in importNFT
+      return null;
     }
 
     const baseUrl = `https://eth-mainnet.g.alchemy.com/nft/v3/${apiKey}`;
@@ -133,7 +148,9 @@ async function fetchAlchemyNFTMetadata(contractAddress: string, tokenId: string,
     );
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Log the error but return null for graceful fallback
+      console.warn(`Alchemy API error for ${contractAddress}/${tokenId}: HTTP status ${response.status}`);
+      return null;
     }
 
     const data = await response.json();
@@ -151,17 +168,26 @@ async function fetchAlchemyNFTMetadata(contractAddress: string, tokenId: string,
       metadata: data.rawMetadata || {}
     };
   } catch (error) {
+    // Log the error but return null for graceful fallback
     // eslint-disable-next-line no-console
     console.error('Error fetching Alchemy metadata:', error);
-    throw error;
+    return null;
   }
 }
 
 // Fetch NFT metadata from blockchain
 async function fetchBlockchainNFTMetadata(contractAddress: string, tokenId: string, network: string) {
   try {
+    // Get network configuration
+    const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
+    if (!networkConfig || !networkConfig.rpcUrl) {
+      // Instead of throwing, return null for graceful fallback in importNFT
+      return null;
+    }
+    const rpcUrl = networkConfig.rpcUrl;
+
     // Get token URI from smart contract
-    const response = await fetch(`https://mainnet.infura.io/v3/${getConfig().INFURA_PROJECT_ID}`, {
+    const response = await fetch(rpcUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -178,35 +204,46 @@ async function fetchBlockchainNFTMetadata(contractAddress: string, tokenId: stri
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Log the error but return null for graceful fallback
+      console.warn(`Blockchain RPC error for ${contractAddress}/${tokenId}: HTTP status ${response.status}`);
+      return null;
     }
 
     const data = await response.json();
     
     if (data.error) {
-      throw new Error(data.error.message);
+      // Log the error but return null for graceful fallback
+      console.warn(`Blockchain RPC error for ${contractAddress}/${tokenId}: ${data.error.message}`);
+      return null;
     }
 
     // Decode the token URI
     const tokenUri = ethers.toUtf8String(data.result);
     
     // Fetch metadata from IPFS or HTTP
-    const metadataResponse = await fetch(tokenUri.replace('ipfs://', 'https://ipfs.io/ipfs/'));
+    const metadataResponse = await fetch(tokenUri.replace('ipfs://', getConfig().IPFS_GATEWAY || 'https://ipfs.io/ipfs/'));
+
+    if (!metadataResponse.ok) {
+      console.warn(`IPFS/Metadata fetch error for ${tokenUri}: HTTP status ${metadataResponse.status}`);
+      return null;
+    }
+
     const metadata = await metadataResponse.json();
     
     return {
       name: metadata.name || `NFT #${tokenId}`,
       description: metadata.description || '',
-      imageUrl: metadata.image?.replace('ipfs://', 'https://ipfs.io/ipfs/') || '',
+      imageUrl: metadata.image?.replace('ipfs://', getConfig().IPFS_GATEWAY || 'https://ipfs.io/ipfs/') || '',
       collection: metadata.collection || 'Unknown Collection',
       attributes: metadata.attributes || [],
       owner: '', // Will be fetched separately
       metadata: metadata
     };
   } catch (error) {
+    // Log the error but return null for graceful fallback
     // eslint-disable-next-line no-console
     console.error('Error fetching blockchain metadata:', error);
-    throw error;
+    return null;
   }
 }
 
@@ -299,38 +336,44 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
     }));
 
     try {
-      let metadata;
-      
-      // Try different metadata sources
-      try {
-        // First try OpenSea
-        metadata = await fetchOpenSeaNFTMetadata(contractAddress, tokenId, network);
-      } catch (error) {
+      let mergedMetadata: any = {};
+      const metadataSources = [
+        fetchOpenSeaNFTMetadata,
+        fetchAlchemyNFTMetadata,
+        fetchBlockchainNFTMetadata,
+      ];
+
+      for (const source of metadataSources) {
         try {
-          // Then try Alchemy
-          metadata = await fetchAlchemyNFTMetadata(contractAddress, tokenId, network);
-        } catch (error2) {
-          try {
-            // Finally try blockchain
-            metadata = await fetchBlockchainNFTMetadata(contractAddress, tokenId, network);
-          } catch (error3) {
-            // Throw error instead of fallback metadata
-            throw new Error('Failed to fetch NFT metadata from all sources');
+          const fetched = await source(contractAddress, tokenId, network);
+          if (fetched) {
+            mergedMetadata = { ...mergedMetadata, ...fetched };
+            // If we have a name and image, we can potentially stop trying other sources
+            if (mergedMetadata.name && mergedMetadata.imageUrl) {
+              break;
+            }
           }
+        } catch (sourceError) {
+          // eslint-disable-next-line no-console
+          console.warn(`Failed to fetch metadata from a source (${source.name}):`, sourceError);
         }
+      }
+      
+      if (!mergedMetadata.name && !mergedMetadata.imageUrl && !mergedMetadata.description) {
+        throw new Error('Failed to fetch any significant NFT metadata from all sources');
       }
 
       const nft: Omit<NFT, 'id'> = {
         tokenId,
         contractAddress,
         network,
-        name: metadata.name,
-        description: metadata.description,
-        imageUrl: metadata.imageUrl,
-        metadata: metadata.metadata,
-        owner: metadata.owner,
-        collection: metadata.collection,
-        attributes: metadata.attributes
+        name: mergedMetadata.name || `NFT #${tokenId}`,
+        description: mergedMetadata.description || '',
+        imageUrl: mergedMetadata.imageUrl || '',
+        metadata: mergedMetadata.metadata || {},
+        owner: mergedMetadata.owner || '',
+        collection: mergedMetadata.collection || 'Unknown Collection',
+        attributes: mergedMetadata.attributes || []
       };
 
       addNFT(nft);
@@ -363,26 +406,43 @@ export const NFTProvider: React.FC<NFTProviderProps> = ({ children }) => {
       // Refresh metadata for all NFTs
       const updatedNFTs = await Promise.all(
         nftState.nfts.map(async (nft) => {
-          try {
-            const metadata = await fetchOpenSeaNFTMetadata(
-              nft.contractAddress, 
-              nft.tokenId, 
-              nft.network
-            );
-            
-            return {
-              ...nft,
-              name: metadata.name,
-              description: metadata.description,
-              imageUrl: metadata.imageUrl,
-              owner: metadata.owner,
-              metadata: metadata.metadata
-            };
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.warn(`Failed to refresh NFT ${nft.id}:`, error);
-            return nft; // Keep original if refresh fails
+          let mergedMetadata: any = {};
+          const metadataSources = [
+            fetchOpenSeaNFTMetadata,
+            fetchAlchemyNFTMetadata,
+            fetchBlockchainNFTMetadata,
+          ];
+
+          for (const source of metadataSources) {
+            try {
+              const fetched = await source(nft.contractAddress, nft.tokenId, nft.network);
+              if (fetched) {
+                mergedMetadata = { ...mergedMetadata, ...fetched };
+                if (mergedMetadata.name && mergedMetadata.imageUrl) {
+                  break;
+                }
+              }
+            } catch (sourceError) {
+              // eslint-disable-next-line no-console
+              console.warn(`Failed to refresh NFT ${nft.id} from a source (${source.name}):`, sourceError);
+            }
           }
+
+          if (!mergedMetadata.name && !mergedMetadata.imageUrl && !mergedMetadata.description) {
+            // If no metadata could be refreshed, keep the old NFT data
+            return nft;
+          }
+          
+          return {
+            ...nft,
+            name: mergedMetadata.name || nft.name,
+            description: mergedMetadata.description || nft.description,
+            imageUrl: mergedMetadata.imageUrl || nft.imageUrl,
+            owner: mergedMetadata.owner || nft.owner,
+            metadata: mergedMetadata.metadata || nft.metadata,
+            collection: mergedMetadata.collection || nft.collection,
+            attributes: mergedMetadata.attributes || nft.attributes,
+          };
         })
       );
       

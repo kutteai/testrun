@@ -4,6 +4,9 @@ import { encryptData, decryptData } from '../utils/crypto-utils';
 import { deriveWalletFromSeed, deriveAccountFromSeed } from '../utils/key-derivation';
 import { storage } from '../utils/storage-utils';
 import type { WalletData, WalletAccount } from '../types/index';
+import { DERIVATION_PATHS, generateNetworkAddress } from '../utils/network-address-utils';
+import { PrivateKeyAddressUtils } from '../utils/private-key-address-utils';
+import { NETWORK_CONFIGS } from '../background/index'; // Corrected import path for NETWORK_CONFIGS
 
 
 // Internal wallet data structure for storage
@@ -11,9 +14,8 @@ interface InternalWalletData {
   id: string;
   name: string;
   address: string;
-  seedPhrase: string;
-  privateKey: string;
-  publicKey: string;
+  // privateKey: string; // Removed for security
+  // publicKey: string;  // Removed for security
   network: string;
   currentNetwork: string;
   derivationPath: string;
@@ -54,13 +56,12 @@ export class WalletManager {
 
   // Load wallets from storage
   private async loadWallets(): Promise<void> {
-    try { // TODO: Review useless catch block // TODO: Review useless catch block
+    try {
       const result = await storage.get(['wallets']);
       if (result.wallets) {
         this.wallets = result.wallets;
       }
     } catch (error) {
-       
       // console.error('Failed to load wallets:', error);
       throw error;
     }
@@ -68,10 +69,9 @@ export class WalletManager {
 
   // Save wallets to storage
   private async saveWallets(): Promise<void> {
-    try { // TODO: Review useless catch block // TODO: Review useless catch block
+    try {
       await storage.set({ wallets: this.wallets });
     } catch (error) {
-       
       // console.error('Failed to save wallets:', error);
       throw error;
     }
@@ -98,7 +98,7 @@ export class WalletManager {
 
   // Create a new wallet with real seed phrase generation
   async createWallet(request: CreateWalletRequest): Promise<WalletData> {
-    try { // TODO: Review useless catch block // TODO: Review useless catch block
+    try {
       // Generate real seed phrase
       const seedPhrase = this.generateSeedPhrase();
       
@@ -106,7 +106,7 @@ export class WalletManager {
       const encryptedSeedPhrase = await encryptData(seedPhrase, request.password);
       
       // Derive wallet accounts
-      const accounts = await this.deriveAccounts(seedPhrase, request.network, request.accountCount || 1);
+      const accounts = await this.deriveAccounts(seedPhrase, request.network, request.accountCount || 1, encryptedSeedPhrase);
       
       // Get the first account for the main wallet properties
       const firstAccount = accounts[0];
@@ -115,15 +115,14 @@ export class WalletManager {
         id: Date.now().toString(),
         name: request.name,
         address: firstAccount.addresses[request.network] || Object.values(firstAccount.addresses)[0],
-        seedPhrase: seedPhrase,
-        privateKey: firstAccount.privateKey,
-        publicKey: firstAccount.publicKey,
+        // privateKey: firstAccount.privateKey, // Removed for security
+        // publicKey: firstAccount.publicKey, // Removed for security
         network: request.network,
         currentNetwork: request.network,
         derivationPath: firstAccount.derivationPath,
         createdAt: Date.now(),
         encryptedSeedPhrase: encryptedSeedPhrase,
-        accounts: accounts,
+        accounts: accounts, // Accounts now contain encryptedSeedPhrase
         lastAccessed: Date.now()
       };
 
@@ -132,7 +131,6 @@ export class WalletManager {
 
       return this.convertToWalletData(wallet);
     } catch (error) {
-       
       // console.error('Failed to create wallet:', error);
       throw error;
     }
@@ -144,15 +142,9 @@ export class WalletManager {
       id: wallet.id,
       name: wallet.name,
       address: wallet.address,
-      privateKey: wallet.privateKey,
-      publicKey: wallet.publicKey,
+      // privateKey: wallet.privateKey, // Removed for security
+      // publicKey: wallet.publicKey,   // Removed for security
       encryptedSeedPhrase: wallet.encryptedSeedPhrase,
-      decryptPrivateKey: async (password: string) => {
-        // This method should be implemented by the calling code
-        // Decrypt private key using the stored password hash
-        // For now, return the private key directly (in production, implement proper decryption)
-        return wallet.privateKey;
-      },
       accounts: wallet.accounts, // Keep full account objects instead of just addresses
       networks: [wallet.network],
       currentNetwork: wallet.currentNetwork,
@@ -160,12 +152,40 @@ export class WalletManager {
       balance: wallet.accounts[0]?.balances?.[wallet.currentNetwork] || '0',
       createdAt: wallet.createdAt,
       lastUsed: wallet.lastAccessed,
-      lastAccessed: wallet.lastAccessed // Add lastAccessed property for multi-wallet support
+      lastAccessed: wallet.lastAccessed, // Add lastAccessed property for multi-wallet support
+      decryptPrivateKey: async (password: string) => {
+        // This method should be implemented by the calling code
+        // Decrypt private key using the stored password hash
+        // For now, return the private key directly (in production, implement proper decryption)
+        // return wallet.privateKey;
+        const seedPhrase = await decryptData(wallet.encryptedSeedPhrase, password);
+        if (!seedPhrase) {
+          throw new Error('Invalid password');
+        }
+        const derivedWallet = await deriveWalletFromSeed(seedPhrase, wallet.derivationPath);
+        return derivedWallet.privateKey;
+      },
+      getPrivateKey: async (password: string) => {
+        const seedPhrase = await decryptData(wallet.encryptedSeedPhrase, password);
+        if (!seedPhrase) {
+          throw new Error('Invalid password');
+        }
+        const derivedWallet = await deriveWalletFromSeed(seedPhrase, wallet.derivationPath);
+        return derivedWallet.privateKey;
+      },
+      getPublicKey: async (password: string) => {
+        const seedPhrase = await decryptData(wallet.encryptedSeedPhrase, password);
+        if (!seedPhrase) {
+          throw new Error('Invalid password');
+        }
+        const derivedWallet = await deriveWalletFromSeed(seedPhrase, wallet.derivationPath);
+        return derivedWallet.publicKey;
+      },
     };
   }
 
   // Derive accounts from seed phrase
-  private async deriveAccounts(seedPhrase: string, network: string, count: number): Promise<WalletAccount[]> {
+  private async deriveAccounts(seedPhrase: string, network: string, count: number, encryptedSeedPhrase: string): Promise<WalletAccount[]> {
     const accounts: WalletAccount[] = [];
     
     // Define all supported networks for multi-chain account generation
@@ -207,7 +227,7 @@ export class WalletManager {
                   networkDerivationPath = `m/44'/2'/0'/0/${i}`;
                   break;
                 case 'solana':
-                  networkDerivationPath = `m/44'/501'/0'/0/${i}`;
+                  networkDerivationPath = `m/44'/501'/0'/0/${i}'`;
                   break;
                 case 'tron':
                   networkDerivationPath = `m/44'/195'/0'/0/${i}`;
@@ -216,7 +236,7 @@ export class WalletManager {
                   networkDerivationPath = `m/44'/144'/0'/0/${i}`;
                   break;
                 case 'ton':
-                  networkDerivationPath = `m/44'/607'/0'/0/${i}`;
+                  networkDerivationPath = `m/44'/607'/0'/0/${i}'`;
                   break;
                 default:
                   // EVM networks use Ethereum derivation path
@@ -240,20 +260,35 @@ export class WalletManager {
           id: `${Date.now()}-${i}`,
           name: `Account ${i + 1}`,
           addresses,
-          privateKey: walletData.privateKey,
-          publicKey: walletData.publicKey,
+          // privateKey: walletData.privateKey,
+          // publicKey: walletData.publicKey,
           derivationPath: derivationPath,
           networks: supportedNetworks, // Account supports all networks
           balances,
           nonces,
           createdAt: Date.now(),
-          encryptedSeedPhrase: '', // Will be set by the wallet's encrypted seed phrase
-          isActive: i === 0 // First account is active
+          encryptedSeedPhrase: encryptedSeedPhrase, // Set encryptedSeedPhrase here
+          isActive: i === 0, // First account is active
+          getPrivateKey: async (password: string) => {
+            const seedPhrase = await decryptData(encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derived = await deriveWalletFromSeed(seedPhrase, derivationPath);
+            return derived.privateKey;
+          },
+          getPublicKey: async (password: string) => {
+            const seedPhrase = await decryptData(encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derived = await deriveWalletFromSeed(seedPhrase, derivationPath);
+            return derived.publicKey;
+          },
         };
 
         accounts.push(account);
       } catch (error) {
-         
         // console.error(`Failed to derive account ${i}:`, error);
       }
     }
@@ -263,7 +298,7 @@ export class WalletManager {
 
   // Import wallet from seed phrase
   async importWallet(request: ImportWalletRequest): Promise<WalletData> {
-    try { // TODO: Review useless catch block // TODO: Review useless catch block
+    try {
       // Validate seed phrase
       if (!this.validateSeedPhrase(request.seedPhrase)) {
         throw new Error('Invalid seed phrase');
@@ -273,7 +308,7 @@ export class WalletManager {
       const encryptedSeedPhrase = await encryptData(request.seedPhrase, request.password);
       
       // Derive wallet accounts
-      const accounts = await this.deriveAccounts(request.seedPhrase, request.network, request.accountCount || 1);
+      const accounts = await this.deriveAccounts(request.seedPhrase, request.network, request.accountCount || 1, encryptedSeedPhrase);
       
       // Get the first account for the main wallet properties
       const firstAccount = accounts[0];
@@ -282,15 +317,14 @@ export class WalletManager {
         id: Date.now().toString(),
         name: request.name,
         address: firstAccount.addresses[request.network] || Object.values(firstAccount.addresses)[0],
-        seedPhrase: request.seedPhrase,
-        privateKey: firstAccount.privateKey,
-        publicKey: firstAccount.publicKey,
+        // privateKey: firstAccount.privateKey, // Removed for security
+        // publicKey: firstAccount.publicKey, // Removed for security
         network: request.network,
         currentNetwork: request.network,
         derivationPath: firstAccount.derivationPath,
         createdAt: Date.now(),
         encryptedSeedPhrase: encryptedSeedPhrase,
-        accounts: accounts,
+        accounts: accounts, // Accounts now contain encryptedSeedPhrase
         lastAccessed: Date.now()
       };
 
@@ -299,7 +333,6 @@ export class WalletManager {
 
       return this.convertToWalletData(wallet);
     } catch (error) {
-       
       // console.error('Failed to import wallet:', error);
       throw error;
     }
@@ -354,7 +387,6 @@ export class WalletManager {
     const needsMigration = wallet.accounts.some(acc => typeof acc === 'string' || (acc && typeof acc === 'object' && !acc.addresses));
     
     if (needsMigration) {
-
       await this.migrateAccounts(wallet);
     }
     
@@ -390,8 +422,6 @@ export class WalletManager {
           addresses: {
             [wallet.currentNetwork]: acc
           },
-          privateKey: wallet.privateKey,
-          publicKey: wallet.publicKey,
           derivationPath: wallet.derivationPath,
           networks: [wallet.currentNetwork],
           balances: {
@@ -402,7 +432,23 @@ export class WalletManager {
           },
           createdAt: wallet.createdAt,
           encryptedSeedPhrase: wallet.encryptedSeedPhrase,
-          isActive: i === 0
+          isActive: i === 0,
+          getPrivateKey: async (password: string) => {
+            const seedPhrase = await decryptData(wallet.encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derivedWallet = await deriveWalletFromSeed(seedPhrase, wallet.derivationPath);
+            return derivedWallet.privateKey;
+          },
+          getPublicKey: async (password: string) => {
+            const seedPhrase = await decryptData(wallet.encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derivedWallet = await deriveWalletFromSeed(seedPhrase, wallet.derivationPath);
+            return derivedWallet.publicKey;
+          },
         };
         migratedAccounts.push(migratedAccount);
       } else if (acc && typeof acc === 'object' && !acc.addresses) {
@@ -413,8 +459,6 @@ export class WalletManager {
           addresses: {
             [wallet.currentNetwork]: Object.values(acc.addresses || {})[0] || wallet.address
           },
-          privateKey: acc.privateKey || wallet.privateKey,
-          publicKey: acc.publicKey || wallet.publicKey,
           derivationPath: acc.derivationPath || wallet.derivationPath,
           networks: [wallet.currentNetwork],
           balances: {
@@ -424,13 +468,51 @@ export class WalletManager {
             [wallet.currentNetwork]: acc.nonces?.[wallet.currentNetwork] || 0
           },
           createdAt: acc.createdAt || wallet.createdAt,
-          encryptedSeedPhrase: acc.encryptedSeedPhrase || wallet.encryptedSeedPhrase,
-          isActive: i === 0
+          encryptedSeedPhrase: acc.encryptedSeedPhrase || wallet.encryptedSeedPhrase, // Ensure encryptedSeedPhrase is migrated
+          isActive: i === 0,
+          getPrivateKey: async (password: string) => {
+            const seedPhrase = await decryptData(acc.encryptedSeedPhrase || wallet.encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derivedWallet = await deriveWalletFromSeed(seedPhrase, acc.derivationPath || wallet.derivationPath);
+            return derivedWallet.privateKey;
+          },
+          getPublicKey: async (password: string) => {
+            const seedPhrase = await decryptData(acc.encryptedSeedPhrase || wallet.encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derivedWallet = await deriveWalletFromSeed(seedPhrase, acc.derivationPath || wallet.derivationPath);
+            return derivedWallet.publicKey;
+          },
         };
         migratedAccounts.push(migratedAccount);
       } else {
         // Account is already in correct format
-        migratedAccounts.push(acc as WalletAccount);
+        // Also ensure it has getPrivateKey and getPublicKey methods
+        const existingAccount = acc as WalletAccount;
+        if (!existingAccount.getPrivateKey) {
+          existingAccount.getPrivateKey = async (password: string) => {
+            const seedPhrase = await decryptData(existingAccount.encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derivedWallet = await deriveWalletFromSeed(seedPhrase, existingAccount.derivationPath);
+            return derivedWallet.privateKey;
+          };
+        }
+        if (!existingAccount.getPublicKey) {
+          existingAccount.getPublicKey = async (password: string) => {
+            const seedPhrase = await decryptData(existingAccount.encryptedSeedPhrase, password);
+            if (!seedPhrase) {
+              throw new Error('Invalid password');
+            }
+            const derivedWallet = await deriveWalletFromSeed(seedPhrase, existingAccount.derivationPath);
+            return derivedWallet.publicKey;
+          };
+        }
+        migratedAccounts.push(existingAccount);
       }
     }
     
@@ -465,29 +547,28 @@ export class WalletManager {
   }
 
   // Add network to existing account
-  async addNetworkToAccount(accountId: string, network: string, address: string): Promise<void> {
+  async addNetworkToAccount(accountId: string, networkId: string, address: string): Promise<void> {
     await this.ensureInitialized();
+
+    // Validate that the network is configured
+    if (!NETWORK_CONFIGS[networkId.toLowerCase()]) {
+      console.warn(`Attempted to add unsupported network to account: ${networkId}`);
+      throw new Error(`Unsupported network: ${networkId}`);
+    }
 
     const wallet = this.wallets.find(w => w.accounts.some(acc => acc.id === accountId));
     if (wallet) {
-
       const account = wallet.accounts.find(acc => acc.id === accountId);
       if (account) {
-
-
-        // Check if network already exists
-        if (account.networks.includes(network)) {
-
-          account.addresses[network] = address;
-        } else {
-
-          account.addresses[network] = address;
-          account.networks.push(network);
+        // If network is new to this account, add it
+        if (!account.networks.includes(networkId)) {
+          account.networks.push(networkId);
         }
-        
-        account.balances[network] = '0';
-        account.nonces[network] = 0;
 
+        // Update address, balance, and nonce for the network
+        account.addresses[networkId] = address;
+        account.balances[networkId] = account.balances[networkId] || '0'; // Initialize if not present
+        account.nonces[networkId] = account.nonces[networkId] || 0;     // Initialize if not present
 
         await this.saveWallets();
 
@@ -521,9 +602,9 @@ export class WalletManager {
         throw new Error('Invalid password');
       }
 
-      return account.privateKey;
+      // Use the secure getter for private key
+      return account.getPrivateKey(password);
     } catch (error) {
-       
       // console.error('Failed to get account private key:', error);
       return null;
     }
@@ -551,7 +632,6 @@ export class WalletManager {
 
       return seedPhrase;
     } catch (error) {
-       
       // console.error('Failed to get account seed phrase:', error);
       return null;
     }
@@ -607,28 +687,8 @@ export class WalletManager {
               console.warn('Failed to decrypt seed phrase for address derivation');
               networkAddress = Object.values(account.addresses)[0];
             } else {
-              // Import the network address generation utility
-              const { generateNetworkAddress } = await import('../utils/network-address-utils');
-              
               // Get derivation path for the network
-              const derivationPaths: Record<string, string> = {
-                'ethereum': "m/44'/60'/0'/0/0",
-                'bitcoin': "m/44'/0'/0'/0/0",
-                'litecoin': "m/44'/2'/0'/0/0", 
-                'solana': "m/44'/501'/0'/0/0",
-                'tron': "m/44'/195'/0'/0/0",
-                'ton': "m/44'/396'/0'/0/0",
-                'xrp': "m/44'/144'/0'/0/0",
-                'bsc': "m/44'/60'/0'/0/0", // BSC uses same derivation as Ethereum
-                'polygon': "m/44'/60'/0'/0/0", // Polygon uses same derivation as Ethereum
-                'avalanche': "m/44'/60'/0'/0/0", // Avalanche uses same derivation as Ethereum
-                'arbitrum': "m/44'/60'/0'/0/0", // Arbitrum uses same derivation as Ethereum
-                'optimism': "m/44'/60'/0'/0/0", // Optimism uses same derivation as Ethereum
-                'base': "m/44'/60'/0'/0/0", // Base uses same derivation as Ethereum
-                'fantom': "m/44'/60'/0'/0/0", // Fantom uses same derivation as Ethereum
-              };
-              
-              const derivationPath = derivationPaths[currentNetworkId] || "m/44'/60'/0'/0/0";
+              const derivationPath = DERIVATION_PATHS[currentNetworkId] || DERIVATION_PATHS.ethereum;
               
               // Derive the address for the current network
               networkAddress = await generateNetworkAddress(seedPhrase, derivationPath, currentNetworkId);
@@ -650,8 +710,8 @@ export class WalletManager {
       
       // Use the network-specific address or fallback to first available
       wallet.address = networkAddress || Object.values(account.addresses)[0];
-      wallet.privateKey = account.privateKey;
-      wallet.publicKey = account.publicKey;
+      // wallet.privateKey = account.privateKey; // Removed for security
+      // wallet.publicKey = account.publicKey;   // Removed for security
 
       await this.saveWallets();
       
@@ -688,7 +748,6 @@ export class WalletManager {
       const activeAccount = wallet.accounts.find(acc => acc.isActive);
       return activeAccount || null;
     } catch (error) {
-       
       // console.error('Failed to get active account:', error);
       return null;
     }
@@ -748,16 +807,32 @@ export class WalletManager {
     const newAccount: WalletAccount = {
       id: `${Date.now()}-${newAccountIndex}`,
       name: accountName || `Account ${newAccountIndex + 1}`,
-      addresses: addresses,
-      privateKey: walletData.privateKey,
-      publicKey: walletData.publicKey,
+      addresses,
+      // privateKey: walletData.privateKey,
+      // publicKey: walletData.publicKey,
       derivationPath: derivationPath,
       networks: networks,
-      balances: balances,
-      nonces: nonces,
+      balances,
+      nonces,
       createdAt: Date.now(),
-      encryptedSeedPhrase: '', // This will be set by the calling function
-      isActive: false
+      encryptedSeedPhrase: wallet.encryptedSeedPhrase, // Set encryptedSeedPhrase from wallet
+      isActive: false,
+      getPrivateKey: async (pwd: string) => {
+        const decryptedSeed = await decryptData(wallet.encryptedSeedPhrase, pwd);
+        if (!decryptedSeed) {
+          throw new Error('Invalid password');
+        }
+        const derived = await deriveAccountFromSeed(decryptedSeed, derivationPath);
+        return derived.privateKey;
+      },
+      getPublicKey: async (pwd: string) => {
+        const decryptedSeed = await decryptData(wallet.encryptedSeedPhrase, pwd);
+        if (!decryptedSeed) {
+          throw new Error('Invalid password');
+        }
+        const derived = await deriveAccountFromSeed(decryptedSeed, derivationPath);
+        return derived.publicKey;
+      },
     };
 
     wallet.accounts.push(newAccount);
@@ -774,15 +849,15 @@ export class WalletManager {
   private getNetworkDerivationPath(networkId: string, accountIndex: number): string {
     switch (networkId) {
       case 'bitcoin':
-        return `m/84'/0'/0'/${accountIndex}`; // Native SegWit
+        return DERIVATION_PATHS.bitcoin.replace('/0', `/${accountIndex}`); // Native SegWit
       case 'solana':
-        return `m/44'/501'/${accountIndex}'/0'`; // Solana BIP44
+        return DERIVATION_PATHS.solana.replace('/0', `/${accountIndex}'`); // Solana BIP44
       case 'ton':
-        return `m/44'/607'/${accountIndex}'/0'`; // TON BIP44
+        return DERIVATION_PATHS.ton.replace('/0', `/${accountIndex}'`); // TON BIP44
       case 'xrp':
-        return `m/44'/144'/${accountIndex}'/0'`; // XRP BIP44
+        return DERIVATION_PATHS.xrp.replace('/0', `/${accountIndex}'`); // XRP BIP44
       default:
-        return `m/44'/60'/0'/0/${accountIndex}`; // Default Ethereum path
+        return DERIVATION_PATHS.ethereum.replace('/0', `/${accountIndex}`); // Default Ethereum path
     }
   }
 
@@ -921,7 +996,9 @@ export class WalletManager {
       createdAt: wallet.createdAt,
       accounts: wallet.accounts.map(account => ({
         addresses: account.addresses,
-        derivationPath: account.derivationPath
+        derivationPath: account.derivationPath,
+        // privateKey: account.privateKey, // Removed from backup
+        // publicKey: account.publicKey, // Removed from backup
       }))
     };
 
@@ -943,7 +1020,6 @@ export class WalletManager {
 
       return await this.importWallet(request);
     } catch (error) {
-       
       // console.error('Failed to restore wallet:', error);
       throw new Error('Invalid backup data');
     }
@@ -964,12 +1040,17 @@ export class WalletManager {
   getCurrentWalletForBackground(): { address: string; currentNetwork: string } | null {
     if (this.wallets.length === 0) return null;
     
-    const currentWallet = this.wallets[0]; // For now, use the first wallet
-    if (!currentWallet.accounts || currentWallet.accounts.length === 0) return null;
+    // Get the most recently accessed wallet
+    const currentWalletInternal = [...this.wallets].sort((a, b) => b.lastAccessed - a.lastAccessed)[0];
+    
+    if (!currentWalletInternal.accounts || currentWalletInternal.accounts.length === 0) return null;
+    
+    // Find the active account for the current wallet, or default to the first account
+    const activeAccount = currentWalletInternal.accounts.find(acc => acc.isActive) || currentWalletInternal.accounts[0];
     
     return {
-      address: currentWallet.accounts[0].addresses[currentWallet.currentNetwork] || Object.values(currentWallet.accounts[0].addresses)[0],
-      currentNetwork: currentWallet.currentNetwork
+      address: activeAccount.addresses[currentWalletInternal.currentNetwork] || Object.values(activeAccount.addresses)[0],
+      currentNetwork: currentWalletInternal.currentNetwork
     };
   }
 
@@ -991,7 +1072,7 @@ export class WalletManager {
   // Get balance for an account
   async getBalance(address: string, network: string): Promise<string> {
     try {
-      const account = this.getAccountByAddress(address, network);
+      const account = await this.getAccountByAddress(address, network);
       if (!account) {
         throw new Error('Account not found');
       }
@@ -1004,8 +1085,7 @@ export class WalletManager {
       await this.updateAccountBalance(address, balance, network);
       
       return balance;
-    } catch (error) {
-       
+    } catch (error: any) {
       // console.error('Error getting balance:', error);
       return '0';
     }
@@ -1053,28 +1133,8 @@ export class WalletManager {
               // eslint-disable-next-line no-console
               console.warn('Failed to decrypt seed phrase for address derivation during network switch');
             } else {
-              // Import the network address generation utility
-              const { generateNetworkAddress } = await import('../utils/network-address-utils');
-              
               // Get derivation path for the network
-              const derivationPaths: Record<string, string> = {
-                'ethereum': "m/44'/60'/0'/0/0",
-                'bitcoin': "m/44'/0'/0'/0/0",
-                'litecoin': "m/44'/2'/0'/0/0", 
-                'solana': "m/44'/501'/0'/0/0",
-                'tron': "m/44'/195'/0'/0/0",
-                'ton': "m/44'/396'/0'/0/0",
-                'xrp': "m/44'/144'/0'/0/0",
-                'bsc': "m/44'/60'/0'/0/0", // BSC uses same derivation as Ethereum
-                'polygon': "m/44'/60'/0'/0/0", // Polygon uses same derivation as Ethereum
-                'avalanche': "m/44'/60'/0'/0/0", // Avalanche uses same derivation as Ethereum
-                'arbitrum': "m/44'/60'/0'/0/0", // Arbitrum uses same derivation as Ethereum
-                'optimism': "m/44'/60'/0'/0/0", // Optimism uses same derivation as Ethereum
-                'base': "m/44'/60'/0'/0/0", // Base uses same derivation as Ethereum
-                'fantom': "m/44'/60'/0'/0/0", // Fantom uses same derivation as Ethereum
-              };
-              
-              const derivationPath = derivationPaths[networkId] || "m/44'/60'/0'/0/0";
+              const derivationPath = DERIVATION_PATHS[networkId] || DERIVATION_PATHS.ethereum;
               
               // Derive the address for the new network
               const networkAddress = await generateNetworkAddress(seedPhrase, derivationPath, networkId);
@@ -1085,7 +1145,7 @@ export class WalletManager {
               }
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           // eslint-disable-next-line no-console
           console.error(`❌ Failed to derive ${networkId} address for account ${account.id}:`, error);
         }
@@ -1130,8 +1190,7 @@ export class WalletManager {
 
     // Update wallet to use the selected account
     wallet.address = account.addresses[wallet.currentNetwork] || Object.values(account.addresses)[0];
-    wallet.privateKey = account.privateKey;
-    wallet.publicKey = account.publicKey;
+    // wallet.privateKey = account.privateKey; // Removed for security
     wallet.derivationPath = account.derivationPath;
     wallet.lastAccessed = Date.now();
     
@@ -1228,29 +1287,28 @@ export class WalletManager {
       let derivationPath: string;
       switch (currentNetwork) {
         case 'bitcoin':
-          derivationPath = "m/44'/0'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.bitcoin;
           break;
         case 'litecoin':
-          derivationPath = "m/44'/2'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.litecoin;
           break;
         case 'solana':
-          derivationPath = "m/44'/501'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.solana;
           break;
         case 'tron':
-          derivationPath = "m/44'/195'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.tron;
           break;
         case 'ton':
-          derivationPath = "m/44'/396'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.ton;
           break;
         case 'xrp':
-          derivationPath = "m/44'/144'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.xrp;
           break;
         default:
-          derivationPath = "m/44'/60'/0'/0/0"; // Ethereum and EVM chains
+          derivationPath = DERIVATION_PATHS.ethereum; // Ethereum and EVM chains
       }
 
       // Derive account from the provided seed phrase
-      const { generateNetworkAddress } = await import('../utils/network-address-utils');
       const address = await generateNetworkAddress(seedPhrase, derivationPath, currentNetwork);
       
       // Get private key and public key
@@ -1284,26 +1342,25 @@ export class WalletManager {
             
             switch (networkId) {
               case 'bitcoin':
-                networkDerivationPath = "m/44'/0'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.bitcoin;
                 break;
               case 'litecoin':
-                networkDerivationPath = "m/44'/2'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.litecoin;
                 break;
               case 'solana':
-                networkDerivationPath = "m/44'/501'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.solana;
                 break;
               case 'tron':
-                networkDerivationPath = "m/44'/195'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.tron;
                 break;
               case 'xrp':
-                networkDerivationPath = "m/44'/144'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.xrp;
                 break;
               case 'ton':
-                networkDerivationPath = "m/44'/396'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.ton;
                 break;
               default:
-                // EVM networks use Ethereum derivation path
-                networkDerivationPath = "m/44'/60'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.ethereum;
             }
             
             const networkAddress = await generateNetworkAddress(seedPhrase, networkDerivationPath, networkId);
@@ -1322,16 +1379,32 @@ export class WalletManager {
         id: `${Date.now()}-${wallet.accounts.length}`,
         name: accountName || `Imported Account ${wallet.accounts.length + 1}`,
         addresses,
-        privateKey: walletData.privateKey,
-        publicKey: walletData.publicKey,
+        // privateKey: walletData.privateKey,
+        // publicKey: walletData.publicKey,
         derivationPath: derivationPath,
         networks: supportedNetworks, // Account supports all networks
         balances,
         nonces,
         createdAt: Date.now(),
-        encryptedSeedPhrase: encryptedSeedPhrase,
+        encryptedSeedPhrase: encryptedSeedPhrase, // Set encryptedSeedPhrase for the new account
         isActive: false,
-        accountType: 'seed-phrase' // Mark as seed phrase account
+        accountType: 'seed-phrase', // Mark as seed phrase account
+        getPrivateKey: async (pwd: string) => {
+          const decryptedSeed = await decryptData(encryptedSeedPhrase, pwd);
+          if (!decryptedSeed) {
+            throw new Error('Invalid password');
+          }
+          const derived = await deriveWalletFromSeed(decryptedSeed, derivationPath);
+          return derived.privateKey;
+        },
+        getPublicKey: async (pwd: string) => {
+          const decryptedSeed = await decryptData(encryptedSeedPhrase, pwd);
+          if (!decryptedSeed) {
+            throw new Error('Invalid password');
+          }
+          const derived = await deriveWalletFromSeed(decryptedSeed, derivationPath);
+          return derived.publicKey;
+        },
       };
 
       // Add to wallet
@@ -1376,14 +1449,13 @@ export class WalletManager {
       const encryptedPrivateKey = await encryptData(privateKey, password);
       
       // Generate addresses for ALL supported networks using the private key
-      const { deriveAddressesFromPrivateKey, getSupportedNetworksForPrivateKey } = await import('../utils/private-key-address-utils');
-      const supportedNetworks = getSupportedNetworksForPrivateKey();
+      const supportedNetworks = PrivateKeyAddressUtils.getSupportedNetworksForPrivateKey();
       const addresses: Record<string, string> = {};
       const balances: Record<string, string> = {};
       const nonces: Record<string, number> = {};
       
       // Generate addresses for all supported networks using the private key
-      const derivationResults = await deriveAddressesFromPrivateKey(privateKey, supportedNetworks);
+      const derivationResults = await PrivateKeyAddressUtils.deriveAddressesFromPrivateKey(privateKey, supportedNetworks);
       
       for (const [networkId, result] of Object.entries(derivationResults)) {
         try {
@@ -1401,8 +1473,8 @@ export class WalletManager {
         id: `${Date.now()}-${wallet.accounts.length}`,
         name: accountName || `Private Key Account ${wallet.accounts.length + 1}`,
         addresses,
-        privateKey: walletData.privateKey,
-        publicKey: walletData.publicKey,
+        // privateKey: walletData.privateKey,
+        // publicKey: walletData.publicKey,
         derivationPath: walletData.derivationPath,
         networks: supportedNetworks, // Now supports ALL networks
         balances,
@@ -1410,7 +1482,23 @@ export class WalletManager {
         createdAt: Date.now(),
         encryptedSeedPhrase: encryptedPrivateKey, // Store encrypted private key in this field
         isActive: false,
-        accountType: 'private-key' // Mark as private key account (now supports all networks)
+        accountType: 'private-key', // Mark as private key account (now supports all networks)
+        getPrivateKey: async (pwd: string) => {
+          const decryptedKey = await decryptData(encryptedPrivateKey, pwd);
+          if (!decryptedKey) {
+            throw new Error('Invalid password');
+          }
+          return decryptedKey;
+        },
+        getPublicKey: async (pwd: string) => {
+          const decryptedKey = await decryptData(encryptedPrivateKey, pwd);
+          if (!decryptedKey) {
+            throw new Error('Invalid password');
+          }
+          // For private key accounts, derive public key from decrypted private key
+          const walletFromPrivateKey = new ethers.Wallet(decryptedKey);
+          return walletFromPrivateKey.signingKey.publicKey;
+        },
       };
 
       // Add to wallet
@@ -1448,30 +1536,29 @@ export class WalletManager {
       let derivationPath: string;
       switch (currentNetwork) {
         case 'bitcoin':
-          derivationPath = "m/44'/0'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.bitcoin;
           break;
         case 'litecoin':
-          derivationPath = "m/44'/2'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.litecoin;
           break;
         case 'solana':
-          derivationPath = "m/44'/501'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.solana;
           break;
         case 'tron':
-          derivationPath = "m/44'/195'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.tron;
           break;
         case 'ton':
-          derivationPath = "m/44'/396'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.ton;
           break;
         case 'xrp':
-          derivationPath = "m/44'/144'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.xrp;
           break;
         default: // EVM networks (ethereum, polygon, bsc, etc.)
-          derivationPath = "m/44'/60'/0'/0/0";
+          derivationPath = DERIVATION_PATHS.ethereum;
           break;
       }
       
       // Derive account from the NEW seed phrase
-      const { generateNetworkAddress } = await import('../utils/network-address-utils');
       const address = await generateNetworkAddress(newSeedPhrase, derivationPath, currentNetwork);
       
       // Get private key and public key
@@ -1505,26 +1592,25 @@ export class WalletManager {
             
             switch (networkId) {
               case 'bitcoin':
-                networkDerivationPath = "m/44'/0'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.bitcoin;
                 break;
               case 'litecoin':
-                networkDerivationPath = "m/44'/2'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.litecoin;
                 break;
               case 'solana':
-                networkDerivationPath = "m/44'/501'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.solana;
                 break;
               case 'tron':
-                networkDerivationPath = "m/44'/195'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.tron;
                 break;
               case 'xrp':
-                networkDerivationPath = "m/44'/144'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.xrp;
                 break;
               case 'ton':
-                networkDerivationPath = "m/44'/396'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.ton;
                 break;
               default:
-                // EVM networks use Ethereum derivation path
-                networkDerivationPath = "m/44'/60'/0'/0/0";
+                networkDerivationPath = DERIVATION_PATHS.ethereum;
             }
             
             const networkAddress = await generateNetworkAddress(newSeedPhrase, networkDerivationPath, networkId);
@@ -1543,8 +1629,8 @@ export class WalletManager {
         id: `${Date.now()}-${wallet.accounts.length}`,
         name: accountName || `Account ${wallet.accounts.length + 1}`,
         addresses,
-        privateKey: walletData.privateKey,
-        publicKey: walletData.publicKey,
+        // privateKey: walletData.privateKey,
+        // publicKey: walletData.publicKey,
         derivationPath: derivationPath,
         networks: supportedNetworks,
         balances,
@@ -1552,7 +1638,23 @@ export class WalletManager {
         createdAt: Date.now(),
         encryptedSeedPhrase: encryptedSeedPhrase, // Each account has its own encrypted seed phrase
         isActive: false,
-        accountType: 'seed-phrase' // Mark as seed phrase account
+        accountType: 'seed-phrase', // Mark as seed phrase account
+        getPrivateKey: async (pwd: string) => {
+          const decryptedSeed = await decryptData(encryptedSeedPhrase, pwd);
+          if (!decryptedSeed) {
+            throw new Error('Invalid password');
+          }
+          const derived = await deriveWalletFromSeed(decryptedSeed, derivationPath);
+          return derived.privateKey;
+        },
+        getPublicKey: async (pwd: string) => {
+          const decryptedSeed = await decryptData(encryptedSeedPhrase, pwd);
+          if (!decryptedSeed) {
+            throw new Error('Invalid password');
+          }
+          const derived = await deriveWalletFromSeed(decryptedSeed, derivationPath);
+          return derived.publicKey;
+        },
       };
 
       wallet.accounts.push(newAccount);
@@ -1593,8 +1695,8 @@ export class WalletManager {
       const firstAccount = wallet.accounts.find(acc => acc.id !== accountId);
       if (firstAccount) {
         wallet.address = firstAccount.addresses[wallet.currentNetwork] || Object.values(firstAccount.addresses)[0];
-        wallet.privateKey = firstAccount.privateKey;
-        wallet.publicKey = firstAccount.publicKey;
+        // wallet.privateKey = firstAccount.privateKey; // Removed for security
+        // wallet.publicKey = firstAccount.publicKey; // Removed for security
         wallet.derivationPath = firstAccount.derivationPath;
       }
     }
@@ -1622,8 +1724,7 @@ export class WalletManager {
       await this.updateAccountBalance(primaryAddress, balance, primaryNetwork);
       
       return balance;
-    } catch (error) {
-       
+    } catch (error: any) {
       // console.error('Error getting account balance:', error);
       return '0';
     }
@@ -1666,7 +1767,6 @@ export class WalletManager {
     // Verify the change was saved
     const savedWallet = this.wallets.find(w => w.id === walletId);
     const savedAccount = savedWallet?.accounts.find(acc => acc.id === accountId);
-
 
   }
 } 

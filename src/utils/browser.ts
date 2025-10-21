@@ -10,3 +10,5 @@ export const getBrowser = (): typeof chrome | typeof browser => {
   throw new Error('No browser API available');
 };
 
+
+

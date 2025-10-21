@@ -594,8 +594,6 @@ try {
     }
   });
 
-  // Expose createUnlockModal function globally (disabled for security)
-  (window as any).createUnlockModal = createUnlockModal;
 } catch (error) {
   // eslint-disable-next-line no-console
   console.error('❌ PayCio: Error in provider initialization:', error);

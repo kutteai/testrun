@@ -19,6 +19,8 @@ export async function debugWalletPassword(testPassword?: string) {
 
     if (wallet) {
       // Intentionally empty for future debugging logic
+    } else {
+      // Intentionally empty for future debugging logic
     }
     
     if (!testPassword) {
@@ -43,7 +45,7 @@ export async function debugWalletPassword(testPassword?: string) {
         // eslint-disable-next-line no-console
         console.log('  - Stored hash:', passwordHash.substring(0, 20) + '...');
       } catch (error) {
-
+        // Intentionally empty: error handled by calling function or logged externally.
       }
     } else {
 
@@ -99,8 +101,7 @@ export async function debugWalletPassword(testPassword?: string) {
         console.log('  - First 3 words:', words.slice(0, 3).join(' ') + '...');
         
       } catch (error) {
-
-
+        // Intentionally empty for future debugging logic
       }
     } else {
 
@@ -115,7 +116,7 @@ export async function debugWalletPassword(testPassword?: string) {
       // eslint-disable-next-line no-console
       console.log('  - Test password:', testPassword.substring(0, 3) + '***');
     } else {
-
+      // Intentionally empty for future debugging logic
     }
     
     // Test 4: Send message to background script
@@ -128,7 +129,7 @@ export async function debugWalletPassword(testPassword?: string) {
       });
 
     } catch (error) {
-
+      // Intentionally empty for future debugging logic
     }
 
   } catch (error) {

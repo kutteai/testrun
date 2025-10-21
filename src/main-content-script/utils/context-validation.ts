@@ -137,6 +137,7 @@ export const setupContextValidationAndHeartbeat = (toast: any, browserAPI: typeo
             heartbeatFailures = 0;
 
             if (response?.status === 'ok') {
+              // Intentionally empty: successful heartbeat, no action needed.
             }
           }
         });

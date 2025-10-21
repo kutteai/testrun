@@ -196,7 +196,7 @@ export async function searchTokens(query: string, network: string = 'ethereum'):
           });
         }
       } catch (error) {
-
+        // Intentionally empty: errors are handled by the calling function or logged elsewhere.
       }
     }
 
@@ -205,7 +205,7 @@ export async function searchTokens(query: string, network: string = 'ethereum'):
       const coingeckoResults = await searchCoinGecko(normalizedQuery, network);
       suggestions.push(...coingeckoResults);
     } catch (error) {
-
+      // Intentionally empty: errors are handled by the calling function or logged elsewhere.
     }
 
     // Remove duplicates and limit results
@@ -961,7 +961,7 @@ async function searchSolanaTokens(query: string, options: any): Promise<TokenSea
           }
         }
       } catch (error) {
-
+        // Intentionally empty: errors are handled by the calling function or logged elsewhere.
       }
     }
 

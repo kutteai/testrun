@@ -11,6 +11,24 @@ const { createHash } = crypto;
 import { Address, Cell, beginCell } from '@ton/core';
 import { mnemonicToWalletKey } from '@ton/crypto';
 
+// Standard BIP44 derivation paths
+export const DERIVATION_PATHS: Record<string, string> = {
+  ethereum: "m/44'/60'/0'/0/0",
+  bitcoin: "m/44'/0'/0'/0/0",
+  litecoin: "m/44'/2'/0'/0/0",
+  solana: "m/44'/501'/0'/0'",
+  tron: "m/44'/195'/0'/0/0",
+  ton: "m/44'/607'/0'/0/0",
+  xrp: "m/44'/144'/0'/0/0",
+  bsc: "m/44'/60'/0'/0/0", // BSC uses same derivation as Ethereum
+  polygon: "m/44'/60'/0'/0/0", // Polygon uses same derivation as Ethereum
+  avalanche: "m/44'/60'/0'/0/0", // Avalanche uses same derivation as Ethereum
+  arbitrum: "m/44'/60'/0'/0/0", // Arbitrum uses same derivation as Ethereum
+  optimism: "m/44'/60'/0'/0/0", // Optimism uses same derivation as Ethereum
+  base: "m/44'/60'/0'/0/0", // Base uses same derivation as Ethereum
+  fantom: "m/44'/60'/0'/0/0", // Fantom uses same derivation as Ethereum
+};
+
 // Bitcoin address generation
 export function generateBitcoinAddress(seedPhrase: string, derivationPath: string): string {
   try {
@@ -67,31 +85,7 @@ const XRP_ALPHABET = 'rpshnaf39wBUDNEGHJKLM4PQRST7VWXYZ2bcdeCg65jkm8oFqi1tuvAxyz
 // XRP address generation
 export function generateXRPAddress(seedPhrase: string, derivationPath: string): string {
   try {
-
-    // 1. Validate and clean the seed phrase
-
-    // eslint-disable-next-line no-console
-    console.log('Raw seed phrase:', JSON.stringify(seedPhrase.substring(0, 50) + '...'));
-    
-    const cleanedSeedPhrase = cleanSeedPhrase(seedPhrase);
-
-    const words = cleanedSeedPhrase.split(' ');
-
-    // eslint-disable-next-line no-console
-    console.log('First 3 words:', words.slice(0, 3));
-    
-    // 2. Validate seed phrase format
-    if (![12, 15, 18, 21, 24].includes(words.length)) {
-      throw new Error(`Invalid seed phrase: expected 12, 15, 18, 21, or 24 words, got ${words.length}`);
-    }
-    
-    // 3. Validate BIP39 mnemonic
-    if (!bip39.validateMnemonic(cleanedSeedPhrase)) {
-      throw new Error('Invalid BIP39 mnemonic seed phrase');
-    }
-    
-    // 4. Generate seed and derive key
-    const seed = bip39.mnemonicToSeedSync(cleanedSeedPhrase);
+    const seed = bip39.mnemonicToSeedSync(seedPhrase);
 
     const bip32 = BIP32Factory(ecc);
     const root = bip32.fromSeed(seed);
@@ -173,35 +167,10 @@ function encodeXRPBase58(buffer: Buffer): string {
 // TON address generation
 export async function generateTONAddress(seedPhrase: string, derivationPath: string): Promise<string> {
   try {
-
-    // 1. Validate and clean the seed phrase
-
-    // eslint-disable-next-line no-console
-    console.log('Raw seed phrase:', JSON.stringify(seedPhrase.substring(0, 50) + '...'));
-    
-    const cleanedSeedPhrase = cleanSeedPhrase(seedPhrase);
-
-    const words = cleanedSeedPhrase.split(' ');
-
-    // eslint-disable-next-line no-console
-    console.log('First 3 words:', words.slice(0, 3));
-    
-    // 2. Validate seed phrase format
-    if (![12, 15, 18, 21, 24].includes(words.length)) {
-      throw new Error(`Invalid seed phrase: expected 12, 15, 18, 21, or 24 words, got ${words.length}`);
-    }
-    
-    // 3. Validate BIP39 mnemonic
-    if (!bip39.validateMnemonic(cleanedSeedPhrase)) {
-      throw new Error('Invalid BIP39 mnemonic seed phrase');
-    }
-    
-    // 4. Use BIP32 derivation
-    const seed = bip39.mnemonicToSeedSync(cleanedSeedPhrase);
+    const seed = bip39.mnemonicToSeedSync(seedPhrase);
 
     const bip32 = BIP32Factory(ecc);
     const root = bip32.fromSeed(seed);
-
     const child = root.derivePath(derivationPath);
 
     // eslint-disable-next-line no-console
@@ -264,6 +233,7 @@ function calculateTONCRC16(data: Buffer): number {
 // TRON address generation
 export function generateTRONAddress(seedPhrase: string, derivationPath: string): string {
   try {
+    // Removed redundant cleanSeedPhrase and bip39.validateMnemonic calls
     const seed = bip39.mnemonicToSeedSync(seedPhrase);
     const bip32 = BIP32Factory(ecc);
     const root = bip32.fromSeed(seed);
@@ -314,19 +284,7 @@ function cleanSeedPhrase(seedPhrase: string): string {
 export function generateLitecoinAddress(seedPhrase: string, derivationPath: string): string {
 
   try {
-    // Clean the seed phrase
-    const cleanedSeedPhrase = seedPhrase.trim().replace(/\s+/g, ' ').toLowerCase();
-
-    // Validate BIP39 mnemonic first
-    if (!bip39.validateMnemonic(cleanedSeedPhrase)) {
-      throw new Error('Invalid BIP39 mnemonic');
-    }
-    
-    // Generate seed
-
-    const seed = bip39.mnemonicToSeedSync(cleanedSeedPhrase);
-
-    // Derive key
+    const seed = bip39.mnemonicToSeedSync(seedPhrase);
 
     const bip32 = BIP32Factory(ecc);
     const root = bip32.fromSeed(seed);
@@ -469,52 +427,31 @@ export async function generateNetworkAddress(seedPhrase: string, derivationPath:
   
   const networkId = network.toLowerCase();
 
+  // Get the derivation path for the specific network
+  const networkDerivationPath = DERIVATION_PATHS[networkId] || derivationPath; // Fallback to provided path if not found
+
   // Now call the specific network function
   try {
     switch (networkId) {
-        case 'bitcoin': {
-
-        const btcAddress = generateBitcoinAddress(cleaned, derivationPath);
-
-        }
-        return btcAddress;
-        case 'litecoin': {
-
-        const ltcAddress = generateLitecoinAddress(cleaned, derivationPath);
-
-        }
-        return ltcAddress;
-        case 'solana': {
-
-        const solAddress = generateSolanaAddress(cleaned, derivationPath);
-
-        }
-        return solAddress;
-      case 'xrp': {
-
-        const xrpAddress = generateXRPAddress(cleaned, derivationPath);
-
-        }
-        return xrpAddress;
-      case 'ton': {
-
-        const tonAddress = await generateTONAddress(cleaned, derivationPath);
-
-        }
-        return tonAddress;
-        case 'tron': {
-
-        const tronAddress = generateTRONAddress(cleaned, derivationPath);
-
-        }
-        return tronAddress;
+        case 'bitcoin': 
+        return generateBitcoinAddress(cleaned, networkDerivationPath);
+        case 'litecoin': 
+        return generateLitecoinAddress(cleaned, networkDerivationPath);
+        case 'solana': 
+        return generateSolanaAddress(cleaned, networkDerivationPath);
+      case 'xrp': 
+        return generateXRPAddress(cleaned, networkDerivationPath);
+      case 'ton': 
+        return await generateTONAddress(cleaned, networkDerivationPath);
+        case 'tron': 
+        return generateTRONAddress(cleaned, networkDerivationPath);
         default:
         // For EVM networks, use the standard ethers.js address
 
         try {
           const seed = bip39.mnemonicToSeedSync(cleaned);
           const hdNode = HDNodeWallet.fromSeed(seed);
-          const derivedWallet = hdNode.derivePath(derivationPath);
+          const derivedWallet = hdNode.derivePath(networkDerivationPath); // Use network-specific derivation path
 
           return derivedWallet.address;
         } catch (error) {

@@ -15,7 +15,7 @@ if (window.paycioContentScriptLoaded) {
     window.paycioProviderInjected = true;
 
     // Simple provider object (no classes to avoid module wrapping)
-    var paycioProvider = {
+    let paycioProvider = {
       isPaycio: true,
       isMetaMask: false,
       isConnected: function() { return this._connected; },
@@ -31,7 +31,7 @@ if (window.paycioContentScriptLoaded) {
 
       // Initialize
       _initialize: function() {
-        var self = this;
+        let self = this;
         window.addEventListener('message', function(event) {
           if (event.source !== window || event.data.source !== 'paycio-content') {
             return;
@@ -49,20 +49,20 @@ if (window.paycioContentScriptLoaded) {
       },
 
       _announceProvider: function() {
-        var providerInfo = {
+        let providerInfo = {
           uuid: 'paycio-wallet-' + Math.random().toString(36).substring(2),
           name: 'PayCio Wallet',
           icon: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjMyIiBoZWlnaHQ9IjMyIiByeD0iOCIgZmlsbD0iIzE4MENCMyIvPgo8L3N2Zz4=',
           rdns: 'com.paycio.wallet'
         };
         
-        var announceEvent = new CustomEvent('eip6963:announceProvider', {
+        let announceEvent = new CustomEvent('eip6963:announceProvider', {
           detail: Object.freeze({ info: providerInfo, provider: this })
         });
         
         window.dispatchEvent(announceEvent);
         
-        var self = this;
+        let self = this;
         window.addEventListener('eip6963:requestProvider', function() {
           window.dispatchEvent(announceEvent);
         });
@@ -72,11 +72,11 @@ if (window.paycioContentScriptLoaded) {
       },
 
       _handleMessage: function(data) {
-        var type = data.type;
-        var requestId = data.requestId;
-        var success = data.success;
-        var result = data.result;
-        var error = data.error;
+        let type = data.type;
+        let requestId = data.requestId;
+        let success = data.success;
+        let result = data.result;
+        let error = data.error;
         
         switch (type) {
           case 'PAYCIO_RESPONSE':
@@ -98,13 +98,13 @@ if (window.paycioContentScriptLoaded) {
       },
 
       _handleResponse: function(requestId, success, result, error) {
-        var callback = this._pendingRequests && this._pendingRequests.get(requestId);
+        let callback = this._pendingRequests && this._pendingRequests.get(requestId);
         if (callback) {
           this._pendingRequests.delete(requestId);
           if (success) {
             callback.resolve(result);
           } else {
-            var err = new Error(error || 'Request failed');
+            let err = new Error(error || 'Request failed');
             err.code = 4001;
             callback.reject(err);
           }
@@ -125,8 +125,8 @@ if (window.paycioContentScriptLoaded) {
       },
 
       _handleConnect: function(data) {
-        var accounts = data.accounts;
-        var chainId = data.chainId;
+        let accounts = data.accounts;
+        let chainId = data.chainId;
         this._accounts = accounts || [];
         this.selectedAddress = this._accounts[0] || null;
         this.chainId = chainId || '0x1';
@@ -143,13 +143,13 @@ if (window.paycioContentScriptLoaded) {
 
       // EIP-1193 Standard Methods
       request: function(args) {
-        var self = this;
+        let self = this;
         if (!args || typeof args !== 'object') {
           return Promise.reject(new Error('Invalid request arguments'));
         }
         
-        var method = args.method;
-        var params = args.params || [];
+        let method = args.method;
+        let params = args.params || [];
         
         if (!method || typeof method !== 'string') {
           return Promise.reject(new Error('Method must be a non-empty string'));
@@ -160,17 +160,17 @@ if (window.paycioContentScriptLoaded) {
         }
         
         return new Promise(function(resolve, reject) {
-          var requestId = (++self._requestId).toString();
+          let requestId = (++self._requestId).toString();
           
           self._pendingRequests.set(requestId, { resolve: resolve, reject: reject });
           
-          var timeout = setTimeout(function() {
+          let timeout = setTimeout(function() {
             self._pendingRequests.delete(requestId);
             reject(new Error('Request timeout'));
           }, 60000);
           
-          var originalResolve = resolve;
-          var originalReject = reject;
+          let originalResolve = resolve;
+          let originalReject = reject;
           
           self._pendingRequests.set(requestId, {
             resolve: function(result) {
@@ -207,7 +207,7 @@ if (window.paycioContentScriptLoaded) {
       },
 
       sendAsync: function(payload, callback) {
-        var self = this;
+        let self = this;
         this.request(payload)
           .then(function(result) {
             callback(null, { id: payload.id, result: result });
@@ -237,8 +237,8 @@ if (window.paycioContentScriptLoaded) {
       },
 
       once: function(event, listener) {
-        var self = this;
-        var onceWrapper = function() {
+        let self = this;
+        let onceWrapper = function() {
           self.removeListener(event, onceWrapper);
           listener.apply(self, arguments);
         };
@@ -248,7 +248,7 @@ if (window.paycioContentScriptLoaded) {
       removeListener: function(event, listener) {
         if (!this._events[event]) return this;
         
-        var index = this._events[event].indexOf(listener);
+        let index = this._events[event].indexOf(listener);
         if (index > -1) {
           this._events[event].splice(index, 1);
         }
@@ -275,9 +275,9 @@ if (window.paycioContentScriptLoaded) {
       emit: function(event) {
         if (!this._events[event]) return false;
         
-        var listeners = this._events[event].slice();
-        var args = Array.prototype.slice.call(arguments, 1);
-        for (var i = 0; i < listeners.length; i++) {
+        let listeners = this._events[event].slice();
+        let args = Array.prototype.slice.call(arguments, 1);
+        for (let i = 0; i < listeners.length; i++) {
           try {
             listeners[i].apply(this, args);
           } catch (error) {
@@ -335,10 +335,10 @@ if (window.paycioContentScriptLoaded) {
       return;
     }
     
-    var method = event.data.method;
-    var params = event.data.params;
-    var requestId = event.data.requestId;
-    var origin = event.data.origin;
+    let method = event.data.method;
+    let params = event.data.params;
+    let requestId = event.data.requestId;
+    let origin = event.data.origin;
 
     chrome.runtime.sendMessage({
       type: 'WALLET_REQUEST',

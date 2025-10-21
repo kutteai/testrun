@@ -54,6 +54,7 @@ export const getConfig = () => {
       return config;
     }
   } catch (error) {
+    // Intentionally empty, will return default config if an error occurs
   }
 
   const defaultConfig = {

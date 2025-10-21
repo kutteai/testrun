@@ -96,3 +96,5 @@ export const ENSSearchResults: React.FC<ENSSearchResultsProps> = ({
   );
 };
 
+
+

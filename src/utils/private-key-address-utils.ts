@@ -21,7 +21,7 @@ export class PrivateKeyAddressUtils {
     try {
       const wallet = new ethers.Wallet(privateKey);
       return wallet.address;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to generate Ethereum address: ${error.message}`);
     }
   }
@@ -35,7 +35,7 @@ export class PrivateKeyAddressUtils {
         network: network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet,
       });
       return address!;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to generate Bitcoin address: ${error.message}`);
     }
   }
@@ -44,13 +44,14 @@ export class PrivateKeyAddressUtils {
     try {
       const privateKeyBuffer = Buffer.from(privateKey, 'hex');
       const keyPair = ECPair.fromPrivateKey(privateKeyBuffer);
-      // Use Bitcoin network for Litecoin (similar structure)
+      // Using Bitcoin network for Litecoin for now, as specific Litecoin network config is not readily available.
+      // For a production environment, consider a dedicated Litecoin library or more robust network handling.
       const { address } = bitcoin.payments.p2pkh({
         pubkey: Buffer.from(keyPair.publicKey),
         network: network === 'mainnet' ? bitcoin.networks.bitcoin : bitcoin.networks.testnet,
       });
       return address!;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to generate Litecoin address: ${error.message}`);
     }
   }
@@ -61,7 +62,7 @@ export class PrivateKeyAddressUtils {
         throw new Error('Invalid seed phrase');
       }
 
-      const seed = bip39.mnemonicToSeed(seedPhrase);
+      const seed = bip39.mnemonicToSeedSync(seedPhrase);
       const hdkey = HDKey.fromMasterSeed(seed);
       const derived = hdkey.derive(derivationPath);
 
@@ -81,8 +82,8 @@ export class PrivateKeyAddressUtils {
         case 'optimism': {
           const wallet = new ethers.Wallet(privateKey);
           address = wallet.address;
-          }
           break;
+        }
         case 'bitcoin':
           address = this.generateBitcoinAddress(privateKey);
           break;
@@ -99,7 +100,7 @@ export class PrivateKeyAddressUtils {
         publicKey,
         derivationPath,
       };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(`Failed to derive address: ${error.message}`);
     }
   }
@@ -150,6 +151,55 @@ export class PrivateKeyAddressUtils {
     } catch (error) {
       return false;
     }
+  }
+
+  static getSupportedNetworksForPrivateKey(): string[] {
+    return [
+      'ethereum', 'bsc', 'polygon', 'arbitrum', 'optimism',
+      'bitcoin', 'litecoin',
+      // 'solana', 'tron', 'ton', 'xrp' // Add these when their private key derivation is implemented
+    ];
+  }
+
+  static async deriveAddressesFromPrivateKey(privateKey: string, networks: string[]): Promise<Record<string, AddressResult>> {
+    const results: Record<string, AddressResult> = {};
+    const derivationPath = 'm/44'/60'/0'/0/0'; // Default path for now - can be refined per network if needed
+
+    for (const networkId of networks) {
+      try {
+        let address = '';
+        switch (networkId.toLowerCase()) {
+          case 'ethereum':
+          case 'bsc':
+          case 'polygon':
+          case 'arbitrum':
+          case 'optimism':
+            address = this.generateEthereumAddress(privateKey);
+            break;
+          case 'bitcoin':
+            address = this.generateBitcoinAddress(privateKey);
+            break;
+          case 'litecoin':
+            address = this.generateLitecoinAddress(privateKey);
+            break;
+          // Add cases for solana, tron, ton, xrp when implemented
+          default:
+            // For unsupported networks, mark as failed
+            console.warn(`PrivateKeyAddressUtils: Unsupported network for private key derivation: ${networkId}`);
+            continue;
+        }
+
+        results[networkId] = {
+          address,
+          privateKey,
+          publicKey: new ethers.Wallet(privateKey).publicKey, // Ethereum public key derived from private key
+          derivationPath, // Placeholder derivation path
+        };
+      } catch (error: any) {
+        console.warn(`Failed to derive ${networkId} address from private key: ${error.message}`);
+      }
+    }
+    return results;
   }
 }
 

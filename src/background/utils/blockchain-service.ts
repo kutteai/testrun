@@ -419,49 +419,60 @@ class BlockchainService {
     }
 
     let lastError: Error | null = null;
+    const MAX_RETRIES = 3;
+    const BASE_DELAY_MS = 1000; // 1 second
 
-    for (const rpcUrl of rpcUrls) {
-      try {
+    for (let retryCount = 0; retryCount < MAX_RETRIES; retryCount++) {
+      for (const rpcUrl of rpcUrls) {
+        try {
 
-        const response = await fetch(rpcUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-          },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            method,
-            params,
-            id: Date.now(),
-          }),
-          signal: AbortSignal.timeout(10000), // 10 second timeout
-        });
+          const response = await fetch(rpcUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Accept: 'application/json',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              method,
+              params,
+              id: Date.now(),
+            }),
+            signal: AbortSignal.timeout(10000), // 10 second timeout
+          });
 
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const data = await response.json();
+
+          if (data.error) {
+            throw new Error(`RPC Error: ${data.error.message || data.error}`);
+          }
+
+          if (data.result === undefined) {
+            throw new Error('No result in RPC response');
+          }
+
+          return data.result;
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn(`❌ RPC ${rpcUrl} failed (attempt ${retryCount + 1}):`, error.message);
+          lastError = error instanceof Error ? error : new Error(String(error));
+          // Continue to the next RPC URL on failure
         }
-
-        const data = await response.json();
-
-        if (data.error) {
-          throw new Error(`RPC Error: ${data.error.message || data.error}`);
-        }
-
-        if (data.result === undefined) {
-          throw new Error('No result in RPC response');
-        }
-
-        return data.result;
-      } catch (error) {
+      }
+      // If all RPCs failed for this retryCount, wait before the next retry attempt
+      if (retryCount < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, retryCount); // Exponential backoff
         // eslint-disable-next-line no-console
-        console.warn(`❌ RPC ${rpcUrl} failed:`, error.message);
-        lastError = error instanceof Error ? error : new Error(String(error));
-        continue;
+        console.log(`Waiting for ${delay}ms before next retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
 
-    throw new Error(`All RPC endpoints failed for ${network}. Last error: ${lastError?.message}`);
+    throw new Error(`All RPC endpoints failed for ${network} after ${MAX_RETRIES} attempts. Last error: ${lastError?.message}`);
   }
 
   static async getBalance(address: string, network = 'ethereum'): Promise<string> {

@@ -413,7 +413,7 @@ export class XrpAPI {
       
       if (data.result && data.result.info) {
         return {
-          ledgerIndex: parseInt(data.result.info.complete_ledgers.split('-', 10)[1]) || 0,
+          ledgerIndex: parseInt(data.result.info.complete_ledgers.split('-')[1], 10) || 0,
           validatedLedger: data.result.info.validated_ledger?.seq || 0,
           serverTime: data.result.info.time * 1000
         };

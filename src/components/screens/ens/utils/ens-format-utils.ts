@@ -9,3 +9,4 @@ export const formatUSD = (amount: number) => new Intl.NumberFormat('en-US', {
 
 export const formatDate = (dateString: string) => new Date(dateString).toLocaleDateString();
 
+

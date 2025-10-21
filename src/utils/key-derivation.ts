@@ -372,7 +372,7 @@ export function validateDerivationPath(path: string): boolean {
     for (let i = 1; i < parts.length; i++) {
       const part = parts[i];
       if (part.endsWith("'")) {
-        const num = parseInt(part.slice(0, -1));
+        const num = parseInt(part.slice(0, -1), 10);
         if (isNaN(num) || num < 0 || num > 0x7fffffff) return false;
       } else {
         const num = parseInt(part, 10);
@@ -391,7 +391,7 @@ export function getNetworkFromPath(derivationPath: string): string {
   const parts = derivationPath.split('/');
   if (parts.length < 3) return 'ethereum';
   
-  const coinType = parseInt(parts[2].replace("'", ""));
+  const coinType = parseInt(parts[2].replace("'", ""), 10);
   
   const networkMap: Record<number, string> = {
     0: 'bitcoin',

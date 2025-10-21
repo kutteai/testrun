@@ -13,11 +13,17 @@ interface ApprovalRequest {
 }
 
 interface ApprovalPopupProps {
-  onApprove: (data?: any) => void;
-  onReject: () => void;
+  origin: string;
+  message: string;
+  permissions?: string[];
+  txParams?: any;
+  data?: any;
+  estimatedGas?: string;
+  estimatedFee?: string;
+  networkName?: string;
 }
 
-const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) => {
+const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject, networkName }) => {
   const [request, setRequest] = useState<ApprovalRequest | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -137,7 +143,7 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
     );
   }
 
-  const renderRequestDetails = () => {
+  const renderRequestDetails = (networkName?: string) => {
     switch (request.type) {
       case 'connect':
         return (
@@ -379,7 +385,7 @@ const ApprovalPopup: React.FC<ApprovalPopupProps> = ({ onApprove, onReject }) =>
 
       {/* Content */}
       <div className="flex-1 p-4 overflow-y-auto">
-        {renderRequestDetails()}
+        {renderRequestDetails(networkName)}
       </div>
 
       {/* Actions */}
