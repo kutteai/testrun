@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { resolveENS, getENSRecords, validateENSName, getDomainPrice, getDomainExpiry } from '../../../utils/ens-utils';
-import { ENSDomain } from '../../../types/ens';
+import { resolveENS, getENSRecords, validateENSName, getDomainPrice, getDomainExpiry } from '../../../../utils/ens-utils';
+import { ENSDomain } from '../../../../types/ens';
 
 interface UseENSSearchResult {
   searchQuery: string;
@@ -75,6 +75,7 @@ export const useENSSearch = (): UseENSSearchResult => {
     handleSearch,
   };
 };
+
 
 
 

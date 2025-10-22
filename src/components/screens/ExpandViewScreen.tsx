@@ -21,7 +21,7 @@ import { useWallet } from '../../store/WalletContext';
 import { useNetwork } from '../../store/NetworkContext';
 import { usePortfolio } from '../../store/PortfolioContext';
 import { useTransaction } from '../../store/TransactionContext';
-import { getTransactionHistory, getTokenTransactions } from '../../utils/web3-utils';
+import web3Utils from '../../utils/web3-utils'; // Changed to default import
 import toast from 'react-hot-toast';
 import type { ScreenProps, Transaction } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
@@ -122,8 +122,8 @@ const ExpandViewScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       try {
         // Load recent transactions from blockchain
         const [regularTxs, tokenTxs] = await Promise.all([
-          getTransactionHistory(wallet.address, currentNetwork.id, 1, 5).catch(() => []),
-          getTokenTransactions(wallet.address, currentNetwork.id).catch(() => [])
+          web3Utils.getTransactionHistory(wallet.address, currentNetwork.id, 1, 5).catch(() => []),
+          web3Utils.getTokenTransactions(wallet.address, currentNetwork.id).catch(() => [])
         ]);
         
         // Combine and format transactions

@@ -36,7 +36,7 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     if (account.addresses && currentNetwork) {
       return account.addresses[currentNetwork.id] || account.addresses[currentNetwork.name] || account.addresses.ethereum;
     }
-    return account.address;
+    return null;
   };
 
   // Load real account data
@@ -148,7 +148,7 @@ const AccountDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   };
 
   const getAccountBalance = () => {
-    if (!portfolioValue?.assets || !currentAccount?.address) {
+    if (!portfolioValue?.assets || !currentAccount?.addresses) {
       return { balance: '0', usdValue: 0 };
     }
     

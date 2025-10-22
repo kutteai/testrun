@@ -18,7 +18,7 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
   onWalletSelect,
   requestNetwork
 }) => {
-  const { wallet, getWalletAccounts, getCurrentAccount } = useWallet();
+  const { currentWallet, getWalletAccounts, getCurrentAccount } = useWallet();
   const [wallets, setWallets] = useState<any[]>([]);
   const [selectedWallet, setSelectedWallet] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
@@ -61,7 +61,7 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
   };
 
   const handleConnect = () => {
-    if (selectedWallet && selectedAccount) {
+    if (selectedWallet && selectedAccount && currentWallet) {
       onWalletSelect(selectedWallet.id, selectedAccount.id);
       onClose();
     } else {
@@ -161,9 +161,9 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
                             <Wallet className={`w-5 h-5 ${selectedWallet?.id === wallet.id ? 'text-blue-400' : 'text-white'}`} />
                           </div>
                           <div>
-                            <h3 className="font-semibold text-white">{wallet.name}</h3>
-                            <p className="text-slate-400 text-sm">{formatAddress(wallet.address)}</p>
-                            <p className="text-slate-500 text-xs">Network: {wallet.network}</p>
+                            <h3 className="font-semibold text-white">{selectedWallet.name}</h3>
+                            <p className="text-slate-400 text-sm">{formatAddress(selectedWallet.address)}</p>
+                            <p className="text-slate-500 text-xs">Network: {selectedWallet.network}</p>
                           </div>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -206,7 +206,7 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
                             </div>
                             <div>
                               <h3 className="font-semibold text-white">Account {index + 1}</h3>
-                              <p className="text-slate-400 text-sm">{formatAddress(account.address)}</p>
+                              <p className="text-slate-400 text-sm">{formatAddress(account.addresses[requestNetwork || selectedWallet?.network || 'ethereum'] || Object.values(account.addresses)[0])}</p>
                               <p className="text-slate-500 text-xs">
                                 Balance: {formatBalance(account.balance || '0')} {selectedWallet.network}
                               </p>
@@ -219,11 +219,14 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                copyAddress(account.address);
+                                const addressToCopy = account.addresses[requestNetwork || selectedWallet?.network || 'ethereum'] || Object.values(account.addresses)[0];
+                                if (addressToCopy) {
+                                  copyAddress(addressToCopy);
+                                }
                               }}
                               className="p-1 hover:bg-white/10 rounded transition-colors"
                             >
-                              {copied === account.address ? (
+                              {copied === (account.addresses[requestNetwork || selectedWallet?.network || 'ethereum'] || Object.values(account.addresses)[0]) ? (
                                 <Check className="w-4 h-4 text-green-400" />
                               ) : (
                                 <Copy className="w-4 h-4 text-slate-400" />

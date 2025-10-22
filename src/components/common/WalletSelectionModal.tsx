@@ -94,8 +94,7 @@ const WalletSelectionModal: React.FC<WalletSelectionModalProps> = ({
              Object.values(account.addresses)[0];
     }
     
-    // Fallback to single address (old format)
-    return account.address;
+    return null;
   };
 
   if (!isOpen) return null;

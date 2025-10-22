@@ -386,20 +386,20 @@ export class NFTManager {
         } catch (metadataError) {
           console.error(`Error fetching metadata for ${tx.contractAddress}/${tx.tokenID}:`, metadataError);
           ownedNfts.push({
-            id: `${tx.contractAddress}-${tx.tokenID}`,
-            tokenId: tx.tokenID,
-            contractAddress: tx.contractAddress,
-            name: `NFT #${tx.tokenID}`,
-            description: '',
+        id: `${tx.contractAddress}-${tx.tokenID}`,
+        tokenId: tx.tokenID,
+        contractAddress: tx.contractAddress,
+        name: `NFT #${tx.tokenID}`,
+        description: '',
             imageUrl: '',
-            metadata: {},
-            owner: address,
+        metadata: {},
+        owner: address,
             network: network,
-            collection: {
-              name: tx.tokenName || 'Unknown Collection',
-              symbol: tx.tokenSymbol || 'NFT'
-            },
-            lastUpdated: Date.now()
+        collection: {
+          name: tx.tokenName || 'Unknown Collection',
+          symbol: tx.tokenSymbol || 'NFT'
+        },
+        lastUpdated: Date.now()
           });
         }
       }

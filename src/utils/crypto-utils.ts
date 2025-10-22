@@ -315,7 +315,7 @@ export async function encryptData(data: string, password: string): Promise<strin
     );
     
     // Generate random IV
-    const iv = new Uint8Array(16);
+    const iv = new Uint8Array(12); // Changed from 16 to 12 bytes for AES-GCM
     crypto.getRandomValues(iv);
     
     // Encrypt data using AES-256-GCM
@@ -354,8 +354,8 @@ export async function decryptData(encryptedData: string, password: string): Prom
     
     // Extract salt, IV, and encrypted data
     const salt = combined.slice(0, 32);
-    const iv = combined.slice(32, 48);
-    const encrypted = combined.slice(48);
+    const iv = combined.slice(32, 44); // Changed from 48 to 44 bytes to reflect 12-byte IV
+    const encrypted = combined.slice(44);
     
     // Derive key using PBKDF2
     const key = await crypto.subtle.importKey(
@@ -555,4 +555,10 @@ export function getDerivationPath(network: string): string {
 // Hash string for fallback address generation
 export function hashString(input: string): string {
   return CryptoJS.SHA256(input).toString().slice(0, 40);
+}
+
+// Secure hash generation using SHA256 (for browser fingerprinting, etc.)
+export async function generateSecureHash(data: string, algorithm: string = 'SHA-256'): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest(algorithm, new TextEncoder().encode(data));
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
 } 

@@ -1,11 +1,11 @@
-import { getBrowser } from './browser';
+import { getBrowserAPI } from './browser-api';
 import {
   TransactionApprovalRequest,
   SignatureApprovalRequest,
   ApprovalResponse,
 } from '../components/modals/ApprovalModal/ApprovalModal.types';
 
-const browserAPI = getBrowser();
+const browserAPI = getBrowserAPI();
 
 type ApprovalRequest = TransactionApprovalRequest | SignatureApprovalRequest;
 

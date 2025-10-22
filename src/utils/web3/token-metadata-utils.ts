@@ -1,4 +1,4 @@
-import { getNetworks } from '../network-utils';
+import { getNetworks } from './network-utils';
 import { getConfig, getSafeConfig } from '../../utils/config-utils';
 
 // Get token metadata from a given contract address (real implementation)

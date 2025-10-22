@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import sendIcon from '../../assets/send.png';
-import receiveIcon from '../../assets/receive.png';
-import swapIcon from '../../assets/swap.png';
-import buySellIcon from '../../assets/sendandreceive.png';
+import sendIconPath from '../../assets/send.png';
+import receiveIconPath from '../../assets/receive.png';
+import swapIconPath from '../../assets/swap.png';
+import buySellIconPath from '../../assets/sendandreceive.png';
 import { 
   TrendingUp,
   Send,
@@ -49,6 +49,8 @@ import { ScreenProps, Transaction } from '../../types';
 import SeedPhraseModal from '../modals/SeedPhraseModal';
 import NetworkSwitcherModal from '../common/NetworkSwitcherModal';
 import { storage } from '../../utils/storage-utils';
+import * as web3Utils from '../../utils/web3-utils';
+import { NetworkConfig } from '../../types/network-types';
 
 const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Context hooks with error handling
@@ -58,7 +60,8 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const nft = useNFT();
 
   // Get current network from both wallet and network context
-  const currentNetwork = network?.currentNetwork || wallet?.wallet?.currentNetwork || 'ethereum';
+  const currentNetworkIdConst = (network?.currentNetwork?.id || wallet?.currentWallet?.currentNetwork || 'ethereum') as string;
+  const currentNetwork = (network?.currentNetwork || wallet?.currentWallet?.currentNetwork) as (NetworkConfig | string); // Explicitly type currentNetwork
 
   // State management
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -110,7 +113,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       loadCryptoAssets();
       loadNftAssets();
     }
-  }, [wallet?.isInitializing, wallet?.wallet?.id]);
+  }, [wallet?.isInitializing, wallet?.currentWallet?.id]);
 
   // Load crypto assets when portfolio changes
   useEffect(() => {
@@ -180,16 +183,16 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       try {
         
         // Load accounts and current account
-        const accountsData = await (wallet?.getWalletAccounts?.() || Promise.resolve([]));
+        const accountsData = await (wallet?.getWalletAccounts?.(wallet.currentWallet.id) || Promise.resolve([]));
         const currentAccount = await (wallet?.getCurrentAccount?.() || Promise.resolve(null));
         const ucpiIdData = await loadUcpiId();
         
         // Debug: Check what WalletManager finds directly
-        if (wallet?.wallet?.id) {
+        if (wallet?.currentWallet?.id) {
           try {
             const { WalletManager } = await import('../../core/wallet-manager');
             const walletManager = new WalletManager();
-            const directAccounts = await walletManager.getWalletAccounts(wallet.wallet.id);
+            const directAccounts = await walletManager.getWalletAccounts(wallet.currentWallet.id);
           } catch (error) {
           }
         }
@@ -204,8 +207,12 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         // Check if account has address for current network
         if (currentAccount) {
           const currentNetworkId = network?.currentNetwork?.id || 'ethereum';
-          if (!currentAccount.addresses?.[currentNetworkId]) {
-            // Account missing address for current network
+          const accountAddress = currentAccount?.addresses?.[currentNetworkId];
+          
+          if (!accountAddress) {
+            // eslint-disable-next-line no-console
+            console.warn('No current account address available for network:', currentNetworkId);
+            return;
           }
         }
         
@@ -219,7 +226,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     if (wallet && !wallet.isInitializing) {
       loadData();
     }
-  }, [wallet?.isInitializing, wallet?.wallet]); // Also reload when wallet data changes
+  }, [wallet?.isInitializing, wallet?.currentWallet]); // Also reload when wallet data changes
 
   // Listen for wallet changes (network switches, address updates, etc.)
   useEffect(() => {
@@ -231,7 +238,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         await new Promise(resolve => setTimeout(resolve, 100));
         
         // Load updated accounts and current account
-        const accountsData = await (wallet?.getWalletAccounts?.() || Promise.resolve([]));
+        const accountsData = await (wallet?.getWalletAccounts?.(wallet.currentWallet.id) || Promise.resolve([]));
         const currentAccount = await (wallet?.getCurrentAccount?.() || Promise.resolve(null));
         
         // Force update accounts state to ensure UI reflects changes
@@ -356,18 +363,21 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
 
         // Load real transaction history
         try {
-          const { getTransactionHistory } = await import('../../utils/web3-utils');
           // Get current account address
           const currentAccount = await (wallet?.getCurrentAccount?.() || Promise.resolve(null));
-          if (!currentAccount?.address) {
+          const currentNetworkId = typeof currentNetwork === 'object' ? currentNetwork.id : currentNetwork;
+          const accountAddress = currentAccount?.addresses?.[currentNetworkId];
+          
+          if (!accountAddress) {
             // eslint-disable-next-line no-console
-            console.warn('No current account address available');
+            console.warn('No current account address available for network:', currentNetworkId);
             return;
           }
           
-          const transactions = await getTransactionHistory(
-            currentAccount.address,
-            network?.currentNetwork?.id || 'ethereum',
+          // Use web3Utils.getTransactionHistory
+          const transactions = await web3Utils.default.getTransactionHistory(
+            accountAddress,
+            currentNetworkId,
             1, // page
             5  // limit to 5 recent transactions
           );
@@ -381,10 +391,10 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               to: tx.to,
               value: tx.value ? `${(parseInt(tx.value, 16) / Math.pow(10, 18)).toFixed(4)} ETH` : '0 ETH',
               amount: tx.value ? (parseInt(tx.value, 16) / Math.pow(10, 18)).toString() : '0',
-              network: network?.currentNetwork?.id || 'ethereum',
+              network: currentNetworkId,
               timestamp: parseInt(tx.timeStamp, 10) * 1000,
               status: tx.isError === '0' ? 'confirmed' : 'failed',
-              type: tx.from.toLowerCase() === currentAccount.address.toLowerCase() ? 'send' : 'receive'
+              type: tx.from.toLowerCase() === accountAddress.toLowerCase() ? 'send' : 'receive'
             }));
             
             setRecentTxHistory(formattedTransactions);
@@ -415,7 +425,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         clearTimeout(timeoutId);
       }
     };
-  }, [wallet?.address, network?.currentNetwork]);
+  }, [wallet?.currentWallet?.address, network?.currentNetwork]);
 
   // Refresh data with better error handling
   const handleRefresh = async () => {
@@ -655,8 +665,8 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               <div className="text-white font-medium" style={{ fontSize: '13px', lineHeight: '18px' }}>
                 {(() => {
                   // Get current account name from wallet state
-                  if (wallet?.wallet?.accounts && wallet.wallet.accounts.length > 0) {
-                    const currentAccount = wallet.wallet.accounts.find(acc => acc.isActive) || wallet.wallet.accounts[0];
+                  if (wallet?.currentWallet?.accounts && wallet.currentWallet.accounts.length > 0) {
+                    const currentAccount = wallet.currentWallet.accounts.find(acc => acc.isActive) || wallet.currentWallet.accounts[0];
                     return currentAccount?.name || 'Account 1';
                     }
                   return 'Account 1';
@@ -666,8 +676,8 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                 <span className="text-white" style={{ fontSize: '13px', lineHeight: '18px' }}>
                   {(() => {
                     // First try to get address from wallet state (this is the most current)
-                    if (wallet?.wallet?.address) {
-                      return `${wallet.wallet.address.slice(0, 8)}...${wallet.wallet.address.slice(-8)}`;
+                    if (wallet?.currentWallet?.address) {
+                      return `${wallet.currentWallet.address.slice(0, 8)}...${wallet.currentWallet.address.slice(-8)}`;
                     }
                     
                     // Fallback to default
@@ -678,7 +688,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                   className="p-1 hover:bg-white/10 rounded"
                   onClick={async () => {
                     try {
-                      const addressToCopy = wallet?.wallet?.address || 'No address available';
+                      const addressToCopy = wallet?.currentWallet?.address || 'No address available';
                       
                       await navigator.clipboard.writeText(addressToCopy);
                     } catch (error) {
@@ -719,18 +729,18 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                wallet?.wallet?.currentNetwork === 'bitcoin' ? 'bg-orange-500' : 
-                wallet?.wallet?.currentNetwork === 'ethereum' ? 'bg-blue-500' :
-                wallet?.wallet?.currentNetwork === 'solana' ? 'bg-purple-500' :
-                wallet?.wallet?.currentNetwork === 'tron' ? 'bg-red-500' :
-                wallet?.wallet?.currentNetwork === 'ton' ? 'bg-blue-400' :
-                wallet?.wallet?.currentNetwork === 'xrp' ? 'bg-blue-300' :
-                wallet?.wallet?.currentNetwork === 'litecoin' ? 'bg-gray-400' :
+                currentNetworkIdConst === 'bitcoin' ? 'bg-orange-500' : 
+                currentNetworkIdConst === 'ethereum' ? 'bg-blue-500' :
+                currentNetworkIdConst === 'solana' ? 'bg-purple-500' :
+                currentNetworkIdConst === 'tron' ? 'bg-red-500' :
+                currentNetworkIdConst === 'ton' ? 'bg-blue-400' :
+                currentNetworkIdConst === 'xrp' ? 'bg-blue-300' :
+                currentNetworkIdConst === 'litecoin' ? 'bg-gray-400' :
                 'bg-gray-500'
               }`}>
                 <span className="text-white text-lg font-bold">
                   {(() => {
-                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
+                    const currentNetworkId = network?.currentNetwork?.id || wallet?.currentWallet?.currentNetwork || 'ethereum';
                     const networkSymbols: Record<string, string> = {
                       'bitcoin': '₿',
                       'ethereum': 'Ξ',
@@ -747,14 +757,14 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       'base': 'B',
                       'fantom': 'F'
                     };
-                    return networkSymbols[currentNetwork] || 'Ξ';
+                    return networkSymbols[currentNetworkId as string] || 'Ξ';
                   })()}
                 </span>
               </div>
               <div>
                 <div className="text-white font-semibold" style={{ fontSize: '16px', lineHeight: '20px' }}>
                   {(() => {
-                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
+                    const currentNetworkId = network?.currentNetwork?.id || wallet?.currentWallet?.currentNetwork || 'ethereum';
                     const networkNames: Record<string, string> = {
                       'bitcoin': 'Bitcoin',
                       'ethereum': 'Ethereum',
@@ -771,12 +781,12 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       'base': 'Base',
                       'fantom': 'Fantom'
                     };
-                    return networkNames[currentNetwork] || 'Ethereum';
+                    return networkNames[currentNetworkId as string] || 'Ethereum';
                   })()}
                 </div>
                 <div className="text-white/70" style={{ fontSize: '12px', lineHeight: '16px' }}>
                   {(() => {
-                    const currentNetwork = wallet?.wallet?.currentNetwork || 'ethereum';
+                    const currentNetworkId = network?.currentNetwork?.id || wallet?.currentWallet?.currentNetwork || 'ethereum';
                     const networkSymbols: Record<string, string> = {
                       'bitcoin': 'BTC',
                       'ethereum': 'ETH',
@@ -793,7 +803,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                       'base': 'ETH',
                       'fantom': 'FTM'
                     };
-                    return networkSymbols[currentNetwork] || 'ETH';
+                    return networkSymbols[currentNetworkId as string] || 'ETH';
                   })()}
                 </div>
               </div>
@@ -885,7 +895,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               className="flex flex-col items-center space-y-2 p-1 rounded-xl hover:bg-gray-300 transition-colors"
             >
               <div className="p-3 shadow-md rounded-lg flex flex-col items-center space-y-2">
-                <img src={sendIcon} alt="Send" className="w-6 h-6" />
+                <img src={sendIconPath} alt="Send crypto assets" className="w-6 h-6" />
                 <span className="font-medium text-gray-700" style={{ fontSize: '13px', lineHeight: '18px' }}>Send</span>
               </div>
             </motion.button>
@@ -897,7 +907,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               className="flex flex-col items-center space-y-2 p-1 rounded-xl hover:bg-gray-300 transition-colors"
             >
               <div className="p-3 shadow-md rounded-lg flex flex-col items-center space-y-2">
-                <img src={receiveIcon} alt="Receive" className="w-6 h-6" />
+                <img src={receiveIconPath} alt="Receive crypto assets" className="w-6 h-6" />
                 <span className="font-medium text-gray-700" style={{ fontSize: '13px', lineHeight: '18px' }}>Receive</span>
               </div>
             </motion.button>
@@ -909,7 +919,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               className="flex flex-col items-center space-y-2 p-1 rounded-xl hover:bg-gray-300 transition-colors"
             >
               <div className="p-3 shadow-md rounded-lg flex flex-col items-center space-y-2">
-                <img src={swapIcon} alt="Swap" className="w-6 h-6" />
+                <img src={swapIconPath} alt="Swap crypto assets" className="w-6 h-6" />
                 <span className="font-medium text-gray-700" style={{ fontSize: '13px', lineHeight: '18px' }}>Swap</span>
               </div>
             </motion.button>
@@ -921,7 +931,7 @@ const DashboardScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               className="flex flex-col items-center space-y-2 p-1 rounded-xl hover:bg-gray-300 transition-colors"
             >
               <div className="p-3 shadow-md rounded-lg flex flex-col items-center space-y-2">
-                <img src={buySellIcon} alt="Buy/Sell" className="w-6 h-6" />
+                <img src={buySellIconPath} alt="Buy or sell crypto assets" className="w-6 h-6" />
                 <span className="font-medium text-gray-700" style={{ fontSize: '13px', lineHeight: '18px' }}>Buy/Sell</span>
               </div>
             </motion.button>

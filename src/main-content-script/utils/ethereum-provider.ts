@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { getBrowser } from '../../utils/browser';
+import { getBrowserAPI } from '../../utils/browser-api';
 import { ExtensionResponse, WalletState } from '../../types/content-script';
 import { NetworkManager } from '../../core/network-manager';
 import { WalletManager } from '../../core/wallet-manager';
@@ -37,7 +37,7 @@ class PaycioEthereumProvider extends EventEmitter {
 
   private _isConnected: boolean;
   private _accounts: string[];
-  private _initialized: boolean;
+  public _initialized: boolean;
   private _connecting: boolean;
 
   private _requestId: number;
@@ -51,13 +51,13 @@ class PaycioEthereumProvider extends EventEmitter {
   private toast: ToastManager;
   private connectionManager: ConnectionManager;
   private walletConnect: WalletConnectManager;
-  private browserAPI: typeof chrome | ReturnType<typeof getBrowser>;
+  private browserAPI: typeof chrome | ReturnType<typeof getBrowserAPI>;
   private initializer: ProviderInitializer; // Add initializer instance
   private eventHandler: ProviderEventHandler; // Add event handler instance
   private requestProcessor: ProviderRequestProcessor; // Add request processor instance
   private requestHandler: ProviderRequestHandler; // Add request handler instance
 
-  constructor(toast: ToastManager, connectionManager: ConnectionManager, walletConnect: WalletConnectManager, browserAPI: typeof chrome | ReturnType<typeof getBrowser>) {
+  constructor(toast: ToastManager, connectionManager: ConnectionManager, walletConnect: WalletConnectManager, browserAPI: typeof chrome | ReturnType<typeof getBrowserAPI>) {
     super();
     this.toast = toast;
     this.connectionManager = connectionManager;
@@ -97,6 +97,23 @@ class PaycioEthereumProvider extends EventEmitter {
     this.eventHandler = new ProviderEventHandler(this, toast);
     this.requestProcessor = new ProviderRequestProcessor(this);
     this.requestHandler = new ProviderRequestHandler(this, connectionManager, toast, walletConnect);
+  }
+
+  // Explicitly define emit and on methods
+  override emit(eventName: string | symbol, ...args: any[]): boolean {
+    return super.emit(eventName, ...args);
+  }
+
+  override on(eventName: string | symbol, listener: (...args: any[]) => void): this {
+    return super.on(eventName, listener);
+  }
+
+  override off(eventName: string | symbol, listener: (...args: any[]) => void): this {
+    return super.off(eventName, listener);
+  }
+
+  override removeListener(eventName: string | symbol, listener: (...args: any[]) => void): this {
+    return super.removeListener(eventName, listener);
   }
 
   updateProviderState(data: any) {

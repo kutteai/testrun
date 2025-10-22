@@ -1,7 +1,6 @@
 import { storage } from '../utils/storage-utils';
 import { crossBrowserSendMessage } from '../utils/runtime-utils';
 import { FALLBACK_SVG_DATA_URL, NFT_FALLBACK_SVG_DATA_URL, PAYCIO_WALLET_ICON_SVG_DATA_URL } from '../utils/fallback-svg';
-import { getUnifiedBrowserAPI } from '../utils/runtime-utils';
 
 // PayCio Wallet injection script - SECURE VERSION
 
@@ -17,15 +16,25 @@ async function createUnlockModal(): Promise<boolean> {
 
 // Wake up extension method
 async function wakeUpExtension(): Promise<void> {
-
-  try {
-    getUnifiedBrowserAPI().runtime.sendMessage({ type: 'WAKE_UP' }, (response) => {
-      if (getUnifiedBrowserAPI().runtime.lastError) {
-      } else {
+  return new Promise((resolve) => {
+    const messageId = Date.now().toString();
+    const messageHandler = (event: MessageEvent) => {
+      if (event.source !== window) return;
+      if (event.data.type === 'PAYCIO_WAKE_UP_RESPONSE' && event.data.id === messageId) {
+        window.removeEventListener('message', messageHandler);
+        resolve();
       }
-    });
-  } catch (error) {
-  }
+    };
+    window.addEventListener('message', messageHandler);
+    window.postMessage({
+      type: 'PAYCIO_WAKE_UP',
+      id: messageId,
+    }, window.location.origin);
+    setTimeout(() => {
+      window.removeEventListener('message', messageHandler);
+      resolve();
+    }, 5000); // Timeout after 5 seconds
+  });
 }
 
 // SECURITY FIX: Use content script bridge for unlock - SECURE VERSION
@@ -70,33 +79,10 @@ async function unlockWallet(password: string): Promise<any> {
 
 // SECURITY FIX: Enhanced extension context validation with recovery
 function validateExtensionContext(): boolean {
-  try {
-    const unifiedBrowserAPI = getUnifiedBrowserAPI();
-    const isValid = typeof unifiedBrowserAPI.runtime !== 'undefined'
-           && typeof unifiedBrowserAPI.runtime.sendMessage === 'function';
-
-    if (!isValid) {
-      // eslint-disable-next-line no-console
-      console.warn('⚠️ Extension context invalidated - attempting recovery');
-      // Attempt to recover by re-initializing provider
-      setTimeout(() => {
-        if (typeof unifiedBrowserAPI.runtime !== 'undefined' && unifiedBrowserAPI.runtime.sendMessage) {
-          // Re-announce provider if context is recovered
-          if (typeof window !== 'undefined' && window.dispatchEvent) {
-            window.dispatchEvent(new CustomEvent('paycio#recovered'));
-          }
-        } else {
-          // eslint-disable-next-line no-console
-          console.error('❌ Extension context recovery failed');
-        }
-      }, 1000);
-    }
-    return isValid;
-  } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error('❌ Extension context validation failed:', error);
-    return false;
-  }
+  // Injected script cannot directly access extension runtime.
+  // It relies on the content script to relay messages and validate context.
+  // For now, assume context is valid unless explicitly told otherwise by content script.
+  return true;
 }
 
 // Show recovery options when extension context is invalidated
@@ -136,21 +122,36 @@ function showRecoveryOptions() {
 // Check wallet unlock status
 async function checkWalletUnlockStatus(): Promise<boolean> {
   try {
-    if (!validateExtensionContext()) {
+    const response = await new Promise<any>((resolve, reject) => {
+      const messageId = Date.now().toString();
+      const messageHandler = (event: MessageEvent) => {
+        if (event.source !== window) return;
+        if (event.data.type === 'PAYCIO_WALLET_STATUS_RESPONSE' && event.data.id === messageId) {
+          window.removeEventListener('message', messageHandler);
+          if (event.data.success) {
+            resolve(event.data);
+          } else {
+            reject(new Error(event.data.error || 'Status check failed'));
+          }
+        }
+      };
+      window.addEventListener('message', messageHandler);
+      window.postMessage({
+        type: 'PAYCIO_GET_WALLET_STATUS',
+        id: messageId,
+      }, window.location.origin);
+      setTimeout(() => {
+        window.removeEventListener('message', messageHandler);
+        reject(new Error('Status check timeout'));
+      }, 10000);
+    });
+
+    // Check for explicit context invalidation message
+    if (response?.error === 'EXTENSION_CONTEXT_INVALIDATED') {
       showRecoveryOptions();
       isWalletUnlocked = false;
       return false;
     }
-
-    const response = await new Promise<any>((resolve, reject) => {
-      getUnifiedBrowserAPI().runtime.sendMessage({ type: 'CHECK_WALLET_STATUS' }, (response) => {
-        if (getUnifiedBrowserAPI().runtime.lastError) {
-          reject(new Error(getUnifiedBrowserAPI().runtime.lastError.message));
-        } else {
-          resolve(response);
-        }
-      });
-    });
 
     isWalletUnlocked = response?.success && response?.data?.isUnlocked;
     return isWalletUnlocked;
@@ -182,7 +183,7 @@ async function showWalletUnlockPopup(): Promise<boolean> {
 
     // Send unlock request
     window.postMessage({
-      type: 'PAYCIO_WALLET_UNLOCK_REQUEST',
+      type: 'PAYCIO_SHOW_UNLOCK_POPUP',
       id: messageId,
       origin: window.location.origin,
     }, window.location.origin);
@@ -204,7 +205,7 @@ async function createSecureMessage(type: string, data: any): Promise<any> {
   const messageData = { ...data, timestamp, nonce };
   const messageHash = await crypto.subtle.digest(
     'SHA-256',
-    new TextEncoder().encode(JSON.stringify(messageData)),
+    new TextEncoder().encode(JSON.stringify(messageData)) as BufferSource,
   );
 
   // Generate signature (in production, use proper cryptographic signing)
@@ -229,7 +230,7 @@ async function processWalletRequest(method: string, params: any[]): Promise<any>
     const messageHandler = (event: MessageEvent) => {
       if (event.source !== window) return;
 
-      if (event.data.type === 'PAYCIO_WALLET_REQUEST_RESPONSE' && event.data.id === messageId) {
+      if (event.data.type === 'PAYCIO_RESPONSE' && event.data.requestId === messageId) {
         window.removeEventListener('message', messageHandler);
         if (event.data.success) {
           resolve(event.data.data);
@@ -476,122 +477,93 @@ class PaycioProvider {
 let provider: PaycioProvider;
 
 try {
-  // Validate extension context
-  if (!validateExtensionContext()) {
-    // eslint-disable-next-line no-console
-    console.error('❌ PayCio: Extension context not available');
-    showRecoveryOptions();
-  } else {
-    // Create provider instance
-    provider = new PaycioProvider();
-
-    // SECURITY FIX: Consistent provider injection for better DApp detection
-    if (!window.ethereum) {
-      // No existing provider, set as primary
-      (window as any).ethereum = provider;
-    } else {
-      // Existing provider detected, add to providers array for multi-wallet support
-      if (Array.isArray((window as any).ethereum.providers)) {
-        // Already has providers array, add to it
-        (window as any).ethereum.providers.push(provider);
-      } else {
-        // Convert single provider to providers array
-        const existingProvider = (window as any).ethereum;
-        (window as any).ethereum.providers = [existingProvider, provider];
-      }
-    }
-
-    // Ensure PayCio provider is always accessible
+  // Create and inject the provider instance
+  provider = new PaycioProvider();
+ 
+  // Ensure the provider is attached to window.ethereum for dApp compatibility
+  if (!(window as any).ethereum) {
     (window as any).ethereum = provider;
-
-    // SECURITY FIX: Enhanced EIP-6963 Provider Announcement with proper timing
-    let hasAnnounced = false;
-    const announceProvider = () => {
-      if (hasAnnounced) return; // Prevent duplicate announcements
-
-      const providerInfo = {
-        uuid: 'paycio-wallet',
-        name: 'PayCio Wallet',
-        icon: PAYCIO_WALLET_ICON_SVG_DATA_URL,
-        rdns: 'io.paycio.wallet',
-      };
-
-      // Dispatch EIP-6963 announcement
-      window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
-        detail: Object.freeze({
-          info: providerInfo,
-          provider,
-        }),
-      }));
-
-      hasAnnounced = true;
-    };
-
-    // SECURITY FIX: Immediate announcement for better DApp detection
-    announceProvider();
-
-    // Listen for EIP-6963 requests and re-announce when needed
-    window.addEventListener('eip6963:requestProvider', () => {
-      hasAnnounced = false; // Reset flag to allow re-announcement
-      announceProvider();
-    });
-
-    // Additional announcements for better detection timing
-    setTimeout(() => {
-      if (!hasAnnounced) announceProvider();
-    }, 50);
-
-    setTimeout(() => {
-      if (!hasAnnounced) announceProvider();
-    }, 500);
-
-    // Add non-EVM provider support
-    (window as any).solana = provider;
-    (window as any).tronWeb = provider;
-    (window as any).ton = provider;
-
-    // Add provider detection debugging
-
-
-    // SECURITY FIX: Periodic context validation and provider health checks
-    setInterval(() => {
-      if (!validateExtensionContext()) {
-        // eslint-disable-next-line no-console
-        console.warn('⚠️ PayCio: Extension context lost, attempting recovery');
-        showRecoveryOptions();
-      }
-    }, 30000); // Check every 30 seconds
-
-    // Listen for context recovery events
-    window.addEventListener('paycio#recovered', () => {
-      hasAnnounced = false;
-      announceProvider();
-    });
-
-    // Listen for page visibility changes to re-announce provider
-    document.addEventListener('visibilitychange', () => {
-      if (!document.hidden) {
-        if (!window.ethereum || !(window.ethereum as any).isPaycio) {
-          hasAnnounced = false;
-          announceProvider();
-        }
-      }
-    });
+  } else if (!(window as any).ethereum.providers) {
+    // If there's an existing provider but no .providers array, create one.
+    (window as any).ethereum.providers = [(window as any).ethereum, provider];
+  } else if (Array.isArray((window as any).ethereum.providers)) {
+    // If .providers array exists, push our provider to it.
+    (window as any).ethereum.providers.push(provider);
   }
-
-  // Handle network changes
+ 
+  // Also make the Paycio provider directly accessible
+  (window as any).paycioProvider = provider;
+ 
+  // EIP-6963 Provider Announcement (re-announce on request or visibility changes)
+  let hasAnnounced = false;
+  const announceProvider = () => {
+    if (hasAnnounced) return;
+    const providerInfo = {
+      uuid: 'paycio-wallet',
+      name: 'PayCio Wallet',
+      icon: PAYCIO_WALLET_ICON_SVG_DATA_URL,
+      rdns: 'io.paycio.wallet',
+    };
+    window.dispatchEvent(new CustomEvent('eip6963:announceProvider', {
+      detail: Object.freeze({
+        info: providerInfo,
+        provider,
+      }),
+    }));
+    hasAnnounced = true;
+  };
+ 
+  announceProvider(); // Initial announcement
+  window.addEventListener('eip6963:requestProvider', () => { hasAnnounced = false; announceProvider(); });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { hasAnnounced = false; announceProvider(); } });
+ 
+  // Handle messages from the content script (e.g., chainChanged, accountsChanged)
   window.addEventListener('message', (event) => {
-    if (event.source !== window) return;
-
-    if (event.data.type === 'PAYCIO_CHAIN_CHANGED') {
-      if (provider) {
-        provider.chainId = event.data.chainId;
-        provider.emit('chainChanged', event.data.chainId);
-      }
+    if (event.source !== window || !event.data.type?.startsWith('PAYCIO_')) return;
+ 
+    switch (event.data.type) {
+      case 'PAYCIO_CHAIN_CHANGED':
+        if (provider) {
+          provider.chainId = event.data.chainId;
+          provider.emit('chainChanged', event.data.chainId);
+        }
+        break;
+      case 'PAYCIO_ACCOUNTS_CHANGED':
+        if (provider) {
+          provider.selectedAddress = event.data.accounts[0] || null;
+          provider.emit('accountsChanged', event.data.accounts);
+        }
+        break;
+      case 'PAYCIO_CONTEXT_INVALIDATED':
+        showRecoveryOptions();
+        break;
+      // Handle other PAYCIO_ events as needed
     }
   });
-
 } catch (error) {
   // eslint-disable-next-line no-console
   console.error('❌ PayCio: Error in provider initialization:', error);
-} 
+}
+
+// Ensure messages from the content script are handled
+window.addEventListener('message', (event) => {
+  if (event.source !== window || !event.data.type?.startsWith('PAYCIO_RESPONSE')) {
+    return;
+  }
+
+  const { type, id, requestId, success, data, error } = event.data;
+
+  // Handle specific responses from content script
+  if (type === 'PAYCIO_WALLET_STATUS_RESPONSE' || type === 'PAYCIO_WAKE_UP_RESPONSE' || type === 'PAYCIO_WALLET_UNLOCK_RESPONSE') {
+    // These are handled by specific Promise wrappers in the injected script
+    return;
+  }
+
+  // Forward other PAYCIO_RESPONSE messages to the provider's event system or resolve pending requests
+  if (provider && (id || requestId)) {
+    // Placeholder for now - actual handling depends on provider's internal request management
+    // For example, if provider maintains a map of pending requests it can resolve them here.
+    // For demonstration, we'll just log for now.
+    console.log('Injected: Received PAYCIO_RESPONSE from content script:', event.data);
+  }
+}); 

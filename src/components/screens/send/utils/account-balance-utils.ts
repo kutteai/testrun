@@ -1,5 +1,3 @@
-import { usePortfolio } from '../../../store/PortfolioContext';
-import { useNetwork } from '../../../store/NetworkContext';
 
 export const getAccountBalance = (account: any, portfolioValue: any, currentNetwork: any) => {
   if (!portfolioValue?.assets) {

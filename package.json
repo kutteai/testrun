@@ -67,7 +67,7 @@
     "@heroicons/react": "^2.0.18",
     "@ledgerhq/hw-app-eth": "^6.37.3",
     "@ledgerhq/hw-transport-webusb": "^6.29.0",
-    "@sentry/browser": "^8.30.0",
+    "@sentry/browser": "8.55.0",
     "@solana/spl-token": "^0.4.13",
     "@solana/wallet-adapter-base": "^0.9.23",
     "@solana/wallet-adapter-react": "^0.15.35",
@@ -259,5 +259,6 @@
     "react-dom": "^18.3.1",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0"
-  }
+  },
+  "packageManager": "yarn@4.10.3"
 }

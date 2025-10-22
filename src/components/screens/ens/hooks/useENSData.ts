@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { useWallet } from '../../../store/WalletContext';
-import { storage } from '../../../utils/storage-utils';
-import { lookupENS, getENSRecords, getDomainExpiry } from '../../../utils/ens-utils';
-import { ENSDomain } from '../../../types/ens';
+import { useWallet } from '../../../../store/WalletContext';
+import { storage } from '../../../../utils/storage-utils';
+import { lookupENS, getENSRecords, getDomainExpiry } from '../../../../utils/ens-utils';
+import { ENSDomain } from '../../../../types/ens';
 
 interface UseENSDataResult {
   myDomains: ENSDomain[];
@@ -22,7 +22,7 @@ interface UseENSDataResult {
 }
 
 export const useENSData = (): UseENSDataResult => {
-  const { wallet } = useWallet();
+  const { currentWallet } = useWallet();
   const [myDomains, setMyDomains] = useState<ENSDomain[]>([]);
   const [isLoadingDomains, setIsLoadingDomains] = useState(false);
   const [editingDomain, setEditingDomain] = useState<ENSDomain | null>(null);
@@ -31,13 +31,13 @@ export const useENSData = (): UseENSDataResult => {
 
   // Load user's ENS domains
   useEffect(() => {
-    if (wallet?.address) {
+    if (currentWallet?.address) {
       loadUserDomains();
     }
-  }, [wallet?.address]);
+  }, [currentWallet?.address]);
 
   const loadUserDomains = async () => {
-    if (!wallet?.address) return;
+    if (!currentWallet?.address) return;
 
     setIsLoadingDomains(true);
     try {
@@ -46,7 +46,7 @@ export const useENSData = (): UseENSDataResult => {
       const savedDomains = result.savedENSDomains || [];
 
       // Try to reverse resolve the user's address to ENS name
-      const ensName = await lookupENS(wallet.address);
+      const ensName = await lookupENS(currentWallet.address);
 
       let domains: ENSDomain[] = [...savedDomains];
 
@@ -57,7 +57,7 @@ export const useENSData = (): UseENSDataResult => {
         const userDomain: ENSDomain = {
           id: Date.now().toString(),
           name: ensName,
-          address: wallet.address,
+          address: currentWallet.address,
           expiryDate: expiryDate ? expiryDate.toISOString().split('T')[0] : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           price: 0,
           isOwned: true,
@@ -173,6 +173,7 @@ export const useENSData = (): UseENSDataResult => {
     setRemovingDomainId,
   };
 };
+
 
 
 

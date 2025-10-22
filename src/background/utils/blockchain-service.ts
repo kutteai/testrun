@@ -1,14 +1,14 @@
-import { SecurityManager } from './security-manager';
+import { SecurityManager } from '../../core/security-manager';
 import { WalletManager } from './wallet-manager';
 import { AddressDerivationService } from './address-derivation';
-import { getBrowser } from '../../utils/browser';
+import { getBrowserAPI } from '../../utils/browser-api';
 
 // Cross-browser storage getter
 const getStorageAPI = () => {
   if (typeof chrome !== 'undefined' && chrome.storage) {
     return chrome.storage;
   }
-  const browserAPI = getBrowser();
+  const browserAPI = getBrowserAPI();
   if (browserAPI && browserAPI.storage) {
     return browserAPI.storage;
   }
@@ -24,7 +24,7 @@ const storage = {
       const api = getStorageAPI();
 
       // Handle different browser APIs
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         return await api.local.get(keys);
       }
       return new Promise((resolve, reject) => {
@@ -48,7 +48,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         await api.local.set(items);
       } else {
         return new Promise((resolve, reject) => {
@@ -74,7 +74,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         return await api.session.get(keys);
       }
       return new Promise((resolve, reject) => {
@@ -97,7 +97,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         await api.session.set(items);
       } else {
         return new Promise((resolve, reject) => {
@@ -122,7 +122,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         await api.session.remove(keys);
       } else {
         return new Promise((resolve, reject) => {
@@ -147,7 +147,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         await api.local.remove(keys);
       } else {
         return new Promise((resolve, reject) => {
@@ -173,7 +173,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         await api.local.clear();
       } else {
         return new Promise((resolve, reject) => {
@@ -199,7 +199,7 @@ const storage = {
     try {
       const api = getStorageAPI();
 
-      if (typeof getBrowser() !== 'undefined') {
+      if (typeof getBrowserAPI() !== 'undefined') {
         await api.session.clear();
       } else {
         return new Promise((resolve, reject) => {

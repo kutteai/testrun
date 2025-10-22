@@ -184,7 +184,7 @@ const WalletDetailsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                     <div>
                       <div className="font-semibold text-gray-900">{account.name || `Account ${account.id}`}</div>
                       <div className="text-sm text-gray-600">
-                        {account.address ? `${account.address.substring(0, 8)}...${account.address.substring(account.address.length - 6)}` : 'No address'}
+                        {account.addresses[account.network || 'ethereum'] ? `${account.addresses[account.network || 'ethereum'].substring(0, 8)}...${account.addresses[account.network || 'ethereum'].substring(account.addresses[account.network || 'ethereum'].length - 6)}` : Object.values(account.addresses)[0] ? `${Object.values(account.addresses)[0].substring(0, 8)}...${Object.values(account.addresses)[0].substring(Object.values(account.addresses)[0].length - 6)}` : 'No address'}
                       </div>
                     </div>
                   </div>

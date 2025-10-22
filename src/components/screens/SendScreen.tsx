@@ -15,12 +15,11 @@ import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { handleError, ErrorCodes } from '../../utils/error-handler';
 import { resolveENS } from '../../utils/ens-utils';
-import { getGasPrice, estimateGas } from '../../utils/web3-utils';
-import { getNetworks } from '../../utils/web3-utils';
+import web3Utils from '../../utils/web3-utils';
 import { ethers } from 'ethers';
 
 const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
-  const { wallet, getWalletAccounts, getCurrentAccount, currentNetwork, switchNetwork } = useWallet();
+  const { currentWallet, getWalletAccounts, getCurrentAccount, currentNetwork, switchNetwork } = useWallet();
   const { portfolioValue } = usePortfolio();
   const { networks, currentNetwork: networkContextCurrent } = useNetwork();
   
@@ -38,15 +37,16 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   // Load accounts and contacts on component mount
   useEffect(() => {
     const loadData = async () => {
-      if (!wallet) {
+      if (!currentWallet) {
         setIsLoading(false);
         return;
       }
       
       try {
+        setIsLoading(true);
 
         // Load accounts
-        const walletAccounts = await getWalletAccounts();
+        const walletAccounts = await getWalletAccounts(currentWallet?.id);
 
         setAccounts(walletAccounts);
         
@@ -68,8 +68,8 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         setContacts(contactsData);
         
         // If still no account, try to get from wallet directly
-        if (!current && wallet.accounts && wallet.accounts.length > 0) {
-          const directAccount = wallet.accounts.find((acc: any) => acc.isActive) || wallet.accounts[0];
+        if (!current && currentWallet.accounts && currentWallet.accounts.length > 0) {
+          const directAccount = currentWallet.accounts.find((acc: any) => acc.isActive) || currentWallet.accounts[0];
 
           setFromAccount(directAccount);
         }
@@ -87,14 +87,14 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     };
     
     loadData();
-  }, [wallet, getWalletAccounts, getCurrentAccount]);
+  }, [currentWallet, getWalletAccounts, getCurrentAccount]);
 
   // Listen for wallet changes to refresh data
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
 
       try {
-        const walletAccounts = await getWalletAccounts();
+        const walletAccounts = await getWalletAccounts(currentWallet?.id);
 
         setAccounts(walletAccounts);
         
@@ -154,7 +154,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       const refreshData = async () => {
         try {
 
-          const walletAccounts = await getWalletAccounts();
+          const walletAccounts = await getWalletAccounts(currentWallet?.id);
 
           setAccounts(walletAccounts);
           
@@ -236,7 +236,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const calculateGasFee = async (amount: string, toAddress: string) => {
     try {
       const networkId = currentNetwork?.id || 'ethereum';
-      const networkConfig = getNetworks()[networkId];
+      const networkConfig = web3Utils.getNetworks()[networkId];
       
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${networkId}`);
@@ -252,7 +252,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         // eslint-disable-next-line no-console
         console.warn('Real-time gas service failed, using RPC fallback:', realTimeError);
         // Fallback to RPC
-        const gasPrice = await getGasPrice(networkId);
+        const gasPrice = await web3Utils.getGasPrice(networkId);
         const gasPriceGwei = Number(BigInt(gasPrice)) / 1e9;
         gasPriceData = {
           gasPrice: gasPriceGwei,
@@ -263,7 +263,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
       }
 
       // Estimate gas limit
-      const gasLimit = await estimateGas(
+      const gasLimit = await web3Utils.estimateGas(
         fromAccount?.address || fromAccount?.addresses?.[networkId],
         toAddress,
         ethers.parseEther(amount).toString(),
@@ -538,7 +538,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         toAddress: resolvedAddress,
         originalAddress: toAddress, // Keep original for display
         fromAccount: fromAccount.name || `Account ${fromAccount.id}`,
-        fromAddress: fromAccount.address,
+        fromAddress: fromAccount.addresses[currentNetwork?.id || 'ethereum'],
         network: currentNetwork?.name || 'Ethereum',
         addressType: addressType
       };
@@ -809,7 +809,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
         {(import.meta as any).env?.DEV && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs">
             <div><strong>Debug Info:</strong></div>
-            <div>Wallet: {wallet ? '✅' : '❌'}</div>
+            <div>Wallet: {currentWallet ? '✅' : '❌'}</div>
             <div>From Account: {fromAccount ? '✅' : '❌'}</div>
             <div>Accounts Count: {accounts.length}</div>
             <div>Contacts Count: {contacts.length}</div>
@@ -842,7 +842,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                 <div
                   key={account.id}
                   className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                  onClick={() => setToAddress(account.address || account.addresses?.[currentNetwork?.id || 'ethereum'])}
+                  onClick={() => setToAddress(account.addresses?.[currentNetwork?.id || 'ethereum'])}
                 >
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
@@ -854,7 +854,7 @@ const SendScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
                       </div>
                       <div className="text-[13px] text-gray-600">
                         {account?.address || account?.addresses?.[currentNetwork?.id || 'ethereum'] ? 
-                          `${(account.address || account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring(0, 6)}...${(account.address || account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring((account.address || account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).length - 4)}` : 
+                          `${(account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring(0, 6)}...${(account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).substring((account.addresses?.[((currentNetwork?.id ?? 0) ?? 0) || 'ethereum']).length - 4)}` : 
                           'No address'
                         }
                       </div>

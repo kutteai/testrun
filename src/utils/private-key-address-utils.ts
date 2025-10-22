@@ -163,7 +163,7 @@ export class PrivateKeyAddressUtils {
 
   static async deriveAddressesFromPrivateKey(privateKey: string, networks: string[]): Promise<Record<string, AddressResult>> {
     const results: Record<string, AddressResult> = {};
-    const derivationPath = 'm/44'/60'/0'/0/0'; // Default path for now - can be refined per network if needed
+    const derivationPath = "m/44'/60'/0'/0/0"; // Default path for now - can be refined per network if needed
 
     for (const networkId of networks) {
       try {

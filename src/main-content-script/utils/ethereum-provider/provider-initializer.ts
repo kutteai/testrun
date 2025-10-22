@@ -2,7 +2,7 @@ import { EventEmitter } from '../event-emitter';
 import { ToastManager } from '../toast-manager';
 import { ConnectionManager } from '../connection-manager';
 import { PaycioEthereumProvider } from '../ethereum-provider'; // Import the provider itself for type hinting
-import { getNetworkName } from '../../../../components/screens/send/utils/send-utils';
+import { getNetworkName } from '../../../components/screens/send/utils/send-utils';
 
 export class ProviderInitializer {
   private provider: PaycioEthereumProvider;

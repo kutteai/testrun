@@ -1,3 +1,5 @@
+import { getBrowserAPI } from '../utils/browser-api';
+
 // Complete enhanced content script with all advanced features
 import { ToastManager } from './utils/toast-manager';
 import { ModalManager } from './utils/modal-manager';
@@ -16,184 +18,97 @@ import { setupDebuggingUtilities } from './utils/debugging-utilities';
 console.log('Paycio main content script loaded');
 
 // Cross-browser compatibility
-const browserAPI = (() => {
-  if (typeof browser !== 'undefined') return browser;
-  if (typeof chrome !== 'undefined') return chrome;
-  throw new Error('No browser API available');
-})();
+const browserAPI = getBrowserAPI();
 
 // Only inject if not already injected
 if (!(window as any).paycioInjected) {
   (window as any).paycioInjected = true;
 
-  // Create script element to inject provider
-  const script = document.createElement('script');
-
-  // Complete provider script with all advanced features
-  script.textContent = `
-    (function() {
-      'use strict';
-      
-      if (window.paycioProviderInjected) {
-        return;
-      }
-      window.paycioProviderInjected = true;
-
-      console.log('Paycio: Injecting advanced wallet providers with all features');
-
-      const toast = new ToastManager();
-      window.paycioToast = toast;
-
-      const modalManager = new ModalManager();
-
-      const walletConnect = new WalletConnectManager(toast);
-
-      const connectionManager = new ConnectionManager(modalManager, toast);
-
-      const ethereumProvider = new PaycioEthereumProvider(toast, connectionManager, walletConnect, browserAPI);
-      
-      // Mark as PayCio provider for proper detection
-      ethereumProvider.isPayCio = true;
-      ethereumProvider.isMetaMask = false; // Don't pretend to be MetaMask
-      
-      window.paycioProvider = ethereumProvider;
-
-      // Inject Ethereum provider
-      Object.defineProperty(window, 'ethereum', {
-        value: ethereumProvider,
-        writable: false,
-        configurable: false
-      });
-
-      const multiChainProvider = createMultiChainProvider(toast, walletConnect);
-
-      // Inject multi-chain provider
-      Object.defineProperty(window, 'paycio', {
-        value: {
-          ...multiChainProvider,
-          walletConnect,
-          connectionManager,
-          toast,
-          modalManager,
-          
-          // Utility methods
-          utils: {
-            isValidEthereumAddress: (address) => /^0x[a-fA-F0-9]{40}$/.test(address),
-            isValidBitcoinAddress: (address) => /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[a-z0-9]{39,59}$/.test(address),
-            formatAddress: (address, length = 6) => \`\${address.slice(0, length)}...\${address.slice(-4)}\`,
-            wei2eth: (wei) => (parseInt(wei, 16) / Math.pow(10, 18)).toString(),
-            eth2wei: (eth) => '0x' + (parseFloat(eth) * Math.pow(10, 18)).toString(16)
-          }
-        },
-        writable: false,
-        configurable: false
-      });
-
-      setupProviderAnnouncement(ethereumProvider);
-
-      setupErrorHandling(toast);
-
-      setupLifecycleManagement(ethereumProvider, toast, modalManager);
-
-      setupContextValidationAndHeartbeat(toast, browserAPI);
-
-      setupDebuggingUtilities(performanceMonitor, setupContextValidationAndHeartbeat, browserAPI);
-
-      console.log('Paycio: Advanced wallet providers with all features injected successfully');
-      
-      // Feature detection and compatibility checks
-      const compatibilityCheck = () => {
-        const features = {
-          postMessage: typeof window.postMessage === 'function',
-          addEventListener: typeof window.addEventListener === 'function',
-          Promise: typeof Promise !== 'undefined',
-          chrome: typeof chrome !== 'undefined',
-          browser: typeof browser !== 'undefined',
-          runtime: !!(browserAPI.runtime),
-          sendMessage: !!(browserAPI.runtime?.sendMessage),
-          onMessage: !!(browserAPI.runtime?.onMessage)
-        };
-
-        const missingFeatures = Object.entries(features)
-          .filter(([, supported]) => !supported)
-          .map(([feature]) => feature);
-
-        if (missingFeatures.length > 0) {
-          console.error('Paycio: Missing required browser features:', missingFeatures);
-          return false;
-        }
-
-        console.log('Paycio: All required browser features available');
-        return true;
-      };
-
-      // Initialize only if compatible
-      if (compatibilityCheck()) {
-        // Final initialization message
-        console.log('Paycio: Enhanced content script initialized successfully with features:', {
-          toastNotifications: true,
-          modalSystem: true,
-          walletConnect: true,
-          multiChain: true,
-          subscriptions: true,
-          filters: true,
-          contextValidation: true,
-          heartbeat: true,
-          performanceMonitoring: true,
-          enhancedErrorHandling: true,
-          developmentDebugging: true
-        });
-
-        console.log('Paycio: Ready for advanced DApp interactions');
-
-        // Send initialization complete message to background
-        try {
-          browserAPI.runtime.sendMessage({
-            type: 'PAYCIO_CONTENT_SCRIPT_READY',
-            origin: window.location.origin,
-            url: window.location.href,
-            timestamp: Date.now(),
-            features: ['advanced-provider', 'toast', 'modal', 'walletconnect', 'multichain']
-          });
-        } catch (error) {
-          console.warn('Paycio: Failed to notify background script of initialization:', error);
-        }
-      } else {
-        console.error('Paycio: Content script initialization failed due to missing browser features');
-      }
-
-    })();
-  `;
-
-  // Inject the script into the page
-  try {
-    const target = document.head || document.documentElement;
-    target.insertBefore(script, target.children[0]);
-    console.log('Paycio: Advanced provider script injected successfully');
-    script.remove();
-  } catch (error) {
-    console.error('Paycio: Failed to inject provider script:', error);
-
-    // Fallback injection method
+  // Inject the provider script into the page using a file URL for CSP compliance
+  const injectProviderScript = () => {
     try {
+      const script = document.createElement('script');
+      script.src = browserAPI.runtime.getURL('injected/index.js'); // Correct path to the injected script
+      script.onload = () => script.remove();
+      script.onerror = (error) => {
+        console.error('Paycio: Failed to load injected provider script:', error);
+        script.remove();
+      };
       (document.head || document.documentElement).appendChild(script);
-      script.remove();
-      console.log('Paycio: Provider script injected via fallback method');
-    } catch (fallbackError) {
-      console.error('Paycio: All injection methods failed:', fallbackError);
+      console.log('Paycio: Injected provider script via file URL');
+    } catch (error) {
+      console.error('Paycio: Error injecting provider script:', error);
     }
+  };
+
+  // Run the injection logic when the document is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectProviderScript);
+  } else {
+    injectProviderScript();
   }
 
   // Enhanced content script message handling - bridge between injected script and background
   const handlePageMessage = async (event: MessageEvent) => {
     // SECURITY FIX: Enhanced message validation with cryptographic verification
-    if (event.source !== window || event.data.type !== 'PAYCIO_REQUEST') {
+    if (event.source !== window || !event.data.type?.startsWith('PAYCIO_')) {
       return;
     }
 
     const {
-      method, params, requestId, signature, timestamp, nonce,
+      method, params, requestId, signature, timestamp, nonce, type, id, password
     } = event.data;
+
+    // Handle specific messages from the injected script that don't require cryptographic signature yet
+    if (type === 'PAYCIO_WAKE_UP') {
+      try {
+        const response = await browserAPI.runtime.sendMessage({ type: 'WAKE_UP' });
+        window.postMessage({ type: 'PAYCIO_WAKE_UP_RESPONSE', id, success: response.success, message: response.message }, '*');
+      } catch (error: any) {
+        console.error('Paycio: Error handling PAYCIO_WAKE_UP:', error);
+        window.postMessage({ type: 'PAYCIO_WAKE_UP_RESPONSE', id, success: false, error: error.message }, '*');
+      }
+      return;
+    }
+
+    if (type === 'PAYCIO_GET_WALLET_STATUS') {
+      try {
+        const response = await browserAPI.runtime.sendMessage({ type: 'PAYCIO_GET_WALLET_STATUS' });
+        window.postMessage({ type: 'PAYCIO_WALLET_STATUS_RESPONSE', id, success: response.success, data: response.data, error: response.error }, '*');
+      } catch (error: any) {
+        console.error('Paycio: Error handling PAYCIO_GET_WALLET_STATUS:', error);
+        window.postMessage({ type: 'PAYCIO_WALLET_STATUS_RESPONSE', id, success: false, error: error.message }, '*');
+      }
+      return;
+    }
+
+    if (type === 'PAYCIO_SHOW_UNLOCK_POPUP') {
+      try {
+        const response = await browserAPI.runtime.sendMessage({ type: 'PAYCIO_SHOW_UNLOCK_POPUP', origin: event.origin });
+        window.postMessage({ type: 'PAYCIO_WALLET_UNLOCK_RESPONSE', id, success: response.success, result: response.result, error: response.error }, '*');
+      } catch (error: any) {
+        console.error('Paycio: Error handling PAYCIO_SHOW_UNLOCK_POPUP:', error);
+        window.postMessage({ type: 'PAYCIO_WALLET_UNLOCK_RESPONSE', id, success: false, error: error.message }, '*');
+      }
+      return;
+    }
+
+    if (type === 'PAYCIO_UNLOCK_WALLET') {
+      try {
+        const response = await browserAPI.runtime.sendMessage({ type: 'PAYCIO_UNLOCK_WALLET', password });
+        window.postMessage({ type: 'PAYCIO_UNLOCK_WALLET_RESPONSE', id, success: response.success, error: response.error }, '*');
+      } catch (error: any) {
+        console.error('Paycio: Error handling PAYCIO_UNLOCK_WALLET:', error);
+        window.postMessage({ type: 'PAYCIO_UNLOCK_WALLET_RESPONSE', id, success: false, error: error.message }, '*');
+      }
+      return;
+    }
+
+    // Proceed with cryptographic signature validation for DApp requests
+    if (event.data.type !== 'PAYCIO_REQUEST') {
+      console.warn('Paycio: Unknown message type from page:', event.data.type);
+      return;
+    }
 
     // Validate message structure
     if (!method || !requestId) {
@@ -220,7 +135,7 @@ if (!(window as any).paycioInjected) {
         'SHA-256',
         new TextEncoder().encode(JSON.stringify({
           method, params, requestId, timestamp, nonce,
-        })),
+        })) as BufferSource,
       );
 
       // For now, we'll implement a basic validation
@@ -463,59 +378,7 @@ if (!(window as any).paycioInjected) {
     } catch (error) {
       // Ignore errors during cleanup
     }
-  });  // Enhanced heartbeat system
-  // let heartbeatInterval: number | null = null;
-  // let heartbeatFailures = 0;
-  // const MAX_HEARTBEAT_FAILURES = 3;
-
-  // const startHeartbeat = () => {
-  //   if (heartbeatInterval) {
-  //     clearInterval(heartbeatInterval);
-  //   }
-  //
-  //   heartbeatInterval = window.setInterval(() => {
-  //     try {
-  //       browserAPI.runtime.sendMessage({
-  //         type: 'PAYCIO_HEARTBEAT',
-  //         timestamp: Date.now(),
-  //         origin: window.location.origin,
-  //         url: window.location.href,
-  //         userAgent: navigator.userAgent
-  //       }, (response) => {
-  //         if (browserAPI.runtime.lastError) {
-  //           heartbeatFailures++;
-  //           console.warn(`Paycio: Heartbeat failed (${heartbeatFailures}/${MAX_HEARTBEAT_FAILURES}):`, browserAPI.runtime.lastError);
-  //
-  //           if (heartbeatFailures >= MAX_HEARTBEAT_FAILURES) {
-  //             console.error('Paycio: Maximum heartbeat failures reached, context may be invalidated');
-  //             handleContextInvalidation();
-  //             if (heartbeatInterval) {
-  //               clearInterval(heartbeatInterval);
-  //             }
-  //           }
-  //         } else {
-  //           // Reset failure counter on successful heartbeat
-  //           heartbeatFailures = 0;
-  //
-  //           if (response?.status === 'ok') {
-  //             console.log('Paycio: Heartbeat successful');
-  //           }
-  //         }
-  //       });
-  //     } catch (error) {
-  //       heartbeatFailures++;
-  //       console.warn(`Paycio: Heartbeat error (${heartbeatFailures}/${MAX_HEARTBEAT_FAILURES}):`, error);
-  //
-  //       if (heartbeatFailures >= MAX_HEARTBEAT_FAILURES) {
-  //         handleContextInvalidation();
-  //         if (heartbeatInterval) {
-  //           clearInterval(heartbeatInterval);
-  //         }
-  //       }
-  //     }
-  //   }, 25000); // 25 second heartbeat
-  // };
-  // startHeartbeat();
+  });
 
   // Final initialization message
   console.log('Paycio: Enhanced content script initialized successfully with features:', {

@@ -15,10 +15,10 @@
     "isolatedModules": false,
     "noEmit": true,
     "jsx": "react-jsx",
+    "jsxImportSource": "react",
     "baseUrl": ".",
     "downlevelIteration": true,
     "allowImportingTsExtensions": true,
-    "types": ["chrome", "node", "webextension-polyfill"],
     "noImplicitAny": false,
     "paths": {
       "@/*": ["./src/*"],
@@ -43,6 +43,7 @@
     "backend"
   ],
   "files": [
-    "src/global.d.ts"
+    "src/global.d.ts",
+    "src/types/module.d.ts"
   ]
 } 

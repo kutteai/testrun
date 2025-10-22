@@ -7,6 +7,8 @@ declare global {
     __paycio__?: any;
   }
 
+  declare const browser: typeof browser; // Add this line
+
   namespace chrome {
     export interface Runtime {
       onConnect: {
@@ -83,7 +85,7 @@ declare global {
       setBadgeBackgroundColor(details: chrome.action.BadgeColorDetails): Promise<void>;
     }
     export interface Notifications {
-      create(notificationId: string, options: chrome.notifications.NotificationOptions): Promise<string>;
+      create(options: chrome.notifications.NotificationOptions): Promise<string>;
     }
   }
 
@@ -92,24 +94,4 @@ declare global {
     export type CreateType = "normal" | "popup" | "panel" | "detached" | "sidebar";
   }
 
-  // Declare modules for image files
-  declare module "*.png" {
-      const src: string;
-      export default src;
-    }
-
-  declare module "*.jpg" {
-      const src: string;
-      export default src;
-    }
-
-  declare module "*.jpeg" {
-      const src: string;
-      export default src;
-    }
-
-  declare module "*.svg" {
-      const src: string;
-      export default src;
-    }
-  }
+}

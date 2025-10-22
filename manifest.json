@@ -39,7 +39,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content-script.js"],
+      "js": ["main-content-script.js"],
       "run_at": "document_start",
       "all_frames": true,
       "match_about_blank": true
@@ -52,7 +52,7 @@
         "expand.html",
         "expand.js",
         "expand.css",
-        "injected/provider.js",
+        "injected/index.js",
         "popup.html"
       ],
       "matches": [

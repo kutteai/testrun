@@ -30,8 +30,8 @@ module.exports = (env, argv) => {
     entry: {
       popup: './src/popup/index.tsx',
       background: './src/background/index.ts',
-      'content-script': './src/content-script/index.ts',
-      'injected/provider': './src/injected/provider.js',
+      'main-content-script': './src/main-content-script/index.ts',
+      'injected/index': './src/injected/index.ts',
       options: './src/options/index.tsx',
       expand: './src/expand.tsx',
     },
@@ -61,6 +61,9 @@ module.exports = (env, argv) => {
               transpileOnly: true,
               experimentalWatchApi: false,
               configFile: path.resolve(__dirname, 'tsconfig.json'),
+              compilerOptions: {
+                jsxImportSource: 'react',
+              },
             },
           },
           exclude: /node_modules/,
@@ -105,6 +108,7 @@ module.exports = (env, argv) => {
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.wasm', '.mjs'],
       alias: {
         '@': path.resolve(__dirname, 'src'),
+        'react/jsx-runtime': require.resolve('react/jsx-runtime'),
       },
       fallback: {
         process: require.resolve('process/browser.js'),
@@ -127,7 +131,6 @@ module.exports = (env, argv) => {
       // Add module resolution for node_modules
       modules: [
         'node_modules',
-        path.resolve(__dirname, 'src'),
       ],
       // Handle ESM modules properly
       extensionAlias: {

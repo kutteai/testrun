@@ -38,7 +38,7 @@ const AccountContactList: React.FC<AccountContactListProps> = ({
             <div
               key={account.id}
               className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-              onClick={() => setToAddress(account.address || account.addresses?.[currentNetwork?.id || 'ethereum'])}
+              onClick={() => setToAddress(account.addresses?.[currentNetwork?.id || 'ethereum'])}
             >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
@@ -50,7 +50,7 @@ const AccountContactList: React.FC<AccountContactListProps> = ({
                   </div>
                   <div className="text-[13px] text-gray-600">
                     {(() => {
-                      const addressToDisplay = account?.address || account?.addresses?.[currentNetwork?.id || 'ethereum'];
+                      const addressToDisplay = account?.addresses?.[currentNetwork?.id || 'ethereum'];
                       return addressToDisplay
                         ? `${addressToDisplay.substring(0, 6)}...${addressToDisplay.substring(addressToDisplay.length - 4)}`
                         : 'No address';

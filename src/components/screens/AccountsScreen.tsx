@@ -5,17 +5,18 @@ import { useNetwork } from '../../store/NetworkContext';
 import { usePortfolio } from '../../store/PortfolioContext';
 import { ChevronLeft, Search, Plus, MoreVertical, Eye, EyeOff, Pin, User, Key } from 'lucide-react';
 import { navigateWithHistory, goBackWithHistory, shouldShowBackButton, getDefaultBackTarget } from '../../utils/navigation-utils';
+import { WalletAccount } from '../../types/index'; // Corrected import path
 
 interface ScreenProps {
   onNavigate: (screen: string) => void;
 }
 
 const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet, getWalletAccounts, getCurrentAccount, addAccount, getPassword, switchAccount } = useWallet();
+  const { currentWallet, getWalletAccounts, getCurrentAccount, addAccount, getPassword, switchAccount } = useWallet();
   const { currentNetwork } = useNetwork();
   const { portfolioValue } = usePortfolio();
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<any>(null);
+  const [accounts, setAccounts] = useState<WalletAccount[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<WalletAccount | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showAccountDetails, setShowAccountDetails] = useState(false);
   const [showCreateAccountModal, setShowCreateAccountModal] = useState(false);
@@ -31,7 +32,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   // Load accounts on component mount
   useEffect(() => {
     const loadAccounts = async () => {
-      if (!wallet) {
+      if (!currentWallet) {
         setIsLoading(false);
         return;
       }
@@ -39,12 +40,12 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       try {
         setIsLoading(true);
 
-        const walletAccounts = await getWalletAccounts();
+        const walletAccounts = await getWalletAccounts(currentWallet.id);
 
         setAccounts(walletAccounts);
         
         // Set current account
-        const currentAccount = await getCurrentAccount();
+        const currentAccount = await getCurrentAccount(); // Removed argument
         setSelectedAccount(currentAccount);
       } catch (error) {
         // eslint-disable-next-line no-console
@@ -55,14 +56,14 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     };
 
     loadAccounts();
-  }, [wallet, getWalletAccounts, getCurrentAccount]);
+  }, [currentWallet, getWalletAccounts, getCurrentAccount]);
 
   // Listen for wallet changes to update selected account
   useEffect(() => {
     const handleWalletChanged = async () => {
-      if (wallet) {
+      if (currentWallet) {
         try {
-          const currentAccount = await getCurrentAccount();
+          const currentAccount = await getCurrentAccount(); // Removed argument
           setSelectedAccount(currentAccount);
 
         } catch (error) {
@@ -84,18 +85,18 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         window.removeEventListener('accountSwitched', handleWalletChanged);
       }
     };
-  }, [wallet, getCurrentAccount]);
+  }, [currentWallet, getCurrentAccount]);
 
   // Listen for wallet changes to refresh accounts
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
 
       try {
-        const walletAccounts = await getWalletAccounts();
+        const walletAccounts = await getWalletAccounts(currentWallet?.id);
 
         setAccounts(walletAccounts);
         
-        const currentAccount = await getCurrentAccount();
+        const currentAccount = await getCurrentAccount(); // Removed argument
         setSelectedAccount(currentAccount);
       } catch (error) {
         // eslint-disable-next-line no-console
@@ -107,7 +108,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     return () => {
       window.removeEventListener('walletChanged', handleWalletChange as EventListener);
     };
-  }, [getWalletAccounts, getCurrentAccount]);
+  }, [getWalletAccounts, getCurrentAccount, currentWallet]);
 
   // Filter accounts based on search query
   const filteredAccounts = accounts.filter(account => {
@@ -115,8 +116,8 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     const query = searchQuery.toLowerCase();
     return (
       account.name?.toLowerCase().includes(query) ||
-      account.address?.toLowerCase().includes(query) ||
-      account.network?.toLowerCase().includes(query)
+      (account.networks?.some((networkName: string) => networkName.toLowerCase().includes(query))) ||
+      Object.values(account.addresses || {}).some(addr => addr.toLowerCase().includes(query))
     );
   });
 
@@ -163,7 +164,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     
     try {
       // Check if wallet exists
-      if (!wallet) {
+      if (!currentWallet) {
         return;
       }
       
@@ -172,20 +173,20 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         return;
       }
 
-      await addAccount(password, newAccountName.trim());
+      await addAccount(currentWallet.id, password, newAccountName.trim()); // Added walletId argument
       
       // Wait a moment for the account to be properly created and saved
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Refresh accounts list
 
-      const updatedAccounts = await getWalletAccounts();
+      const updatedAccounts = await getWalletAccounts(currentWallet.id);
 
       setAccounts(updatedAccounts);
       
       if (updatedAccounts.length > 0) {
         const newAccount = updatedAccounts[updatedAccounts.length - 1];
-        if (newAccount && newAccount.address) {
+        if (newAccount && newAccount.addresses && currentNetwork) {
           setSelectedAccount(newAccount);
 
         }
@@ -206,17 +207,17 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     
     try {
       // Check if wallet exists
-      if (!wallet) {
+      if (!currentWallet) {
         return;
       }
       
-      if (!wallet.encryptedSeedPhrase) {
+      if (!currentWallet.encryptedSeedPhrase) {
         return;
       }
       
       // Use the correct decryption method from crypto-utils
       const { decryptData } = await import('../../utils/crypto-utils');
-      const decryptedSeedPhrase = await decryptData(wallet.encryptedSeedPhrase, secretPhrasePassword);
+      const decryptedSeedPhrase = await decryptData(currentWallet.encryptedSeedPhrase, secretPhrasePassword);
       
       if (!decryptedSeedPhrase) {
         throw new Error('Invalid password');
@@ -271,21 +272,14 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       return account.addresses[currentNetwork.id] || account.addresses[currentNetwork.name] || account.addresses.ethereum;
     }
     
-    // Fallback to single address (old format)
-    return account.address;
+    // If no addresses object, or network not found, return null
+    return null;
   };
 
   // Get the network name for display
-  const getAccountNetwork = (account: any) => {
-    if (!account) return 'Unknown';
-    
-    // If account has networks array, use the first one or current network
-    if (account.networks && account.networks.length > 0) {
-      return account.networks[0];
-    }
-    
-    // Fallback to account.network or current network
-    return account.network || (currentNetwork ? currentNetwork.name : 'Unknown');
+  const getAccountNetwork = (account: WalletAccount) => {
+    if (!account || !account.networks || account.networks.length === 0) return 'Unknown';
+    return account.networks[0];
   };
 
   // Handle account selection and switching
@@ -293,7 +287,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
 
       // Switch to the selected account using the wallet context
-      await switchAccount(account.id);
+      await switchAccount(currentWallet.id, account.id); // Added walletId argument
       
       // Update local state
       setSelectedAccount(account);
@@ -336,7 +330,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   }
 
   // If no wallet, show error message
-  if (!wallet) {
+  if (!currentWallet) {
     return (
       <div className="h-full bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -392,7 +386,7 @@ const AccountsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       <div className="px-4 mb-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-gray-900">
-            {wallet?.name || `Wallet ${wallet?.id || '1'}`}
+            {currentWallet?.name || `Wallet ${currentWallet?.id || '1'}`}
           </h2>
                 <button
                   onClick={() => onNavigate('account-details')}

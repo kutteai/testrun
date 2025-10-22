@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import toast from 'react-hot-toast';
 import { ethers } from 'ethers';
 import { storage } from '../utils/storage-utils';
-import { NETWORK_CONFIGS } from '../background/index'; // Import NETWORK_CONFIGS from background
+import web3Utils from '../utils/web3-utils'; // Changed to default import and removed NETWORK_CONFIGS
 
 interface NFT {
   id: string;
@@ -179,7 +179,7 @@ async function fetchAlchemyNFTMetadata(contractAddress: string, tokenId: string,
 async function fetchBlockchainNFTMetadata(contractAddress: string, tokenId: string, network: string) {
   try {
     // Get network configuration
-    const networkConfig = NETWORK_CONFIGS[network.toLowerCase()];
+    const networkConfig = web3Utils.getNetworks()[network.toLowerCase()];
     if (!networkConfig || !networkConfig.rpcUrl) {
       // Instead of throwing, return null for graceful fallback in importNFT
       return null;

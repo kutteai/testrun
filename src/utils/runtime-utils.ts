@@ -1,7 +1,7 @@
 // Cross-browser runtime API utility
 // Provides a unified interface for Chrome and Firefox extension runtime APIs
 
-import { getBrowser } from './browser';
+import { getBrowserAPI } from './browser-api';
 
 export interface RuntimeAPI {
   onMessage: {
@@ -47,7 +47,9 @@ export interface AlarmsAPI {
 }
 
 export interface NotificationsAPI {
-  create(options: any): Promise<string>;
+  create(notificationId: string, options: any, callback?: (notificationId: string) => void): void;
+  // Added to match chrome.notifications.create signature
+  create(options: any, callback?: (notificationId: string) => void): void;
 }
 
 export interface StorageChangeAPI {
@@ -61,7 +63,7 @@ export const getUnifiedBrowserAPI = () => {
   if (typeof chrome !== 'undefined' && chrome.runtime) {
     return chrome;
   }
-  return getBrowser();
+  return getBrowserAPI();
 };
 
 // Get tabs API

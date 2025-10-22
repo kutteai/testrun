@@ -160,7 +160,7 @@ const NotificationSettingsScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
                           {account.name || `Account ${account.id}`}
                         </p>
                         <p className="text-gray-500 text-[11px] font-mono">
-                          {formatAddress(account.address)}
+                          {formatAddress(account.addresses[account.network || 'ethereum'] || Object.values(account.addresses)[0])}
                         </p>
                       </div>
                     </div>

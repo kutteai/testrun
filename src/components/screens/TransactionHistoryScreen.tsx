@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { ArrowLeft, ExternalLink, Clock, CheckCircle, XCircle, RefreshCw, AlertCircle, ChevronDown, ChevronUp, Activity } from 'lucide-react';
 import { useTransaction } from '../../store/TransactionContext';
 import { useWallet } from '../../store/WalletContext';
-import { getTransactionHistory, getTokenTransactions } from '../../utils/web3-utils';
+import web3Utils from '../../utils/web3-utils'; // Changed to default import
 import toast from 'react-hot-toast';
 import type { ScreenProps, Transaction } from '../../types/index';
 
@@ -59,8 +59,8 @@ const TransactionHistoryScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
     try {
       // Load both regular and token transactions
       const [regularTxs, tokenTxs] = await Promise.all([
-        getTransactionHistory(wallet.address, currentNetwork.id, pageNum, 20).catch(() => []),
-        getTokenTransactions(wallet.address, currentNetwork.id).catch(() => [])
+        web3Utils.getTransactionHistory(wallet.address, currentNetwork.id, pageNum, 20).catch(() => []),
+        web3Utils.getTokenTransactions(wallet.address, currentNetwork.id).catch(() => [])
       ]);
       
       // Convert blockchain transactions to our format
