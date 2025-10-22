@@ -119,6 +119,10 @@ class ConnectionManager {
     return permissions && permissions.includes(method);
   }
 
+  getConnections(): Map<string, any> {
+    return this.connections;
+  }
+
   destroy() {
     this.connections.clear();
     this.permissions.clear();

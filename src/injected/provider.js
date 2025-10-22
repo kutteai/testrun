@@ -299,7 +299,7 @@
       });
     }
     
-    // Check wallet unlock status (placeholder - actual implementation in background)
+    // Check wallet unlock status
     async checkWalletUnlockStatus() {
       try {
         const response = await new Promise((resolve) => {

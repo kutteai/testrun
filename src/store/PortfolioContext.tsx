@@ -1,16 +1,16 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { toast } from 'react-hot-toast';
 import { ethers } from 'ethers';
-import { NETWORKS } from '../utils/web3-utils';
+import { getNetworks } from '../utils/web3/network-utils'; // Corrected import
+import web3Utils from '../utils/web3-utils'; // Import web3Utils as default
 import { PortfolioManager } from '../core/portfolio-manager';
-import { getRealBalance, getMultipleTokenPrices } from '../utils/web3-utils';
 import type { PortfolioValue, PortfolioState, PortfolioContextType } from '../types';
 import { storage } from '../utils/storage-utils';
-import { 
-  getDashboardTokensForAllNetworks, 
+import {
+  getDashboardTokensForAllNetworks,
   getDashboardTokensForCurrentNetwork,
   convertToPortfolioAssets,
-  type DashboardTokenData 
+  type DashboardTokenData
 } from '../utils/dashboard-token-integration';
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
@@ -157,109 +157,6 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
     }
   };
 
-  // Legacy function for backward compatibility
-  const updatePortfolioLegacy = async () => {
-    try {
-      const walletData = await getWalletData();
-      if (!walletData?.address) return;
-
-      const address = walletData.address;
-      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism', 'base', 'fantom'];
-      const assets = [];
-
-      // Fetch native token balances for EVM networks
-      for (const network of networks) {
-        try {
-          const balance = await getRealBalance(address, network);
-          const balanceInEth = parseFloat(ethers.formatEther(balance));
-          
-          if (balanceInEth > 0) {
-            assets.push({
-              network,
-              symbol: NETWORKS[network]?.symbol || network.toUpperCase(),
-              balance: balance,
-              usdValue: 0,
-              change24h: 0,
-              changePercent: 0
-            });
-          }
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.warn(`Failed to get balance for ${network}:`, error);
-        }
-      }
-
-      // Get token prices
-      const tokenIds = assets.map(asset => TOKEN_IDS[asset.network]).filter(Boolean);
-      const prices = await getMultipleTokenPrices(tokenIds);
-
-      // Calculate USD values
-      let totalUSD = 0;
-      for (const asset of assets) {
-        const price = prices[TOKEN_IDS[asset.network]] || 0;
-        const balanceInEth = parseFloat(ethers.formatEther(asset.balance));
-        asset.usdValue = balanceInEth * price;
-        totalUSD += asset.usdValue;
-      }
-
-      // Get 24h price changes (legacy implementation)
-      const priceChanges = await Promise.all(
-        tokenIds.map(async (tokenId) => {
-          try {
-            // Get real 24h price change from CoinGecko API
-            const { get24hPriceChange } = await import('../utils/web3-utils');
-            const priceChange = await get24hPriceChange(tokenId);
-            return { 
-              tokenId, 
-              change24h: priceChange.price_change_24h || 0, 
-              changePercent: priceChange.price_change_percentage_24h || 0 
-            };
-          } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error(`Error getting 24h price change for ${tokenId}:`, error);
-            return { tokenId, change24h: 0, changePercent: 0 };
-          }
-        })
-      );
-
-      // Update assets with price changes
-      for (const asset of assets) {
-        const priceChange = priceChanges.find(pc => pc.tokenId === TOKEN_IDS[asset.network]);
-        if (priceChange) {
-          asset.change24h = priceChange.change24h;
-          asset.changePercent = priceChange.changePercent;
-        }
-      }
-
-      const totalChange24h = assets.reduce((sum, asset) => sum + asset.change24h, 0);
-      const totalChangePercent = totalUSD > 0 ? (totalChange24h / totalUSD) * 100 : 0;
-
-      const portfolioValue: PortfolioValue = {
-        totalUSD,
-        totalChange24h,
-        totalChangePercent,
-        assets,
-        rates: prices,
-        lastUpdated: Date.now()
-      };
-
-      setPortfolioState(prev => ({
-        ...prev,
-        portfolioValue,
-        isLoading: false
-      }));
-
-      savePortfolioData(portfolioValue);
-    } catch (error) {
-      setPortfolioState(prev => ({
-        ...prev,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to update portfolio'
-      }));
-      toast.error('Failed to update portfolio');
-    }
-  };
-
   // Get asset value
   const getAssetValue = (network: string, symbol: string): number => {
     if (!portfolioState.portfolioValue) return 0;
@@ -289,7 +186,7 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
         .map(asset => TOKEN_IDS[asset.network])
         .filter(Boolean);
       
-      const newRates = await getMultipleTokenPrices(tokenIds);
+      const newRates = await web3Utils.getMultipleTokenPrices(tokenIds); // Use web3Utils.getMultipleTokenPrices
 
         setPortfolioState(prev => ({
           ...prev,
@@ -309,19 +206,36 @@ export const PortfolioProvider: React.FC<PortfolioProviderProps> = ({ children }
   // Get real portfolio data
   const getPortfolioData = async (): Promise<PortfolioValue> => {
     try {
-      const { PortfolioManager } = await import('../core/portfolio-manager');
       const portfolioManager = new PortfolioManager();
-      
-      // Get real portfolio data from blockchain
-      const portfolio = await portfolioManager.getPortfolio();
+      const walletData = await getWalletData();
+
+      if (!walletData || !walletData.currentWallet || !walletData.currentWallet.id) {
+        throw new Error('No current wallet available.');
+      }
+
+      const { id: walletId, accounts, currentNetwork } = walletData.currentWallet;
+      if (!currentNetwork || !currentNetwork.id) {
+        throw new Error('No current network available.');
+      }
+      const networkId = currentNetwork.id; // Extract networkId as string
+
+      // Get real portfolio data from blockchain by calling updatePortfolio
+      const portfolio = await portfolioManager.updatePortfolio(walletId, accounts, networkId); // Call updatePortfolio
       
       return {
-        totalUSD: portfolio.totalUSD,
-        totalChange24h: portfolio.totalChange24h,
-        totalChangePercent: portfolio.totalChangePercent,
-        assets: portfolio.assets,
-        rates: portfolio.rates,
-        lastUpdated: portfolio.lastUpdated
+        totalUSD: portfolio.totalBalance,
+        totalChange24h: portfolio.change24h,
+        totalChangePercent: (portfolio.change24h / portfolio.totalBalance) * 100, // Assuming change24h is absolute for now
+        assets: portfolio.assets.map((asset: any) => ({ // Map to PortfolioValueAsset structure
+          network: asset.network,
+          symbol: asset.symbol,
+          balance: asset.balance.toString(), // Ensure balance is string
+          usdValue: asset.usdValue,
+          change24h: asset.priceData?.usd24hChange || 0,
+          changePercent: asset.priceData?.usd24hChangePercent || 0
+        })),
+        rates: portfolio.prices || {},
+        lastUpdated: portfolio.lastUpdate
       };
     } catch (error) {
       // eslint-disable-next-line no-console

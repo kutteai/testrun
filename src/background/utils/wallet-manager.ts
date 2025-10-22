@@ -302,7 +302,7 @@ class WalletManager {
     try {
 
       // Clear persistent session data (password, session info)
-      await SecureSessionManager.destroySession();
+      await SecureSessionManager.clearSession();
 
       // Update wallet state to locked (preserves wallet data)
       await storage.local.set({
@@ -557,9 +557,22 @@ class WalletManager {
     return null;
   }
 
-  // Add Network (dummy implementation for now)
+
   static async addNetwork(networkConfig: any): Promise<void> {
-    // In a real scenario, you'd add this to a list of custom networks in storage
+    
+    try {
+      const result = await storage.local.get(['customNetworks']);
+      const customNetworks = result.customNetworks || {};
+
+      const newNetworkId = networkConfig.name.toLowerCase().replace(/\s/g, '');
+      customNetworks[newNetworkId] = networkConfig;
+
+      await storage.local.set({ customNetworks });
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to add custom network:', error);
+      throw new Error(`Failed to add network: ${error.message}`);
+    }
   }
 
   // Serverless integration methods

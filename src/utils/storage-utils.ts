@@ -367,3 +367,5 @@ export const storageUtils = {
     }
   }
 };
+
+export { SecureSessionManager };

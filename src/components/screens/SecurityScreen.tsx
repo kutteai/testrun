@@ -1,13 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Lock, Shield, Clock, Eye, EyeOff, Save, AlertTriangle } from 'lucide-react';
 import { useSecurity } from '../../store/SecurityContext';
 import toast from 'react-hot-toast';
 import type { ScreenProps } from '../../types/index';
 import { storage } from '../../utils/storage-utils';
+import { SecurityManager } from '../../core/security-manager';
+
+interface SecurityScreenProps {
+  onGoBack: () => void;
+}
 
 const SecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const { securityState, updateSecuritySettings, lockWallet } = useSecurity();
+  const [securityManager] = useState(() => new SecurityManager()); // Instantiate SecurityManager
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -16,47 +22,60 @@ const SecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [autoLockTimeout, setAutoLockTimeout] = useState(securityState.autoLockTimeout);
   const [requirePassword, setRequirePassword] = useState(securityState.requirePassword);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordChangeError, setPasswordChangeError] = useState('');
 
   useEffect(() => {
     setAutoLockTimeout(securityState.autoLockTimeout);
     setRequirePassword(securityState.requirePassword);
   }, [securityState]);
 
+  const validatePassword = (password: string): boolean => {
+    const validation = securityManager.validatePassword(password);
+    if (!validation.isValid) {
+      setPasswordChangeError(validation.feedback.join(' ')); // Use feedback property
+    }
+    return validation.isValid;
+  };
+
   const handleChangePassword = async () => {
-    if (newPassword !== confirmPassword) {
-      toast.error('New passwords do not match');
-      return;
-    }
+    if (isChangingPassword) return;
 
+    setPasswordChangeError('');
     if (newPassword.length < 8) {
-      toast.error('Password must be at least 8 characters long');
+      setPasswordChangeError('New password must be at least 8 characters long');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordChangeError('New password and confirm password do not match');
       return;
     }
 
+    setIsChangingPassword(true);
     try {
-      // In a real implementation, you would validate the current password
-      // and update it securely using crypto-utils
-      const { hashPassword } = await import('../../utils/crypto-utils');
-      const newHash = await hashPassword(newPassword);
-      
-      // Save password hash to storage
-      const savePasswordHash = async (hash: string): Promise<void> => {
-        try {
-          await storage.set({ passwordHash: hash });
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.error('Failed to save password hash:', error);
-        }
-      };
-      
-      await savePasswordHash(newHash);
-      
-      toast.success('Password updated successfully');
+      // Validate current password
+      const isValidCurrentPassword = await securityManager.authenticate(currentPassword); // Use instance method
+      if (!isValidCurrentPassword) {
+        setPasswordChangeError('Invalid current password');
+        toast.error('Invalid current password');
+        return;
+      }
+
+      // Change password using SecurityManager
+      await securityManager.changePassword(currentPassword, newPassword); // Use instance method
+
+      toast.success('Password changed successfully!');
+      // Clear form
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-    } catch {
-      toast.error('Failed to update password');
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to change password:', error);
+      setPasswordChangeError(error instanceof Error ? error.message : 'Failed to change password');
+      toast.error(error instanceof Error ? error.message : 'Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -255,19 +274,23 @@ const SecurityScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
               </div>
             </div>
 
+            {passwordChangeError && (
+              <p className="text-sm text-red-600 mt-2">{passwordChangeError}</p>
+            )}
+
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
               onClick={handleChangePassword}
-              disabled={!currentPassword || !newPassword || !confirmPassword}
+              disabled={isChangingPassword}
               className={`w-full py-2 px-4 rounded-lg transition-colors flex items-center justify-center space-x-2 ${
-                !currentPassword || !newPassword || !confirmPassword
+                isChangingPassword
                   ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                   : 'bg-green-600 text-white hover:bg-green-700'
               }`}
             >
               <Lock className="w-4 h-4" />
-              <span>Change Password</span>
+              <span>{isChangingPassword ? 'Changing...' : 'Change Password'}</span>
             </motion.button>
           </div>
         </div>

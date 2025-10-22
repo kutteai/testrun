@@ -1,4 +1,5 @@
 import { DAppRequest, DAppResponse, PendingRequest } from '../../types/dapp-requests';
+import { ApprovalPopupManager } from './approval-popup-manager'; // Import the ApprovalPopupManager
 
 interface PendingRequest {
   resolve: (response: DAppResponse) => void;
@@ -53,18 +54,23 @@ class DAppRequestQueue {
       requestEntry.reject = reject;
       
       // Here you would typically open a popup or UI to get user approval
-      // For now, we'll mock an approval or rejection
       // In a real scenario, this would involve sending a message to a UI component
       // and waiting for its response.
 
-      // Mock approval for demonstration
-      const mockApproved = true; 
-      if (mockApproved) {
-        requestEntry.status = 'approved';
-        requestEntry.resolve({ success: true, data: { message: 'Mock transaction approved' } });
-      } else {
+      // Real approval flow using ApprovalPopupManager
+      try {
+        const approvalResponse = await ApprovalPopupManager.openApprovalPopup(requestEntry.request);
+        if (approvalResponse.approved) {
+          requestEntry.status = 'approved';
+          requestEntry.resolve({ success: true, data: approvalResponse.data });
+        } else {
+          requestEntry.status = 'rejected';
+          requestEntry.reject(new Error(approvalResponse.error || 'Request rejected by user'));
+        }
+      } catch (error) {
+        console.error('Error opening approval popup:', error);
         requestEntry.status = 'rejected';
-        requestEntry.reject(new Error('Mock transaction rejected by user'));
+        requestEntry.reject(new Error(`Approval process failed: ${error.message}`));
       }
     });
   }

@@ -2,6 +2,7 @@ import { SignClient } from '@walletconnect/sign-client';
 import { getSdkError } from '@walletconnect/utils';
 import { ethers } from 'ethers';
 import { getConfig } from './config-injector';
+import web3Utils from './web3-utils'; // New import
 
 // Type definitions for WalletConnect v2
 export interface WalletConnectSession {
@@ -64,6 +65,8 @@ export class WalletConnectManager {
   private cleanupTimeouts: Set<NodeJS.Timeout> = new Set();
   private sessionStorageKey = 'walletconnect_session';
   private proposalStorageKey = 'walletconnect_proposal';
+  private confirmationResolver: ((value: boolean | PromiseLike<boolean>) => void) | null = null;
+  private confirmationRejecter: ((reason?: any) => void) | null = null;
 
   constructor() {
     // Get project ID from config system or use a working default
@@ -425,16 +428,12 @@ export class WalletConnectManager {
         proposal
       });
 
-      // Wait for user confirmation
-      const confirmationPromise = new Promise<boolean>((resolve) => {
-        const handleConfirmation = (approved: boolean) => {
-          this.off('connection_confirmed', handleConfirmation);
-          resolve(approved);
-        };
-        this.on('connection_confirmed', handleConfirmation);
+      // Wait for user confirmation using the new resolvers
+      const approved = await new Promise<boolean>((resolve, reject) => {
+        this.confirmationResolver = resolve;
+        this.confirmationRejecter = reject;
       });
 
-      const approved = await confirmationPromise;
       if (!approved) {
         throw new Error('Connection rejected by user');
       }
@@ -484,6 +483,24 @@ export class WalletConnectManager {
       // eslint-disable-next-line no-console
       console.error('Failed to approve session:', error);
       throw error;
+    }
+  }
+
+  // Public method to confirm connection approval from UI
+  async confirmConnectionApproval(): Promise<void> {
+    if (this.confirmationResolver) {
+      this.confirmationResolver(true);
+      this.confirmationResolver = null;
+      this.confirmationRejecter = null;
+    }
+  }
+
+  // Public method to reject connection approval from UI
+  async rejectConnectionApproval(): Promise<void> {
+    if (this.confirmationRejecter) {
+      this.confirmationRejecter(new Error('Connection rejected by user'));
+      this.confirmationResolver = null;
+      this.confirmationRejecter = null;
     }
   }
 
@@ -927,8 +944,7 @@ export class WalletConnectManager {
   // Get balance (real implementation)
   private async getBalance(address: string): Promise<string> {
     try {
-      const { getRealBalance } = await import('./web3-utils');
-      const balance = await getRealBalance(address, 'ethereum');
+      const balance = await web3Utils.getRealBalance(address, 'ethereum'); // Use web3Utils
       return balance;
     } catch (error) {
       // eslint-disable-next-line no-console

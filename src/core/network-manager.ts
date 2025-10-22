@@ -1,5 +1,6 @@
-import { getBalance, getGasPrice, estimateGas, NETWORKS } from '../utils/web3-utils';
 import { storage } from '../utils/storage-utils';
+import { getNetworks } from '../utils/web3/network-utils'; // Corrected import
+import web3Utils from '../utils/web3-utils'; // New import
 
 export interface Network {
   id: string;
@@ -10,6 +11,12 @@ export interface Network {
   explorerUrl: string;
   isCustom: boolean;
   isEnabled: boolean;
+  apiKey: string; // New: API key for the network
+  nativeCurrency: { // New: Native currency details
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
 }
 
 export class NetworkManager {
@@ -17,7 +24,7 @@ export class NetworkManager {
   private currentNetwork: Network | null = null;
 
   constructor() {
-    this.networks = Object.entries(NETWORKS).map(([id, network]) => ({
+    this.networks = Object.entries(getNetworks()).map(([id, network]) => ({
       ...network,
       id,
       isCustom: false,
@@ -58,7 +65,7 @@ export class NetworkManager {
 
   // Get default networks
   getDefaultNetworks(): Network[] {
-    return Object.entries(NETWORKS).map(([id, network]) => ({
+    return Object.entries(getNetworks()).map(([id, network]) => ({
       ...network,
       id,
       isCustom: false,
@@ -139,7 +146,7 @@ export class NetworkManager {
   // Get balance
   async getBalance(address: string, network: string): Promise<string> {
     try {
-      return await getBalance(address, network);
+      return await web3Utils.getBalance(address, network);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error getting balance:', error);
@@ -150,7 +157,7 @@ export class NetworkManager {
   // Get gas price
   async getGasPrice(network: string): Promise<string> {
     try {
-      return await getGasPrice(network);
+      return await web3Utils.getGasPrice(network);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error getting gas price:', error);
@@ -161,7 +168,7 @@ export class NetworkManager {
   // Estimate gas
   async estimateGas(transaction: any, network: string): Promise<string> {
     try {
-      return await estimateGas(
+      return await web3Utils.estimateGas(
         transaction.from || '0x0000000000000000000000000000000000000000',
         transaction.to || '0x0000000000000000000000000000000000000000',
         transaction.value || '0x0',

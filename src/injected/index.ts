@@ -10,12 +10,9 @@ let isWalletUnlocked = false;
 let pendingConnectionRequests: any[] = [];
 
 // SECURITY FIX: Password collection on DApp pages is disabled
-function createUnlockModal(): Promise<boolean> {
-  // eslint-disable-next-line no-console
-  console.error('🚨 SECURITY: Password collection on DApp pages is disabled for security');
-  // eslint-disable-next-line no-console
-  console.error('🔒 Passwords must be entered in the secure extension popup only');
-  return Promise.resolve(false);
+async function createUnlockModal(): Promise<boolean> {
+  // Delegate to showWalletUnlockPopup which uses the secure extension popup.
+  return await showWalletUnlockPopup();
 }
 
 // Wake up extension method

@@ -1,7 +1,9 @@
 import { ethers } from 'ethers';
-import { estimateGas, getTransactionReceipt, NETWORKS } from '../utils/web3-utils';
+import { getNetworks } from '../utils/web3/network-utils';
 import { WalletManager } from './wallet-manager';
 import { storage } from '../utils/storage-utils';
+import SecureSessionManager from '../utils/secure-session-manager';
+import web3Utils from '../utils/web3-utils'; // Import web3Utils
 
 export interface Transaction {
   id: string;
@@ -36,7 +38,6 @@ export interface TransactionRequest {
   gasLimit?: string;
   gasPrice?: string;
   network: string;
-  password: string;
 }
 
 export interface TransactionResult {
@@ -99,7 +100,7 @@ export class TransactionManager {
   // Send transaction
   async sendTransaction(request: TransactionRequest): Promise<TransactionResult> {
     try {
-      const { to, value, data = '0x', network, password } = request;
+      const { to, value, data = '0x', network } = request;
 
       // Get current account
       const currentWallet = this.walletManager.getCurrentWallet();
@@ -118,17 +119,14 @@ export class TransactionManager {
         throw new Error('No address found for the specified network');
       }
 
-      // Import web3 utilities
-      const { 
-        getRealBalance, 
-        getGasPrice, 
-        getTransactionCount,
-        signTransaction,
-        sendSignedTransaction
-      } = await import('../utils/web3-utils');
+      // Retrieve password from secure session
+      const password = await SecureSessionManager.getSessionPassword();
+      if (!password) {
+        throw new Error('Wallet is locked or password not available in session.');
+      }
 
       // Validate balance
-      const balance = await getRealBalance(fromAddress, network);
+      const balance = await web3Utils.getRealBalance(fromAddress, network);
       const valueWei = ethers.parseEther(value);
       const balanceWei = BigInt(balance);
       
@@ -137,8 +135,8 @@ export class TransactionManager {
       }
 
       // Get gas price and estimate gas
-      const gasPrice = await getGasPrice(network);
-      const gasLimit = await estimateGas(
+      const gasPrice = await web3Utils.getGasPrice(network);
+      const gasLimit = await web3Utils.estimateGas(
         fromAddress,
         to,
         value,
@@ -153,7 +151,7 @@ export class TransactionManager {
       }
 
       // Get nonce
-      const nonce = await getTransactionCount(fromAddress, network);
+      const nonce = await web3Utils.getTransactionCount(fromAddress, network);
 
       // Create transaction object
       const transaction = {
@@ -162,14 +160,14 @@ export class TransactionManager {
         data: '0x',
         gasLimit: gasLimit,
         gasPrice: gasPrice,
-        nonce: nonce
+        nonce: nonce,
+        chainId: getNetworks()[network]?.chainId,
       };
 
-      // Sign transaction (in real implementation, this would prompt for password)
-      const signedTx = await signTransaction(transaction, currentAccount.privateKey, network);
+      const signedTx = await web3Utils.signTransaction(transaction, password, network);
 
       // Send transaction
-      const txHash = await sendSignedTransaction(signedTx, network);
+      const txHash = await web3Utils.sendSignedTransaction(signedTx, network);
 
       // Add to pending transactions
       const pendingTx: Transaction = {
@@ -218,8 +216,7 @@ export class TransactionManager {
     // Update transaction status if it's pending
     if (transaction.status === 'pending') {
       try {
-        const { getTransactionReceipt } = await import('../utils/web3-utils');
-        const receipt = await getTransactionReceipt(hash, transaction.network);
+        const receipt = await web3Utils.getTransactionReceipt(hash, transaction.network);
         
         if (receipt) {
           transaction.status = receipt.status === 1 ? 'confirmed' : 'failed';
@@ -286,7 +283,7 @@ export class TransactionManager {
     network: string
   ): Promise<string> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const networkConfig = NETWORKS[network];
+      const networkConfig = getNetworks()[network];
       if (!networkConfig) {
         throw new Error(`Unsupported network: ${network}`);
       }
@@ -300,7 +297,7 @@ export class TransactionManager {
       }
 
       // Estimate gas
-      const estimatedGas = await estimateGas(
+      const estimatedGas = await web3Utils.estimateGas(
         walletData.address,
         to,
         value,
@@ -319,8 +316,7 @@ export class TransactionManager {
   // Get gas price for a network
   async getGasPrice(network: string): Promise<string> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const { getGasPrice } = await import('../utils/web3-utils');
-      return await getGasPrice(network);
+      return await web3Utils.getGasPrice(network);
     } catch (error) {
        
       // console.error('Failed to get gas price:', error);
@@ -331,8 +327,7 @@ export class TransactionManager {
   // Get transaction count (nonce) for an address
   async getTransactionCount(address: string, network: string): Promise<number> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const { getTransactionCount } = await import('../utils/web3-utils');
-      const nonceString = await getTransactionCount(address, network);
+      const nonceString = await web3Utils.getTransactionCount(address, network);
       return parseInt(nonceString, 16);
     } catch (error) {
        
@@ -344,8 +339,7 @@ export class TransactionManager {
   // Sign a transaction
   async signTransaction(transaction: any, privateKey: string, network: string): Promise<string> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const { signTransaction } = await import('../utils/web3-utils');
-      return await signTransaction(transaction, privateKey, network);
+      return await web3Utils.signTransaction(transaction, privateKey, network);
     } catch (error) {
        
       // console.error('Failed to sign transaction:', error);
@@ -356,8 +350,7 @@ export class TransactionManager {
   // Send a signed transaction
   async sendSignedTransaction(signedTx: string, network: string): Promise<string> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const { sendSignedTransaction } = await import('../utils/web3-utils');
-      return await sendSignedTransaction(signedTx, network);
+      return await web3Utils.sendSignedTransaction(signedTx, network);
     } catch (error) {
        
       // console.error('Failed to send signed transaction:', error);
@@ -368,8 +361,7 @@ export class TransactionManager {
   // Get transaction receipt
   async getTransactionReceipt(hash: string, network: string): Promise<any> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const { getTransactionReceipt } = await import('../utils/web3-utils');
-      return await getTransactionReceipt(hash, network);
+      return await web3Utils.getTransactionReceipt(hash, network);
     } catch (error) {
        
       // console.error('Failed to get transaction receipt:', error);
@@ -380,8 +372,7 @@ export class TransactionManager {
   // Get balance for an address
   async getBalance(address: string, network: string): Promise<string> {
     try { // TODO: Review useless catch block // TODO: Review useless catch block
-      const { getRealBalance } = await import('../utils/web3-utils');
-      return await getRealBalance(address, network);
+      return await web3Utils.getRealBalance(address, network);
     } catch (error) {
        
       // console.error('Failed to get balance:', error);

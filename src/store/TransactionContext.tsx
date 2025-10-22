@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { storage } from '../utils/storage-utils';
+import { getTransactionReceipt } from '../utils/web3/etherscan-utils';
 
 interface Transaction {
   id: string;
@@ -14,6 +15,7 @@ interface Transaction {
   gasPrice?: string;
   nonce: number;
   data?: string;
+  error?: string; // Add error property to Transaction interface
 }
 
 interface TransactionState {
@@ -188,21 +190,32 @@ export const TransactionProvider: React.FC<TransactionProviderProps> = ({ childr
         ...transactionState.pendingTransactions
       ];
 
-      // Check transaction status from blockchain
-      const updatedTransactions = await Promise.all(allTransactions.map(async (tx) => {
+      // Helper function to check transaction status
+      const checkTransactionStatus = async (tx: Transaction): Promise<Transaction> => {
         if (tx.status === 'pending') {
           try {
-            // In a real implementation, check transaction status from blockchain
-            // For now, keep transactions as pending until real implementation
-            return tx;
+            const receipt = await getTransactionReceipt(tx.hash, tx.network);
+            if (receipt) {
+              // Transaction found on blockchain
+              if (receipt.status === '1') {
+                return { ...tx, status: 'confirmed', gasUsed: receipt.gasUsed };
+              } else if (receipt.status === '0') {
+                return { ...tx, status: 'failed', gasUsed: receipt.gasUsed };
+              }
+            } else {
+              // If no receipt, still pending (or not yet propagated)
+              return tx;
+            }
           } catch (error) {
-            // eslint-disable-next-line no-console
-            console.error('Error checking transaction status:', error);
-            return tx;
+            console.error(`Error checking transaction status for ${tx.hash}:`, error);
+            return { ...tx, status: 'failed', error: 'Failed to check status' }; // Mark as failed if API error
           }
         }
         return tx;
-      }));
+      };
+
+      // Check transaction status from blockchain
+      const updatedTransactions = await Promise.all(allTransactions.map(checkTransactionStatus));
 
       const pending = updatedTransactions.filter(tx => tx.status === 'pending');
       const recent = updatedTransactions

@@ -1,6 +1,6 @@
 import { PaycioEthereumProvider } from '../ethereum-provider';
 import { ConnectionManager } from '../connection-manager';
-import { ToastManager } from '../../toast-manager';
+import { ToastManager } from '../toast-manager';
 import { WalletConnectManager } from '../wallet-connect-integration';
 
 export class ProviderRequestHandler {
@@ -25,7 +25,7 @@ export class ProviderRequestHandler {
           return await this.requestAccounts();
 
         case 'eth_accounts':
-          return [...this.provider._accounts];
+          return this.provider.getAccounts();
 
         // Network methods
         case 'eth_chainId':
@@ -135,12 +135,12 @@ export class ProviderRequestHandler {
   }
 
   async requestAccounts(): Promise<string[]> {
-    if (this.provider._connecting) {
+    if (this.provider.getConnecting()) { // Use getter
       throw this.provider.createProviderError(4001, 'Connection already in progress');
     }
 
     try {
-      this.provider._connecting = true;
+      this.provider.setConnecting(true); // Use setter
 
       // Check if already connected to this origin
       const { origin } = window.location;
@@ -151,33 +151,31 @@ export class ProviderRequestHandler {
       const response = await this.provider.sendToContentScript('ETH_REQUEST_ACCOUNTS');
 
       if (response && response.success) {
-        this.provider._accounts = response.data || [];
-        this.provider.selectedAddress = this.provider._accounts[0] || null;
-        this.provider._isConnected = this.provider._accounts.length > 0;
+        this.provider.setAccounts(response.data || []); // Use setter
 
-        if (this.provider._isConnected) {
+        if (this.provider.isConnected()) {
           this.provider.emit('connect', { chainId: this.provider.chainId });
-          this.provider.emit('accountsChanged', [...this.provider._accounts]);
+          this.provider.emit('accountsChanged', this.provider.getAccounts()); // Use getter
         }
 
-        return [...this.provider._accounts];
+        return this.provider.getAccounts(); // Use getter
       }
 
       if (response && response.error) {
-        if (response.error === 'WALLET_UNLOCK_REQUIRED') {
+        if (response.error.message === 'WALLET_UNLOCK_REQUIRED') {
           throw this.provider.createProviderError(4100, 'Wallet is locked. Please unlock your Paycio wallet.');
         }
-        throw this.provider.createProviderError(4001, response.error);
+        throw this.provider.createProviderError(4001, String(response.error.message || response.error || 'Failed to connect accounts'));
       }
 
       throw this.provider.createProviderError(4001, 'Failed to connect accounts');
     } finally {
-      this.provider._connecting = false;
+      this.provider.setConnecting(false); // Use setter
     }
   }
 
   async sendTransaction(params: any[]): Promise<string> {
-    if (!this.provider._isConnected) {
+    if (!this.provider.isConnected()) {
       throw this.provider.createProviderError(4100, 'Unauthorized - no accounts connected');
     }
 
@@ -188,7 +186,7 @@ export class ProviderRequestHandler {
     // Show transaction confirmation
     this.toast.show('Transaction confirmation required', 'info');
 
-    const response = await this.provider.sendToContentScript('ETH_SEND_TRANSACTION', { params });
+    const response = await this.provider.sendToContentScript('ETH_SEND_TRANSACTION', params);
 
     if (response && response.success) {
       this.toast.show('Transaction sent successfully', 'success');
@@ -196,24 +194,24 @@ export class ProviderRequestHandler {
     }
 
     this.toast.show('Transaction failed', 'error');
-    throw new Error(response?.error || 'Transaction failed');
+    throw new Error(String(response?.error?.message || response?.error || 'Transaction failed'));
   }
 
   async signTransaction(params: any[]): Promise<string> {
-    if (!this.provider._isConnected) {
+    if (!this.provider.isConnected()) {
       throw this.provider.createProviderError(4100, 'Unauthorized');
     }
 
     this.toast.show('Transaction signature required', 'info');
 
-    const response = await this.provider.sendToContentScript('ETH_SIGN_TRANSACTION', { params });
+    const response = await this.provider.sendToContentScript('ETH_SIGN_TRANSACTION', params);
 
     if (response && response.success) {
       this.toast.show('Transaction signed successfully', 'success');
       return response.data;
     }
 
-    throw new Error(response?.error || 'Transaction signing failed');
+    throw new Error(String(response?.error?.message || response?.error || 'Transaction signing failed'));
   }
 
   async sendRawTransaction(params: any[]): Promise<string> {
@@ -225,7 +223,7 @@ export class ProviderRequestHandler {
   }
 
   async personalSign(params: string[]): Promise<string> {
-    if (!this.provider._isConnected) {
+    if (!this.provider.isConnected()) {
       throw this.provider.createProviderError(4100, 'Unauthorized');
     }
 
@@ -235,18 +233,18 @@ export class ProviderRequestHandler {
 
     this.toast.show('Message signature required', 'info');
 
-    const response = await this.provider.sendToContentScript('PERSONAL_SIGN', { params });
+    const response = await this.provider.sendToContentScript('PERSONAL_SIGN', params);
 
     if (response && response.success) {
       this.toast.show('Message signed successfully', 'success');
       return response.data;
     }
 
-    throw new Error(response?.error || 'Message signing failed');
+    throw new Error(String(response?.error?.message || response?.error || 'Message signing failed'));
   }
 
   async ethSign(params: string[]): Promise<string> {
-    if (!this.provider._isConnected) {
+    if (!this.provider.isConnected()) {
       throw this.provider.createProviderError(4100, 'Unauthorized');
     }
 
@@ -254,17 +252,17 @@ export class ProviderRequestHandler {
     console.warn('eth_sign is deprecated and dangerous. Use personal_sign instead.');
     this.toast.show('Warning: eth_sign is deprecated', 'warning');
 
-    const response = await this.provider.sendToContentScript('ETH_SIGN', { params });
+    const response = await this.provider.sendToContentScript('ETH_SIGN', params);
 
     if (response && response.success) {
       return response.data;
     }
 
-    throw new Error(response?.error || 'eth_sign failed');
+    throw new Error(String(response?.error?.message || response?.error || 'eth_sign failed'));
   }
 
   async signTypedData(method: string, params: any[]): Promise<string> {
-    if (!this.provider._isConnected) {
+    if (!this.provider.isConnected()) {
       throw this.provider.createProviderError(4100, 'Unauthorized');
     }
 
@@ -274,14 +272,14 @@ export class ProviderRequestHandler {
 
     this.toast.show('Typed data signature required', 'info');
 
-    const response = await this.provider.sendToContentScript('ETH_SIGN_TYPED_DATA', { method, params });
+    const response = await this.provider.sendToContentScript('ETH_SIGN_TYPED_DATA', [method, params]);
 
     if (response && response.success) {
       this.toast.show('Typed data signed successfully', 'success');
       return response.data;
     }
 
-    throw new Error(response?.error || 'Typed data signing failed');
+    throw new Error(String(response?.error?.message || response?.error || 'Typed data signing failed'));
   }
 
   async switchChain(params: any[]): Promise<null> {
@@ -295,7 +293,7 @@ export class ProviderRequestHandler {
       throw this.provider.createProviderError(4001, 'chainId must be a non-empty string');
     }
 
-    const response = await this.provider.sendToContentScript('WALLET_SWITCH_ETHEREUM_CHAIN', { chainId });
+    const response = await this.provider.sendToContentScript('WALLET_SWITCH_ETHEREUM_CHAIN', [chainId]);
 
     if (response && response.success) {
       const oldChainId = this.provider.chainId;
@@ -308,8 +306,8 @@ export class ProviderRequestHandler {
 
       return null;
     }
-    const errorCode = response?.error?.includes('Unrecognized') ? 4902 : 4001;
-    throw this.provider.createProviderError(errorCode, response?.error || 'Chain switch failed');
+    const errorCode = (typeof response?.error?.message === 'string' && response.error.message.includes('Unrecognized')) ? 4902 : 4001;
+    throw this.provider.createProviderError(errorCode, String(response?.error?.message || response?.error || 'Chain switch failed'));
   }
 
   async addChain(params: any[]): Promise<null> {
@@ -323,14 +321,14 @@ export class ProviderRequestHandler {
       throw this.provider.createProviderError(4001, 'Missing required chain configuration');
     }
 
-    const response = await this.provider.sendToContentScript('WALLET_ADD_ETHEREUM_CHAIN', { params });
+    const response = await this.provider.sendToContentScript('WALLET_ADD_ETHEREUM_CHAIN', params);
 
     if (response && response.success) {
       this.toast.show(`Added ${chainConfig.chainName} network`, 'success');
       return null;
     }
 
-    throw this.provider.createProviderError(4001, response?.error || 'User rejected the request');
+    throw this.provider.createProviderError(4001, String(response?.error?.message || response?.error || 'User rejected the request'));
   }
 
   async watchAsset(params: any[]): Promise<boolean> {
@@ -338,7 +336,7 @@ export class ProviderRequestHandler {
       throw this.provider.createProviderError(4001, 'Invalid watchAsset parameters');
     }
 
-    const response = await this.provider.sendToContentScript('WALLET_WATCH_ASSET', { params });
+    const response = await this.provider.sendToContentScript('WALLET_WATCH_ASSET', params);
 
     if (response && response.success) {
       this.toast.show('Asset added to wallet', 'success');
@@ -349,7 +347,7 @@ export class ProviderRequestHandler {
   }
 
   async requestPermissions(params: any[]): Promise<any[]> {
-    const response = await this.provider.sendToContentScript('WALLET_REQUEST_PERMISSIONS', { params });
+    const response = await this.provider.sendToContentScript('WALLET_REQUEST_PERMISSIONS', params);
 
     if (response && response.success) {
       return response.data;
@@ -377,24 +375,20 @@ export class ProviderRequestHandler {
     const subscriptionType = params[0];
     const subscriptionId = `sub_${Math.random().toString(36).substring(2)}`;
 
-    this.provider._subscriptions.set(subscriptionId, {
+    this.provider.setSubscription(subscriptionId, { // Use setter
       type: subscriptionType,
       params: params.slice(1),
       active: true,
     });
 
-    const response = await this.provider.sendToContentScript('ETH_SUBSCRIBE', {
-      subscriptionId,
-      type: subscriptionType,
-      params: params.slice(1),
-    });
+    const response = await this.provider.sendToContentScript('ETH_SUBSCRIBE', [subscriptionId, subscriptionType, params.slice(1)]);
 
     if (response && response.success) {
       return subscriptionId;
     }
 
-    this.provider._subscriptions.delete(subscriptionId);
-    throw new Error(response?.error || 'Subscription failed');
+    this.provider.deleteSubscription(subscriptionId); // Use deleter
+    throw new Error(String(response?.error?.message || response?.error || 'Subscription failed'));
   }
 
   async unsubscribe(params: any[]): Promise<boolean> {
@@ -403,16 +397,16 @@ export class ProviderRequestHandler {
     }
 
     const subscriptionId = params[0];
-    const subscription = this.provider._subscriptions.get(subscriptionId);
+    const subscription = this.provider.getSubscription(subscriptionId); // Use getter
 
     if (!subscription) {
       return false;
     }
 
     subscription.active = false;
-    this.provider._subscriptions.delete(subscriptionId);
+    this.provider.deleteSubscription(subscriptionId); // Use deleter
 
-    const response = await this.provider.sendToContentScript('ETH_UNSUBSCRIBE', { subscriptionId });
+    const response = await this.provider.sendToContentScript('ETH_UNSUBSCRIBE', [subscriptionId]);
     return response?.success || false;
   }
 
@@ -420,37 +414,37 @@ export class ProviderRequestHandler {
   async newFilter(params: any[]): Promise<string | null> {
     const filterId = `filter_${Math.random().toString(36).substring(2)}`;
 
-    this.provider._filters.set(filterId, {
+    this.provider.setFilter(filterId, { // Use setter
       type: 'logs',
       params,
       created: Date.now(),
     });
 
-    const response = await this.provider.sendToContentScript('ETH_NEW_FILTER', { filterId, params });
+    const response = await this.provider.sendToContentScript('ETH_NEW_FILTER', [filterId, params]);
     return response?.success ? filterId : null;
   }
 
   async newBlockFilter(): Promise<string | null> {
     const filterId = `filter_${Math.random().toString(36).substring(2)}`;
 
-    this.provider._filters.set(filterId, {
+    this.provider.setFilter(filterId, { // Use setter
       type: 'newHeads',
       created: Date.now(),
     });
 
-    const response = await this.provider.sendToContentScript('ETH_NEW_BLOCK_FILTER', { filterId });
+    const response = await this.provider.sendToContentScript('ETH_NEW_BLOCK_FILTER', [filterId]);
     return response?.success ? filterId : null;
   }
 
   async newPendingTransactionFilter(): Promise<string | null> {
     const filterId = `filter_${Math.random().toString(36).substring(2)}`;
 
-    this.provider._filters.set(filterId, {
+    this.provider.setFilter(filterId, { // Use setter
       type: 'newPendingTransactions',
       created: Date.now(),
     });
 
-    const response = await this.provider.sendToContentScript('ETH_NEW_PENDING_TX_FILTER', { filterId });
+    const response = await this.provider.sendToContentScript('ETH_NEW_PENDING_TX_FILTER', [filterId]);
     return response?.success ? filterId : null;
   }
 
@@ -460,11 +454,11 @@ export class ProviderRequestHandler {
     }
 
     const filterId = params[0];
-    if (!this.provider._filters.has(filterId)) {
+    if (!this.provider.getFilter(filterId)) { // Use getter
       return [];
     }
 
-    const response = await this.provider.sendToContentScript('ETH_GET_FILTER_CHANGES', { filterId });
+    const response = await this.provider.sendToContentScript('ETH_GET_FILTER_CHANGES', [filterId]);
     return response?.success ? response.data : [];
   }
 
@@ -474,11 +468,11 @@ export class ProviderRequestHandler {
     }
 
     const filterId = params[0];
-    if (!this.provider._filters.has(filterId)) {
+    if (!this.provider.getFilter(filterId)) { // Use getter
       return [];
     }
 
-    const response = await this.provider.sendToContentScript('ETH_GET_FILTER_LOGS', { filterId });
+    const response = await this.provider.sendToContentScript('ETH_GET_FILTER_LOGS', [filterId]);
     return response?.success ? response.data : [];
   }
 
@@ -488,10 +482,10 @@ export class ProviderRequestHandler {
     }
 
     const filterId = params[0];
-    const deleted = this.provider._filters.delete(filterId);
+    const deleted = this.provider.deleteFilter(filterId); // Use deleter
 
     if (deleted) {
-      const response = await this.provider.sendToContentScript('ETH_UNINSTALL_FILTER', { filterId });
+      const response = await this.provider.sendToContentScript('ETH_UNINSTALL_FILTER', [filterId]);
       return response?.success || false;
     }
 
@@ -499,13 +493,13 @@ export class ProviderRequestHandler {
   }
 
   async proxyRpcCall(method: string, params: any[]): Promise<any> {
-    const response = await this.provider.sendToContentScript('PROXY_RPC_CALL', { method, params });
+    const response = await this.provider.sendToContentScript(method, params);
 
     if (response && response.success) {
       return response.data;
     }
 
-    throw new Error(response?.error || `RPC call ${method} failed`);
+    throw new Error(String(response?.error?.message || response?.error || `RPC call ${method} failed`));
   }
 
   async connectWalletConnect(uri: string): Promise<any> {
@@ -513,7 +507,7 @@ export class ProviderRequestHandler {
   }
 
   async getConnectedDapps(): Promise<string[]> {
-    return Array.from(this.connectionManager.connections.keys());
+    return Array.from(this.connectionManager.getConnections().keys());
   }
 
   async disconnectDapp(origin: string) {
@@ -574,6 +568,3 @@ export class ProviderRequestHandler {
     }
   }
 }
-
-
-

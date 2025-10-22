@@ -5,6 +5,7 @@ import { useWallet } from '../../store/WalletContext';
 import WalletUnlockModal from '../modals/WalletUnlockModal';
 import DAppConnectionModal from '../modals/DAppConnectionModal';
 import { WalletConnectManager } from '../../utils/walletconnect-utils';
+import { QRCodeSVG } from 'qrcode.react'; // Import QRCodeSVG for direct use
 
 interface DAppConnectionScreenProps {
   onBack: () => void;
@@ -22,6 +23,8 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
   const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState('');
   const [connectedDApps, setConnectedDApps] = useState<any[]>([]);
+  const [showUriDisplay, setShowUriDisplay] = useState(false); // New state for URI display
+  const [walletConnectUri, setWalletConnectUri] = useState(''); // New state for WalletConnect URI
   
   // Current connection request
   const [currentConnectionRequest, setCurrentConnectionRequest] = useState<any>(null);
@@ -76,7 +79,6 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
       if (success) {
         setShowUnlockModal(false);
         // Emit unlock success to WalletConnect
-        walletConnectManager.emit('wallet_unlocked', true);
       }
       return success;
     } catch (error) {
@@ -92,7 +94,7 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
       setConnectionError('');
       
       // Emit connection approval to WalletConnect
-      walletConnectManager.emit('connection_confirmed', true);
+      walletConnectManager.confirmConnectionApproval();
       
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : 'Connection failed');
@@ -103,14 +105,14 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
 
   const handleConnectionRejection = () => {
     // Emit connection rejection to WalletConnect
-    walletConnectManager.emit('connection_confirmed', false);
+    walletConnectManager.rejectConnectionApproval();
     setShowConnectionModal(false);
     setCurrentConnectionRequest(null);
   };
 
   const handleDisconnectDApp = async (dApp: any) => {
     try {
-      await walletConnectManager.disconnect(dApp.topic);
+      await walletConnectManager.disconnect();
       setConnectedDApps(prev => prev.filter(app => app.topic !== dApp.topic));
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -125,13 +127,20 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
       
       const { uri } = await walletConnectManager.connect();
       
-      // In a real implementation, you would show the QR code or URI
+      // Show the QR code and URI
+      setWalletConnectUri(uri);
+      setShowUriDisplay(true);
 
     } catch (error) {
       setConnectionError(error instanceof Error ? error.message : 'Connection failed');
     } finally {
       setIsConnecting(false);
     }
+  };
+
+  const handleCloseUriDisplay = () => {
+    setShowUriDisplay(false);
+    setWalletConnectUri('');
   };
 
   return (
@@ -269,6 +278,31 @@ const DAppConnectionScreen: React.FC<DAppConnectionScreenProps> = ({ onBack }) =
             </div>
           )}
         </div>
+
+        {/* WalletConnect URI Display (real implementation) */}
+        {showUriDisplay && walletConnectUri && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mt-6 p-6 bg-white rounded-lg shadow-lg border border-gray-200"
+          >
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Scan to Connect</h2>
+            <p className="text-gray-600 mb-4">Scan the QR code with your dApp to establish a connection.</p>
+            
+            <div className="flex flex-col items-center justify-center mb-6">
+              {/* Placeholder for QR Code - integrate a library like 'qrcode.react' or 'react-qr-code' */}
+              <QRCodeSVG value={walletConnectUri} size={192} level="H" includeMargin={true} />
+              <p className="text-sm text-gray-700 break-all text-center">{walletConnectUri}</p>
+            </div>
+
+            <button
+              onClick={handleCloseUriDisplay}
+              className="w-full py-3 px-6 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Close
+            </button>
+          </motion.div>
+        )}
 
         {/* Security Notice */}
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">

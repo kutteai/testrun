@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Wallet, Plus, Copy, Check, User, Shield } from 'lucide-react';
 import { useWallet } from '../../store/WalletContext';
 import toast from 'react-hot-toast';
+import { WalletManager as CoreWalletManager } from '../../core/wallet-manager'; // Import CoreWalletManager
 
 interface WalletConnectModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
   const [selectedWallet, setSelectedWallet] = useState<any>(null);
   const [selectedAccount, setSelectedAccount] = useState<any>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const coreWalletManager = new CoreWalletManager(); // Instantiate CoreWalletManager
 
   useEffect(() => {
     if (isOpen) {
@@ -31,18 +33,18 @@ const WalletConnectModal: React.FC<WalletConnectModalProps> = ({
 
   const loadWallets = async () => {
     try {
-      // In a real implementation, you would load all wallets from storage
-      // For now, we'll use the current wallet if available
-      if (wallet) {
-        const accounts = await getWalletAccounts();
-        setWallets([{
-          id: wallet.id,
-          name: wallet.name,
-          address: wallet.address,
-          network: wallet.currentNetwork,
-          accounts: accounts
-        }]);
-      }
+      const allWallets = await coreWalletManager.getAllWallets();
+      const walletsWithAccounts = await Promise.all(allWallets.map(async (w: any) => {
+        const accounts = await coreWalletManager.getWalletAccounts(w.id);
+        return {
+          id: w.id,
+          name: w.name,
+          address: w.address, // Assuming wallet object also has a main address field
+          network: w.currentNetwork, // Assuming wallet object also has a currentNetwork field
+          accounts: accounts,
+        };
+      }));
+      setWallets(walletsWithAccounts);
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to load wallets:', error);

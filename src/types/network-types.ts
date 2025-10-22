@@ -1,4 +1,5 @@
 export interface NetworkConfig {
+  id: string;
   name: string;
   symbol: string;
   chainId: string;
@@ -10,6 +11,8 @@ export interface NetworkConfig {
     symbol: string;
     decimals: number;
   };
+  isCustom: boolean;
+  isEnabled: boolean;
 }
 
 declare global {
@@ -43,6 +46,7 @@ declare global {
     };
   }
 }
+
 
 
 

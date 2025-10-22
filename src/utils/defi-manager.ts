@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { getRealBalance, getTokenBalance } from './web3-utils';
+import web3Utils from './web3-utils'; // Changed to default import
 import { storage } from './storage-utils';
 
 export interface DeFiProtocol {
@@ -324,44 +324,74 @@ export class DeFiManager {
   }
 
   // Add liquidity to DEX
-  async addLiquidity(
-    protocol: string,
-    tokenA: string,
-    tokenB: string,
-    amountA: string,
-    amountB: string,
-    network: string,
-    walletAddress: string,
-    privateKey: string
-  ): Promise<DeFiPosition> {
-    try {
-      const protocolInfo = this.protocols.get(protocol);
-      if (!protocolInfo) {
-        throw new Error('Protocol not found');
-      }
-
-      // In a real implementation, you would interact with the actual protocol contracts
-      const position: DeFiPosition = {
-        id: `${protocol}-${tokenA}-${tokenB}-${Date.now()}`,
-        protocol,
-        type: 'liquidity',
-        token: `${tokenA}/${tokenB}`,
-        amount: amountA,
-        value: parseFloat(amountA) * 2000, // Simplified value calculation
-        apy: protocolInfo.apy,
-        rewards: [],
-        network,
-        contractAddress: this.getProtocolContract(protocol, network),
-        createdAt: Date.now()
-      };
-
-      this.positions.set(position.id, position);
-      await this.savePositions([]);
-
-      return position;
-    } catch (error) {
-      throw new Error(`Failed to add liquidity: ${error}`);
+  async addLiquidity(protocol: string, tokenA: string, amountA: string, tokenB: string, amountB: string, network: string): Promise<DeFiPosition> {
+    const protocolInfo = this.getProtocol(protocol);
+    if (!protocolInfo) {
+      throw new Error(`Protocol ${protocol} not supported or found.`);
     }
+
+    // In a real implementation, this would involve sending a transaction to the DeFi protocol's liquidity pool contract.
+    // For simulation, we create a transaction request object and log it.
+    console.log(`Simulating addLiquidity for ${protocol} on ${network}:`);
+    const transactionRequest = {
+      to: this.getProtocolContract(protocol, network), // The DeFi protocol's router/pool contract address
+      value: '0', // If native token is part of liquidity, this would be `amountA` or `amountB` (converted to Wei)
+      data: `0x...${protocol} liquidity add calldata...`, // Placeholder for encoded contract call data
+      gasLimit: '0x50000', // Example gas limit
+      gasPrice: '0x0500000000', // Example gas price
+      network: network,
+      method: 'addLiquidity', // Custom field to describe the action
+      params: { tokenA, amountA, tokenB, amountB },
+      description: `Add ${amountA} ${tokenA} and ${amountB} ${tokenB} to ${protocol} liquidity`
+    };
+    console.log('Simulated Transaction Request:', transactionRequest);
+
+    // Assuming the transaction would be successfully submitted and processed, we return a simulated position.
+    const position: DeFiPosition = {
+      id: `simulated-tx-${Date.now()}-${Math.random().toString(36).substring(7)}`, // In real implementation, this would be a transaction hash or unique position ID
+      protocol,
+      type: 'liquidity',
+      token: `${tokenA}/${tokenB}`,
+      amount: amountA,
+      value: parseFloat(amountA) * 2000, // Simplified value calculation (would be real-time from blockchain in real app)
+      apy: protocolInfo.apy,
+      rewards: [],
+      network,
+      contractAddress: this.getProtocolContract(protocol, network),
+      createdAt: Date.now()
+    };
+
+    this.positions.set(position.id, position);
+    await this.savePositions(Array.from(this.positions.values()));
+    return position;
+  }
+
+  // Remove liquidity from a DeFi protocol
+  async removeLiquidity(positionId: string, amount: string): Promise<void> {
+    const position = this.positions.get(positionId);
+    if (!position) {
+      throw new Error(`Position with ID ${positionId} not found.`);
+    }
+
+    // In a real implementation, this would involve sending a transaction to the DeFi protocol's liquidity pool contract.
+    // For simulation, we create a transaction request object and log it.
+    console.log(`Simulating removeLiquidity for position ${positionId}:`);
+    const transactionRequest = {
+      to: position.contractAddress, // The DeFi protocol's router/pool contract address
+      value: '0', // If native token is part of liquidity, this would be `amount` (converted to Wei)
+      data: `0x...${position.protocol} liquidity remove calldata...`, // Placeholder for encoded contract call data
+      gasLimit: '0x50000', // Example gas limit
+      gasPrice: '0x0500000000', // Example gas price
+      network: position.network,
+      method: 'removeLiquidity', // Custom field to describe the action
+      params: { token: position.token, amount },
+      description: `Remove ${amount} ${position.token} from ${position.protocol} liquidity`
+    };
+    console.log('Simulated Transaction Request:', transactionRequest);
+
+    // Assuming the transaction would be successfully submitted and processed, we remove the position.
+    this.positions.delete(positionId);
+    await this.savePositions(Array.from(this.positions.values()));
   }
 
   // Lend tokens
@@ -394,7 +424,7 @@ export class DeFiManager {
       };
 
       this.positions.set(position.id, position);
-      await this.savePositions([]);
+      await this.savePositions(Array.from(this.positions.values()));
 
       return position;
     } catch (error) {
@@ -432,7 +462,7 @@ export class DeFiManager {
       };
 
       this.positions.set(position.id, position);
-      await this.savePositions([]);
+      await this.savePositions(Array.from(this.positions.values()));
 
       return position;
     } catch (error) {
@@ -551,4 +581,4 @@ export class DeFiManager {
 }
 
 // Export singleton instance
-export const defiManager = new DeFiManager(); 
+export const defiManager = new DeFiManager();

@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { getNetworks,  } from './network-utils';
 import { NetworkConfig } from '../../types/network-types';
 import { getSafeConfig } from './config-utils';
-// import { realTimeGasService } from './real-time-gas-prices';
+import { realTimeGasService } from './real-time-gas-prices';
 
 // Get gas price (real implementation with fallbacks)
 export async function getGasPrice(network: string): Promise<string> {
@@ -80,51 +80,20 @@ export async function getGasPrice(network: string): Promise<string> {
 async function getFallbackGasPrice(network: string): Promise<string> {
   try {
     // Try to get real-time gas prices first
-    // const { realTimeGasService } = await import('./real-time-gas-prices'); // Temporarily commented out to avoid import issues
-    // const gasData = await realTimeGasService.getGasPrices(network);
+    const gasData = await realTimeGasService.getGasPrices(network);
 
-    // // Convert to Wei hex format - use standard speed
-    // const gasPriceWei = ethers.parseUnits(gasData.standard.toString(), 'wei');
-    // const gasPriceHex = `0x${gasPriceWei.toString(16)}`;
+    // Convert to Wei hex format - use standard speed
+    const gasPriceWei = ethers.parseUnits(gasData.standard.toString(), 'wei');
+    const gasPriceHex = `0x${gasPriceWei.toString(16)}`;
 
-    // console.log(`PayCio: Using real-time gas price for ${network}: ${Math.floor(gasData.standard / 1e9)} Gwei`);
-    // return gasPriceHex;
-    // eslint-disable-next-line no-console
-    console.warn(`PayCio: Real-time gas price service is disabled, using static fallback for ${network}`);
-    // Static fallback prices (updated to current realistic values)
-    const fallbackPrices: Record<string, string> = {
-      ethereum: '0x12a05f200', // 5 Gwei (current ETH gas price)
-      bsc: '0x3b9aca00', // 1 Gwei (current BSC gas price)
-      polygon: '0x77359400', // 2 Gwei (current Polygon gas price)
-      avalanche: '0x3b9aca00', // 1 Gwei (current AVAX gas price)
-      arbitrum: '0x5f5e100', // 0.1 Gwei (L2 cheaper gas)
-      optimism: '0x5f5e100', // 0.1 Gwei (L2 cheaper gas)
-      base: '0x5f5e100', // 0.1 Gwei (L2 cheaper gas)
-      fantom: '0x3b9aca00', // 1 Gwei
-    };
-
-    const fallbackPrice = fallbackPrices[network] || '0x3b9aca00'; // Default 1 Gwei
-    const gasPriceGwei = Number(BigInt(fallbackPrice)) / 1e9;
-    return fallbackPrice;
+    console.log(`PayCio: Using real-time gas price for ${network}: ${Math.floor(gasData.standard / 1e9)} Gwei`);
+    return gasPriceHex;
   } catch (error: any) {
     // eslint-disable-next-line no-console
     console.warn(`PayCio: Error getting real-time gas price for ${network}, using static fallback:`, error);
 
-    // Static fallback prices (updated to current realistic values)
-    const fallbackPrices: Record<string, string> = {
-      ethereum: '0x12a05f200', // 5 Gwei (current ETH gas price)
-      bsc: '0x3b9aca00', // 1 Gwei (current BSC gas price)
-      polygon: '0x77359400', // 2 Gwei (current Polygon gas price)
-      avalanche: '0x3b9aca00', // 1 Gwei (current AVAX gas price)
-      arbitrum: '0x5f5e100', // 0.1 Gwei (L2 cheaper gas)
-      optimism: '0x5f5e100', // 0.1 Gwei (L2 cheaper gas)
-      base: '0x5f5e100', // 0.1 Gwei (L2 cheaper gas)
-      fantom: '0x3b9aca00', // 1 Gwei
-    };
-
-    const fallbackPrice = fallbackPrices[network] || '0x3b9aca00'; // Default 1 Gwei
-    const gasPriceGwei = Number(BigInt(fallbackPrice)) / 1e9;
-    return fallbackPrice;
+    // Default to a minimal gas price if real-time fetching fails
+    return '0x3B9ACA00'; // 1 Gwei in hex, a very low but functional gas price
   }
 }
 

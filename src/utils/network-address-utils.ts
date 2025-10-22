@@ -252,19 +252,21 @@ export function generateTRONAddress(seedPhrase: string, derivationPath: string):
     const checksum = crypto.createHash('sha256').update(addressBytes).digest();
     const checksum2 = crypto.createHash('sha256').update(checksum).digest();
     const finalBytes = Buffer.concat([addressBytes, checksum2.slice(0, 4)]);
-    
+
     const tronAddress = bs58.encode(finalBytes);
-    
-    // Ensure it starts with 'T' and is proper length
-    if (tronAddress.length >= 25 && tronAddress.length <= 34) {
-      return tronAddress;
+
+    // TRON addresses always start with 'T'
+    if (!tronAddress.startsWith('T')) {
+      throw new Error('Generated TRON address does not start with T');
     }
-    
-    // Fallback: Generate a deterministic address
-    const fallbackHash = crypto.createHash('sha256').update(seed).digest();
-    const fallbackAddress = bs58.encode(fallbackHash.slice(0, 25));
-    return fallbackAddress.startsWith('T') ? fallbackAddress : 'T' + fallbackAddress.slice(1);
-    
+
+    // Ensure it is proper length
+    if (tronAddress.length < 25 || tronAddress.length > 34) {
+      throw new Error(`Generated TRON address has invalid length: ${tronAddress.length}`);
+    }
+
+    return tronAddress;
+
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Error generating TRON address:', error);
@@ -290,86 +292,40 @@ export function generateLitecoinAddress(seedPhrase: string, derivationPath: stri
     const root = bip32.fromSeed(seed);
     const child = root.derivePath(derivationPath);
 
-    // eslint-disable-next-line no-console
-    console.log('Public key:', Buffer.from(child.publicKey).toString('hex'));
-    
     // Validate we have a valid public key
     if (!child.publicKey || child.publicKey.length !== 33) {
       throw new Error('Invalid public key derived from seed');
     }
-    
-    // Generate P2PKH address using bitcoinjs-lib for better compatibility
-    try {
-      const bitcoin = require('bitcoinjs-lib');
-      
-      // Create a P2PKH payment for Litecoin mainnet
-      const litecoinNetwork = {
-        messagePrefix: '\x19Litecoin Signed Message:\n',
-        bech32: 'ltc',
-        bip32: {
-          public: 0x0488b21e,
-          private: 0x0488ade4
-        },
-        pubKeyHash: 0x30, // Litecoin P2PKH version byte
-        scriptHash: 0x32, // Litecoin P2SH version byte
-        wif: 0xb0
-      };
-      
-      const { address } = bitcoin.payments.p2pkh({
-        pubkey: child.publicKey,
-        network: litecoinNetwork
-      });
-      
-      if (!address) {
-        throw new Error('Failed to generate Litecoin address');
-      }
 
-      // eslint-disable-next-line no-console
-      console.log('Address starts with L:', address.startsWith('L'));
+    // Create a P2PKH payment for Litecoin mainnet
+    const litecoinNetwork = {
+      messagePrefix: '\x19Litecoin Signed Message:\n',
+      bech32: 'ltc',
+      bip32: {
+        public: 0x0488b21e,
+        private: 0x0488ade4
+      },
+      pubKeyHash: 0x30, // Litecoin P2PKH version byte
+      scriptHash: 0x32, // Litecoin P2SH version byte
+      wif: 0xb0
+    };
 
-      // Validate the address format
-      if (address.length >= 26 && address.length <= 35 && address.startsWith('L')) {
+    const { address } = bitcoin.payments.p2pkh({
+      pubkey: Buffer.from(child.publicKey),
+      network: litecoinNetwork
+    });
 
-        return address;
-      } else {
-        throw new Error(`Invalid address format: ${address}`);
-      }
-      
-    } catch (bitcoinLibError) {
-      // eslint-disable-next-line no-console
-      console.warn('BitcoinJS-lib failed, falling back to manual generation:', bitcoinLibError);
-      
-      // Fallback to manual address generation
-      const publicKeyHash = crypto.createHash('ripemd160')
-        .update(crypto.createHash('sha256').update(child.publicKey).digest())
-        .digest();
-      
-      const versionByte = Buffer.from([0x30]); // Litecoin P2PKH version
-      const addressPayload = Buffer.concat([versionByte, publicKeyHash]);
-      
-      // Double SHA256 for checksum
-      const checksum = crypto.createHash('sha256')
-        .update(crypto.createHash('sha256').update(addressPayload).digest())
-        .digest()
-        .slice(0, 4);
-      
-      const fullAddress = Buffer.concat([addressPayload, checksum]);
-      const address = bs58.encode(fullAddress);
-      
-      // eslint-disable-next-line no-console
-      console.log('Generated address (manual):', address);
-      // eslint-disable-next-line no-console
-      console.log('Address starts with L:', address.startsWith('L'));
-
-      // Validate the address format
-      if (address.length >= 26 && address.length <= 35 && address.startsWith('L')) {
-
-        return address;
-      } else {
-        throw new Error(`Invalid address format: ${address}`);
-      }
+    if (!address) {
+      throw new Error('Failed to generate Litecoin address');
     }
-    
+
+    // Validate the address format
+    if (address.length < 26 || address.length > 35 || !address.startsWith('L')) {
+      throw new Error(`Invalid Litecoin address format: ${address}`);
+    }
+
+    return address;
+
   } catch (error) {
     // eslint-disable-next-line no-console
     console.error('Litecoin generation error details:', {

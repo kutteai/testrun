@@ -633,8 +633,8 @@ if (typeof window !== 'undefined') {
       'vitalik.bnb',      // Space ID
       'brad.crypto',      // Unstoppable
       'bonfida.sol',      // Solana
-      'example.polygon',  // PNS (not implemented)
-      'test.arb'          // ANS (not implemented)
+      'example.polygon',  // PNS
+      'test.arb'          // ANS
     ];
 
     for (const domain of testDomains) {

@@ -9,7 +9,7 @@ import { ucpiService, type UCPIData, type UCPIRegistrationResult } from '../../s
 import { ensRegistrationService, type ENSPricing } from '../../services/ens-registration-service';
 
 const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
-  const { wallet } = useWallet();
+  const { wallet, globalPassword } = useWallet();
   const [ucpiId, setUcpiId] = useState('');
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
@@ -146,30 +146,16 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
       if (existingIds.includes(id)) {
         return false;
       }
-      
-      // For demo purposes, consider most IDs as available
-      // In a real implementation, you might want to check against a local database
-      // or implement a more sophisticated availability system
-      
-      // Simple availability rules for demo:
-      const reservedIds = ['admin', 'root', 'system', 'test', 'demo', 'api', 'www', 'mail', 'ftp'];
-      if (reservedIds.includes(id.toLowerCase())) {
-        return false;
-      }
-      
-      // Check if ID contains only valid characters and is reasonable length
-      if (id.length < 3 || id.length > 20) {
-        return false;
-      }
-      
-      // For demo, consider it available if it passes basic checks
-      return true;
+
+      // Delegate to ucpiService for real-time availability check
+      const availabilityResult = await ucpiService.checkAvailability(id);
+      return availabilityResult.available;
       
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to check UCPI ID availability:', error);
       // Fallback to basic validation
-      return id.length >= 3 && id.length <= 20;
+      return id.length >= 3 && id.length <= 50; // Use broader client-side length validation
     }
   };
 
@@ -293,7 +279,7 @@ const CreateUCPIScreen: React.FC<ScreenProps> = ({ onNavigate }) => {
         id: ucpiId,
         walletAddress: wallet.address,
         network: 'ethereum',
-        publicKey: wallet.publicKey || '',
+        publicKey: await wallet.getPublicKey(globalPassword || ''), // Call getPublicKey with globalPassword
         createdAt: new Date().toISOString(),
         status: 'active' as const
       };

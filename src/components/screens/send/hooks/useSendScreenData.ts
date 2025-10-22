@@ -1,12 +1,10 @@
 import { useState, useEffect } from 'react';
-import { useWallet } from '../../../store/WalletContext';
-import { useNetwork } from '../../../store/NetworkContext';
-import { storage } from '../../../utils/storage-utils';
-import { handleError } from '../../../utils/error-handler';
+import { useWallet } from '../../../../store/WalletContext';
+import { storage } from '../../../../utils/storage-utils';
+import { handleError } from '../../../../utils/error-handler';
 
 export const useSendScreenData = () => {
-  const { wallet, getWalletAccounts, getCurrentAccount } = useWallet();
-  const { currentNetwork } = useNetwork();
+  const { currentWallet, getWalletAccounts, getCurrentAccount } = useWallet();
 
   const [fromAccount, setFromAccount] = useState<any>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
@@ -17,19 +15,18 @@ export const useSendScreenData = () => {
   // Load accounts and contacts on component mount
   useEffect(() => {
     const loadData = async () => {
-      if (!wallet) {
+      if (!currentWallet) {
         setIsLoading(false);
         return;
       }
 
       try {
-
         // Load accounts
-        const walletAccounts = await getWalletAccounts();
+        const walletAccounts = await getWalletAccounts(currentWallet.id); // Correct: getWalletAccounts expects walletId
         setAccounts(walletAccounts);
 
         // Get current account with proper fallback
-        let current = await getCurrentAccount();
+        let current = await getCurrentAccount(); // Correct: getCurrentAccount expects no arguments
 
         // If no current account, use the first available account
         if (!current && walletAccounts.length > 0) {
@@ -44,8 +41,8 @@ export const useSendScreenData = () => {
         setContacts(contactsData);
 
         // If still no account, try to get from wallet directly
-        if (!current && wallet.accounts && wallet.accounts.length > 0) {
-          const directAccount = wallet.accounts.find((acc: any) => acc.isActive) || wallet.accounts[0];
+        if (!current && currentWallet.accounts && currentWallet.accounts.length > 0) {
+          const directAccount = currentWallet.accounts.find((acc: any) => acc.isActive) || currentWallet.accounts[0];
           setFromAccount(directAccount);
         }
       } catch (error) {
@@ -61,16 +58,17 @@ export const useSendScreenData = () => {
     };
 
     loadData();
-  }, [wallet, getWalletAccounts, getCurrentAccount]);
+  }, [currentWallet?.id, getWalletAccounts, getCurrentAccount]); // Dependency array updated
 
   // Listen for wallet changes to refresh data
   useEffect(() => {
     const handleWalletChange = async (event: CustomEvent) => {
+      if (!currentWallet?.id) return; // Ensure wallet is available
       try {
-        const walletAccounts = await getWalletAccounts();
+        const walletAccounts = await getWalletAccounts(currentWallet.id); // Correct: getWalletAccounts expects walletId
         setAccounts(walletAccounts);
 
-        let current = await getCurrentAccount();
+        let current = await getCurrentAccount(); // Correct: getCurrentAccount expects no arguments
 
         // Fallback to first account if no current account
         if (!current && walletAccounts.length > 0) {
@@ -94,9 +92,10 @@ export const useSendScreenData = () => {
     };
 
     const handleAccountSwitched = async (event: CustomEvent) => {
+      if (!currentWallet?.id) return; // Ensure wallet is available
       try {
         // Update the from account immediately
-        const current = await getCurrentAccount();
+        const current = await getCurrentAccount(); // Correct: getCurrentAccount expects no arguments
         if (current) {
           setFromAccount(current);
         }
@@ -112,19 +111,20 @@ export const useSendScreenData = () => {
       window.removeEventListener('walletChanged', handleWalletChange as EventListener);
       window.removeEventListener('accountSwitched', handleAccountSwitched as EventListener);
     };
-  }, [getWalletAccounts, getCurrentAccount]);
+  }, [currentWallet?.id, getWalletAccounts, getCurrentAccount]); // Dependency array updated
 
   // Set currency based on current network and refresh data when network changes
   useEffect(() => {
-    if (currentNetwork) {
-      setSelectedCurrency(currentNetwork.symbol || 'ETH');
+    if (currentWallet?.currentNetwork) {
+      setSelectedCurrency(currentWallet.currentNetwork.symbol || 'ETH');
       // Refresh accounts when network changes
       const refreshData = async () => {
+        if (!currentWallet?.id) return; // Ensure wallet is available
         try {
-          const walletAccounts = await getWalletAccounts();
+          const walletAccounts = await getWalletAccounts(currentWallet.id); // Correct: getWalletAccounts expects walletId
           setAccounts(walletAccounts);
 
-          let current = await getCurrentAccount();
+          let current = await getCurrentAccount(); // Correct: getCurrentAccount expects no arguments
 
           // Fallback to first account if no current account
           if (!current && walletAccounts.length > 0) {
@@ -139,7 +139,7 @@ export const useSendScreenData = () => {
       };
       refreshData();
     }
-  }, [currentNetwork, getWalletAccounts, getCurrentAccount]);
+  }, [currentWallet?.currentNetwork?.id, getWalletAccounts, getCurrentAccount]); // Dependency array updated to use .id
 
   return {
     fromAccount,
@@ -154,6 +154,7 @@ export const useSendScreenData = () => {
     setSelectedCurrency,
   };
 };
+
 
 
 

@@ -99,7 +99,7 @@ export interface WalletData {
   encryptedSeedPhrase: string;
   accounts: WalletAccount[];
   networks: string[];
-  currentNetwork: string;
+  currentNetwork: Network | null; // Changed from string to Network | null
   derivationPath: string;
   balance: string;
   createdAt: number;
@@ -120,6 +120,12 @@ export interface Network {
   rpcUrl: string;
   chainId: string;
   explorerUrl: string;
+  apiKey?: string; // Add apiKey property
+  nativeCurrency?: { // Add nativeCurrency property
+    name: string;
+    symbol: string;
+    decimals: number;
+  };
   isCustom: boolean;
   isEnabled: boolean;
 }
@@ -185,20 +191,21 @@ export interface Balance {
 }
 
 export interface WalletState {
-  wallet: WalletData | null;
+  wallets: WalletData[];
+  currentWallet: WalletData | null;
   isWalletUnlocked: boolean;
   hasWallet: boolean;
-  balances: Balance;
+  balances: Balance; // This will now represent combined balances or can be refined
   isLoading: boolean;
   error: string | null;
   isWalletCreated: boolean;
   isInitializing: boolean;
-  address: string | null;
+  address: string | null; // Derived from currentWallet
   currentNetwork: Network | null;
-  currentAccount: any; // Add missing currentAccount property
-  networks: Network[];
-  accounts: WalletAccount[];
-  privateKey: string | null;
+  currentAccount: WalletAccount | null; // Use WalletAccount type
+  // networks: Network[]; // Redundant, networks are in currentWallet or specific accounts
+  // accounts: WalletAccount[]; // Redundant, accounts are in currentWallet
+  // privateKey: string | null; // Redundant, use getPrivateKey method on currentAccount
   globalPassword: string | null;
 }
 
@@ -247,7 +254,8 @@ export interface PortfolioState {
 
 // Context types
 export interface WalletContextType {
-  wallet: WalletData | null;
+  wallets: WalletData[];
+  currentWallet: WalletData | null;
   isWalletUnlocked: boolean;
   hasWallet: boolean;
   balances: Balance;
@@ -255,12 +263,12 @@ export interface WalletContextType {
   error: string | null;
   isWalletCreated: boolean;
   isInitializing: boolean;
-  address: string | null;
+  address: string | null; // Derived from currentWallet
   currentNetwork: Network | null;
-  currentAccount: any; // Add missing currentAccount property
-  networks: Network[];
-  accounts: WalletAccount[];
-  privateKey: string | null;
+  currentAccount: WalletAccount | null; // Use WalletAccount type
+  // networks: Network[]; // Redundant
+  // accounts: WalletAccount[]; // Redundant
+  // privateKey: string | null; // Redundant
 
   globalPassword: string | null;
   createWallet: (name: string, network: string, password: string) => Promise<void>;
@@ -273,16 +281,17 @@ export interface WalletContextType {
   updateAllBalances: () => Promise<void>;
   initializeWallet: () => Promise<void>;
   addHardwareWallet: (type: 'ledger' | 'trezor' | 'lattice' | 'qr', address: string, derivationPath: string) => Promise<void>;
-  switchAccount: (accountId: string) => Promise<void>;
-  addAccount: (password: string, accountName?: string) => Promise<{account: any, seedPhrase: string}>;
-  addAccountFromSeedPhrase: (seedPhrase: string, password: string, accountName?: string) => Promise<any>;
-  addAccountFromPrivateKey: (privateKey: string, password: string, accountName?: string) => Promise<any>;
-  removeAccount: (accountId: string) => Promise<void>;
-  getCurrentAccount: () => Promise<any>;
-  getWalletAccounts: () => Promise<any[]>;
+  switchAccount: (walletId: string, accountId: string) => Promise<void>; // Updated signature to include walletId
+  addAccount: (walletId: string, password: string, accountName?: string) => Promise<{account: WalletAccount, seedPhrase: string}>; // Updated return type
+  addAccountFromSeedPhrase: (walletId: string, seedPhrase: string, password: string, accountName?: string) => Promise<WalletAccount>; // Updated signature and return type
+  addAccountFromPrivateKey: (walletId: string, privateKey: string, password: string, accountName?: string) => Promise<WalletAccount>; // Updated signature and return type
+  removeAccount: (walletId: string, accountId: string) => Promise<void>; // Updated signature to include walletId
+  getCurrentAccount: () => Promise<WalletAccount | null>; // Updated return type
+  getWalletAccounts: (walletId: string) => Promise<WalletAccount[]>; // Updated signature and return type
   getPassword: () => Promise<string | null>; // Add missing getPassword method
   decryptPrivateKey: (password: string) => Promise<string | null>; // Add missing decryptPrivateKey method
   getAccountPrivateKey: (accountId: string, password: string) => Promise<string | null>; // Add new function
+  getAccountPublicKey: (accountId: string, password: string) => Promise<string | null>; // Add new function
   getAccountSeedPhrase: (accountId: string, password: string) => Promise<string | null>; // Add new function
   refreshWallet: () => Promise<void>; // Add refresh wallet function
   setGlobalPassword: (password: string) => void;
@@ -294,9 +303,13 @@ export interface WalletContextType {
   debugUnlockIssue: (testPassword: string) => Promise<void>;
   debugStorage: () => Promise<boolean>;
   // Multi-wallet support functions
-  getAllWallets: () => Promise<any[]>;
+  getAllWallets: () => Promise<WalletData[]>; // Updated return type
   switchWallet: (walletId: string) => Promise<void>;
-  getActiveWallet: () => Promise<any | null>;
+  getActiveWallet: () => Promise<WalletData | null>; // Updated return type
+  updateWalletName: (walletId: string, newName: string) => Promise<void>; // Added
+  updateAccountName: (walletId: string, accountId: string, newName: string) => Promise<void>; // Added
+  exportWallet: (walletId: string, password: string) => Promise<string>; // Added
+  importWalletFromBackup: (backupData: string, password: string) => Promise<void>; // Added
 }
 
 export interface SecurityContextType {
@@ -339,6 +352,9 @@ export interface TransactionContextType {
 export interface NFTContextType {
   nftState: NFTState;
   nfts: NFT[];
+  collections: string[];
+  isLoading: boolean;
+  error: string | null;
   addNFT: (nft: Omit<NFT, 'id'>) => void;
   removeNFT: (nftId: string) => void;
   getNFTsByCollection: (collection: string) => NFT[];

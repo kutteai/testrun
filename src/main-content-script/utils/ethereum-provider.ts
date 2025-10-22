@@ -1,16 +1,17 @@
 import EventEmitter from 'events';
 import { getBrowser } from '../../utils/browser';
-import { ExtensionMessage, ExtensionResponse, WalletState } from '../../types/content-script';
+import { ExtensionResponse, WalletState } from '../../types/content-script';
 import { NetworkManager } from '../../core/network-manager';
 import { WalletManager } from '../../core/wallet-manager';
-import { PaycioTransaction } from '../../types/transaction';
-import { ToastManager } from './toast-manager';
+import { Transaction } from '../../types/index';
+import { ToastManager } from '/Users/mac/Desktop/desktop2/untitled_folder_2/sow/src/main-content-script/utils/toast-manager';
 import { ConnectionManager } from './connection-manager';
 import { WalletConnectManager } from './wallet-connect-integration';
 import { ProviderInitializer } from './ethereum-provider/provider-initializer';
 import { ProviderEventHandler } from './ethereum-provider/provider-event-handler';
 import { ProviderRequestProcessor } from './ethereum-provider/provider-request-processor';
 import { ProviderRequestHandler } from './ethereum-provider/provider-request-handler';
+import { ExtensionMessage } from '../../types/content-script';
 
 interface ProviderRequest {
   method: string;
@@ -104,6 +105,71 @@ class PaycioEthereumProvider extends EventEmitter {
     this.selectedAddress = data?.selectedAddress || null;
     this.chainId = data?.chainId || '0x1';
     this.networkVersion = data?.networkVersion || '1';
+  }
+
+  getAccounts(): string[] {
+    return [...this._accounts];
+  }
+
+  setConnecting(isConnecting: boolean) {
+    this._connecting = isConnecting;
+  }
+
+  getConnecting(): boolean {
+    return this._connecting;
+  }
+
+  setAccounts(accounts: string[]) {
+    this._accounts = accounts;
+    this.selectedAddress = accounts[0] || null;
+    this._isConnected = accounts.length > 0;
+  }
+
+  setSubscription(id: string, subscription: any) {
+    this._subscriptions.set(id, subscription);
+  }
+
+  getSubscription(id: string): any {
+    return this._subscriptions.get(id);
+  }
+
+  deleteSubscription(id: string): boolean {
+    return this._subscriptions.delete(id);
+  }
+
+  setFilter(id: string, filter: any) {
+    this._filters.set(id, filter);
+  }
+
+  getFilter(id: string): any {
+    return this._filters.get(id);
+  }
+
+  deleteFilter(id: string): boolean {
+    return this._filters.delete(id);
+  }
+
+  async sendToContentScript(rpcMethod: string, rpcParams?: any[]): Promise<ExtensionResponse> {
+    return new Promise((resolve) => {
+      const message: ExtensionMessage = {
+        type: 'PAYCIO_REQUEST',
+        method: rpcMethod,
+        params: rpcParams,
+        __from: 'dapp-injected',
+        __to: 'content-script',
+        id: this._requestId++,
+      };
+
+      this._pendingRequests.set(message.id.toString(), resolve);
+
+      // Correctly call sendMessage
+      (this.browserAPI.runtime.sendMessage as (message: any) => void)(message);
+    });
+  }
+
+  async request(payload: ProviderRequest): Promise<any> {
+    // For now, delegate directly to the requestHandler
+    return this.requestHandler.handleRequest(payload.method, payload.params);
   }
 
   handleProviderEvent(eventData: any) {

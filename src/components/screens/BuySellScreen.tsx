@@ -29,7 +29,7 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
   const [showCryptoDropdown, setShowCryptoDropdown] = useState(false);
   const [priceError, setPriceError] = useState(false);
   
-  const { wallet, currentNetwork, switchNetwork } = useWallet();
+  const { wallet, currentNetwork, switchNetwork, updateAllBalances } = useWallet();
 
   const fiatCurrencies = [
     { symbol: 'USD', name: 'US Dollar', icon: '💵', color: 'bg-yellow-500' },
@@ -482,9 +482,8 @@ const BuySellScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) => {
     try {
       // Refresh wallet balance from blockchain
       if (wallet?.address) {
-        // This would trigger a balance refresh in the wallet context
-        // The actual implementation would depend on your wallet management system
-
+    
+        await updateAllBalances();
       }
     } catch (error) {
       // eslint-disable-next-line no-console

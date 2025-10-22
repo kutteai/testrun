@@ -3,6 +3,7 @@ import {
   securityUtils
 } from '../utils/security-utils';
 import { storage } from '../utils/storage-utils';
+import * as crypto from 'crypto';
 
 export interface SecurityState {
   isAuthenticated: boolean;
@@ -96,7 +97,7 @@ export class SecurityManager {
   // Authenticate user
   async authenticate(password: string): Promise<boolean> {
     try {
-      // In a real implementation, you would verify the password against stored hash
+      
       const storedPassword = await this.getStoredPassword();
       
       if (storedPassword === password) {
@@ -188,11 +189,31 @@ export class SecurityManager {
       throw new Error('Password does not meet security requirements');
     }
 
-    // In a real implementation, you would hash and store the password securely
     await this.storePassword(password);
   }
 
-  // Store password securely (real implementation)
+  // Change password
+  async changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    // First, authenticate the old password
+    const isAuthenticated = await this.authenticate(oldPassword);
+    if (!isAuthenticated) {
+      throw new Error('Invalid current password');
+    }
+
+    // Validate the new password strength
+    const validation = this.validatePassword(newPassword);
+    if (!validation.isValid) {
+      throw new Error('New password does not meet security requirements');
+    }
+
+    // Store the new password (which will encrypt it)
+    await this.storePassword(newPassword);
+
+    // Update last activity to reflect successful password change
+    this.state.lastActivity = Date.now();
+    await this.saveSecuritySettings();
+  }
+
   private async storePassword(password: string): Promise<void> {
     try {
       // Hash password before storing
@@ -213,7 +234,6 @@ export class SecurityManager {
     }
   }
 
-  // Get stored password (real implementation)
   private async getStoredPassword(): Promise<string | null> {
     try {
       const encryptedPassword = await this.getEncryptedPassword();
@@ -238,19 +258,27 @@ export class SecurityManager {
   // Get master key for password encryption
   private async getMasterKey(): Promise<string> {
     try {
-      // In a real implementation, this would be derived from device-specific data
-      // For now, we'll use a combination of user agent and device info
-      const userAgent = navigator.userAgent;
-      const deviceInfo = `${navigator.platform}-${navigator.language}`;
-      const masterKey = `${userAgent}-${deviceInfo}-paycio-wallet-2024`;
-      
-      return masterKey;
+      // Attempt to retrieve existing master key from storage
+      const result = await storage.get(['masterKey']);
+      if (result.masterKey) {
+        return result.masterKey;
+      }
+
+      // Generate a new master key if none exists
+      const uuid = crypto.randomUUID();
+      const browserFingerprint = `${navigator.userAgent}-${navigator.platform}-${screen.width}x${screen.height}-${navigator.language}`;
+      const derivedMasterKey = `${uuid}-${crypto.createHash('sha256').update(browserFingerprint).digest('hex')}`;
+
+      // Store the newly generated master key securely
+      await storage.set({ masterKey: derivedMasterKey });
+
+      return derivedMasterKey;
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Error getting master key:', error);
       throw error;
     }
-  }
+  } 
 
   // Secure store data
   async secureStore(key: string, value: any, password: string): Promise<void> {
@@ -276,17 +304,5 @@ export class SecurityManager {
       isLocked: false,
       lockoutUntil: 0
     };
-  }
-
-  // Check if biometric auth is available
-  async isBiometricAvailable(): Promise<boolean> {
-    // In a real implementation, check if device supports biometric authentication
-    return false;
-  }
-
-  // Authenticate with biometric
-  async authenticateWithBiometric(): Promise<boolean> {
-    // In a real implementation, trigger biometric authentication
-    return false;
   }
 } 

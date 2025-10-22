@@ -1,5 +1,7 @@
-import { getRealBalance, getMultipleTokenPrices } from '../utils/web3-utils';
+import web3Utils from '../utils/web3-utils'; // Import web3Utils
 import { storage } from '../utils/storage-utils';
+import { WalletManager as CoreWalletManager } from '../core/wallet-manager'; // Import WalletManager
+import { WalletAccount } from '../types'; // New import
 
 export interface PortfolioValue {
   totalUSD: number;
@@ -40,309 +42,265 @@ const TOKEN_IDS: Record<string, string> = {
 };
 
 export class PortfolioManager {
-  private portfolioValue: PortfolioValue | null = null;
-  private history: PortfolioHistoryEntry[] = [];
+  private portfolio: Record<string, any> = {}; // { [walletId]: { totalBalance, assets, history } }
+  private prices: Record<string, any> = {}; // { [tokenSymbol]: { usdPrice, last24hChange } }
+  private historicalPrices: Record<string, any> = {}; // { [tokenSymbol]: [{ timestamp, usdPrice }] }
+  private coreWalletManager: CoreWalletManager;
 
   constructor() {
-    this.loadPortfolioData();
+    // Initialize with data from storage or defaults
+    this.loadPortfolio();
+    this.coreWalletManager = new CoreWalletManager(); // Instantiate CoreWalletManager
   }
 
-  // Load portfolio data from storage
-  private async loadPortfolioData(): Promise<void> {
+  // Load portfolio from storage
+  private async loadPortfolio(): Promise<void> {
     try {
-      const result = await storage.get(['portfolioValue', 'portfolioHistory']);
-      if (result.portfolioValue) {
-        this.portfolioValue = result.portfolioValue;
+      const result = await storage.get(['portfolio', 'prices', 'historicalPrices']);
+      if (result.portfolio) {
+        this.portfolio = result.portfolio;
       }
-      if (result.portfolioHistory) {
-        this.history = result.portfolioHistory;
+      if (result.prices) {
+        this.prices = result.prices;
+      }
+      if (result.historicalPrices) {
+        this.historicalPrices = result.historicalPrices;
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to load portfolio data:', error);
+      console.error('Failed to load portfolio from storage:', error);
     }
   }
 
-  // Save portfolio data to storage
-  private async savePortfolioData(): Promise<void> {
+  // Save portfolio to storage
+  private async savePortfolio(): Promise<void> {
     try {
       await storage.set({
-        portfolioValue: this.portfolioValue,
-        portfolioHistory: this.history
+        portfolio: this.portfolio,
+        prices: this.prices,
+        historicalPrices: this.historicalPrices
       });
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to save portfolio data:', error);
+      console.error('Failed to save portfolio to storage:', error);
     }
   }
 
-  // Update portfolio with real data
-  async updatePortfolio(): Promise<PortfolioValue> {
+  async updatePortfolio(walletId: string, accounts: WalletAccount[], network: string): Promise<any> {
     try {
-      // Get wallet address from storage
-      const walletData = await this.getWalletFromStorage();
-      if (!walletData?.address) {
-        throw new Error('No wallet found');
-      }
+      let totalBalance = 0;
+      const assetBalances: any[] = [];
 
-      const address = walletData.address;
-      const networks = ['ethereum', 'bsc', 'polygon', 'avalanche', 'arbitrum', 'optimism'];
-      const assets = [];
+      for (const account of accounts) {
+        const address = account.addresses[network] || account.addresses[account.networks[0]];
+        if (!address) continue;
 
-      // Fetch real balances for all networks
-      for (const network of networks) {
-        try {
-          const balance = await getRealBalance(address, network);
-          const balanceInEth = parseFloat(balance) / Math.pow(10, 18); // Convert from wei to ETH
-          
-          if (balanceInEth > 0.0001) { // Only include significant balances
-            assets.push({
-              network,
-              symbol: this.getNetworkSymbol(network),
-              balance: balance,
-              usdValue: 0, // Will be calculated after getting prices
-              change24h: 0,
-              changePercent: 0
-            });
+        // Fetch native token balance
+        const nativeBalance = parseFloat(await web3Utils.getRealBalance(address, network)); // Use web3Utils
+        totalBalance += nativeBalance;
+        assetBalances.push({ type: 'native', symbol: network, balance: nativeBalance });
+
+        // Fetch token balances (ERC20, Solana SPL, etc.)
+        const tokens = await this.getTokenListForNetwork(network);
+        for (const token of tokens) {
+          const tokenBalance = parseFloat(await web3Utils.getTokenBalance(token.address, address, network)); // Use web3Utils
+          if (tokenBalance > 0) {
+            assetBalances.push({ type: 'token', ...token, balance: tokenBalance });
+            totalBalance += tokenBalance; // This needs to be price-adjusted later
           }
-        } catch (error) {
-          // eslint-disable-next-line no-console
-          console.warn(`Failed to get balance for ${network}:`, error);
-          // No fallback data - just skip this network
         }
       }
 
-      // Get real token prices from CoinGecko
-      const tokenIds = assets.map(asset => TOKEN_IDS[asset.network]).filter(Boolean);
-      let prices = {};
-      
-      try {
-        prices = await getMultipleTokenPrices(tokenIds);
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to get real prices:', error);
-        // No fallback prices - return empty portfolio if prices can't be fetched
-        throw new Error('Unable to fetch token prices');
+      // Get prices for all assets
+      const symbols = assetBalances.map(asset => asset.symbol).filter(Boolean);
+      const uniqueSymbols = [...new Set(symbols)];
+      const newPrices = await web3Utils.getMultipleTokenPrices(uniqueSymbols); // Use web3Utils
+      this.prices = { ...this.prices, ...newPrices };
+
+      // Update total balance with price adjustments and calculate 24h change
+      let adjustedTotalBalance = 0;
+      const assetsWithPrices = assetBalances.map(asset => {
+        const priceData = this.prices[asset.symbol];
+        const usdValue = asset.balance * (priceData?.usdPrice || 0);
+        adjustedTotalBalance += usdValue;
+        return { ...asset, usdValue, priceData };
+      });
+
+      // Calculate 24h price changes for display
+      const portfolio24hChange = this.calculate24hChange(assetsWithPrices);
+
+      this.portfolio[walletId] = {
+        totalBalance: adjustedTotalBalance,
+        assets: assetsWithPrices,
+        lastUpdate: Date.now(),
+        change24h: portfolio24hChange,
+      };
+      await this.savePortfolio();
+
+      return this.portfolio[walletId];
+    } catch (error) {
+      console.error('Error updating portfolio:', error);
+      throw error;
+    }
+  }
+
+  private calculate24hChange(assetsWithPrices: any[]): number {
+    // This is a simplified calculation. A real implementation would involve fetching
+    // historical prices 24 hours ago for each asset and comparing.
+    // For now, we'll use the 24hPriceChange from the fetched current price data.
+
+    let totalCurrentValue = 0;
+    let totalValue24hAgo = 0;
+
+    assetsWithPrices.forEach(asset => {
+      if (asset.priceData && typeof asset.priceData.usdPrice === 'number' && typeof asset.priceData.usd24hChange === 'number') {
+        totalCurrentValue += asset.usdValue;
+        // Estimate value 24h ago based on current price and 24h change percentage
+        const price24hAgo = asset.priceData.usdPrice / (1 + (asset.priceData.usd24hChange / 100));
+        totalValue24hAgo += asset.balance * price24hAgo;
       }
-
-      // Calculate real USD values
-      let totalUSD = 0;
-      for (const asset of assets) {
-        const price = prices[TOKEN_IDS[asset.network]] || 0;
-        const balanceInEth = parseFloat(asset.balance) / Math.pow(10, 18);
-        asset.usdValue = balanceInEth * price;
-        totalUSD += asset.usdValue;
-      }
-
-      // Get 24h price changes from CoinGecko
-      let priceChanges = {};
-      try {
-        priceChanges = await this.get24hPriceChanges(tokenIds);
-      } catch (error) {
-        // eslint-disable-next-line no-console
-        console.warn('Failed to get real price changes:', error);
-        // No fallback price changes - use 0% change if can't fetch
-        tokenIds.forEach(id => {
-          priceChanges[id] = { changePercent: 0 };
-        });
-      }
-      
-      // Update assets with real price changes
-      let totalChange24h = 0;
-      for (const asset of assets) {
-        const tokenId = TOKEN_IDS[asset.network];
-        const priceChange = priceChanges[tokenId];
-        if (priceChange) {
-          asset.change24h = (asset.usdValue * priceChange.changePercent) / 100;
-          asset.changePercent = priceChange.changePercent;
-          totalChange24h += asset.change24h;
-        }
-      }
-
-      const totalChangePercent = totalUSD > 0 ? (totalChange24h / (totalUSD - totalChange24h)) * 100 : 0;
-
-    this.portfolioValue = {
-      totalUSD,
-      totalChange24h,
-      totalChangePercent,
-        assets,
-        rates: prices,
-      lastUpdated: Date.now()
-    };
-
-    // Add to history
-    this.history.push({
-      timestamp: Date.now(),
-      totalUSD,
-      change24h: totalChange24h
     });
 
-    // Keep only last 30 days of history
-    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-    this.history = this.history.filter(entry => entry.timestamp > thirtyDaysAgo);
+    if (totalValue24hAgo === 0) return 0;
 
-    await this.savePortfolioData();
-    return this.portfolioValue;
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to update portfolio:', error);
-      // Return empty portfolio if real data can't be fetched
-      return {
-        totalUSD: 0,
-        totalChange24h: 0,
-        totalChangePercent: 0,
-        assets: [],
-        rates: {},
-        lastUpdated: Date.now()
-      };
-    }
+    return ((totalCurrentValue - totalValue24hAgo) / totalValue24hAgo) * 100;
   }
 
-  // Get 24h price changes from CoinGecko
-  private async get24hPriceChanges(tokenIds: string[]): Promise<Record<string, { changePercent: number }>> {
+  // Get asset prices (USD)
+  async getAssetPrices(symbols: string[]): Promise<Record<string, any>> {
     try {
-      const config = this.getConfig();
-      const apiKey = config.COINGECKO_API_KEY;
-      
-      const baseUrl = 'https://api.coingecko.com/api/v3';
-      const ids = tokenIds.join(',');
-      const url = apiKey 
-        ? apiKey ? 
-          `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&x_cg_demo_api_key=${apiKey}` :
-          `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`
-        : `${baseUrl}/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`;
-
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      
-      const changes: Record<string, { changePercent: number }> = {};
-      tokenIds.forEach(id => {
-        changes[id] = {
-          changePercent: data[id]?.usd_24h_change || 0
-        };
-      });
-
-      return changes;
+      const prices = await web3Utils.getMultipleTokenPrices(symbols); // Use web3Utils
+      this.prices = { ...this.prices, ...prices };
+      await this.savePortfolio();
+      return prices;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error getting 24h price changes:', error);
+      console.error('Error fetching asset prices:', error);
       return {};
     }
   }
 
-  // Get wallet from storage
-  private async getWalletFromStorage(): Promise<any> {
+  // Get historical prices for an asset
+  async getHistoricalPrices(symbol: string, days: number): Promise<any[]> {
     try {
-      const result = await storage.get(['wallet']);
-      return result.wallet || null;
+      // This is a placeholder. A real implementation would fetch from a historical data API.
+      // For now, we return dummy data.
+      const historicalData = [];
+      for (let i = 0; i < days; i++) {
+        historicalData.push({
+          timestamp: Date.now() - i * 24 * 60 * 60 * 1000,
+          usdPrice: this.prices[symbol]?.usdPrice * (1 + (Math.random() - 0.5) * 0.1) // Simulate price fluctuation
+        });
+      }
+      this.historicalPrices[symbol] = historicalData;
+      await this.savePortfolio();
+      return historicalData;
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to get wallet from storage:', error);
+      console.error('Error fetching historical prices:', error);
+      return [];
+    }
+  }
+
+  // Helper to get token list for a network (placeholder for a real token registry)
+  private async getTokenListForNetwork(network: string): Promise<any[]> {
+    // In a real application, this would fetch from a token registry or API
+    if (network === 'ethereum') {
+      return [
+        { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', symbol: 'DAI', name: 'Dai Stablecoin', decimals: 18 },
+        { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
+        // Add more tokens
+      ];
+    }
+    return [];
+  }
+
+  // Get total portfolio balance (sum of all wallets' totalBalance)
+  getTotalPortfolioBalance(): number {
+    return Object.values(this.portfolio).reduce((sum: number, p: any) => sum + p.totalBalance, 0);
+  }
+
+  // Get portfolio assets across all wallets
+  getAllPortfolioAssets(): any[] {
+    const allAssets: Record<string, any> = {};
+    Object.values(this.portfolio).forEach((p: any) => {
+      p.assets.forEach((asset: any) => {
+        if (allAssets[asset.symbol]) {
+          allAssets[asset.symbol].balance += asset.balance;
+          allAssets[asset.symbol].usdValue += asset.usdValue;
+        } else {
+          allAssets[asset.symbol] = { ...asset };
+        }
+      });
+    });
+    return Object.values(allAssets);
+  }
+
+  // Get individual wallet portfolio
+  getWalletPortfolio(walletId: string): any | null {
+    return this.portfolio[walletId] || null;
+  }
+
+  // Refresh specific wallet balance (for a native token or ERC20)
+  async refreshAssetBalance(walletId: string, accountId: string, network: string, assetAddress: string = ''): Promise<void> {
+    try {
+      const walletPortfolio = this.portfolio[walletId];
+      if (!walletPortfolio) throw new Error('Wallet portfolio not found');
+
+      const account = await this.coreWalletManager.getAccountById(walletId, accountId); // Use coreWalletManager
+      if (!account) throw new Error('Account not found');
+
+      const address = account.addresses[network] || account.addresses[account.networks[0]];
+      if (!address) throw new Error('Address not found for network');
+
+      let updatedBalance = 0;
+      let assetToUpdate = walletPortfolio.assets.find((a: any) => a.address === assetAddress && a.network === network);
+
+      if (!assetAddress) {
+        // Native token
+        updatedBalance = parseFloat(await web3Utils.getRealBalance(address, network)); // Use web3Utils
+        if (assetToUpdate) {
+          assetToUpdate.balance = updatedBalance;
+        } else {
+          // Add native asset if it wasn't there initially
+          assetToUpdate = { type: 'native', symbol: network, balance: updatedBalance, network };
+          walletPortfolio.assets.push(assetToUpdate);
+        }
+      } else {
+        // ERC20 token
+        updatedBalance = parseFloat(await web3Utils.getTokenBalance(assetAddress, address, network)); // Use web3Utils
+        if (assetToUpdate) {
+          assetToUpdate.balance = updatedBalance;
+        } else {
+          // Attempt to get token metadata and add as new asset
+          const tokenMetadata = await web3Utils.getTokenMetadata(assetAddress, network); // Use web3Utils
+          if (tokenMetadata) {
+            assetToUpdate = { type: 'token', address: assetAddress, symbol: tokenMetadata.symbol, name: tokenMetadata.name, decimals: tokenMetadata.decimals, balance: updatedBalance, network };
+            walletPortfolio.assets.push(assetToUpdate);
+          }
+        }
+      }
+
+      // Recalculate USD value for the updated asset
+      if (assetToUpdate) {
+        const priceData = this.prices[assetToUpdate.symbol];
+        assetToUpdate.usdValue = assetToUpdate.balance * (priceData?.usdPrice || 0);
+      }
+
+      // Recalculate total balance and 24h change for the wallet
+      walletPortfolio.totalBalance = walletPortfolio.assets.reduce((sum: number, a: any) => sum + (a.usdValue || 0), 0);
+      walletPortfolio.change24h = this.calculate24hChange(walletPortfolio.assets);
+      walletPortfolio.lastUpdate = Date.now();
+
+      await this.savePortfolio();
+    } catch (error) {
+      console.error(`Error refreshing asset balance for ${assetAddress || network}:`, error);
+      throw error;
+    }
+  }
+
+  // Get account by ID (wrapper for CoreWalletManager)
+  async getAccountById(walletId: string, accountId: string): Promise<WalletAccount | null> {
+    const wallet = await this.coreWalletManager.getWallet(walletId);
+    if (!wallet) {
       return null;
     }
-  }
-
-  // Get network symbol
-  private getNetworkSymbol(network: string): string {
-    const symbols: Record<string, string> = {
-      ethereum: 'ETH',
-      bsc: 'BNB',
-      polygon: 'MATIC',
-      avalanche: 'AVAX',
-      arbitrum: 'ETH',
-      optimism: 'ETH',
-      bitcoin: 'BTC',
-      solana: 'SOL',
-      tron: 'TRX',
-      litecoin: 'LTC',
-      ton: 'TON',
-      xrp: 'XRP'
-    };
-    return symbols[network] || network.toUpperCase();
-  }
-
-  // Get configuration
-  private getConfig() {
-    if (typeof window !== 'undefined' && (window as any).CONFIG) {
-      return (window as any).CONFIG;
-    }
-    return {
-      COINGECKO_API_KEY: ''
-    };
-  }
-
-  // Get current portfolio value
-  getPortfolioValue(): PortfolioValue | null {
-    return this.portfolioValue;
-  }
-
-  // Get portfolio (alias for getPortfolioValue for compatibility)
-  getPortfolio(): PortfolioValue | null {
-    return this.portfolioValue;
-  }
-
-  // Get portfolio history
-  getPortfolioHistory(): PortfolioHistoryEntry[] {
-    return this.history;
-  }
-
-  // Get asset value by network and symbol
-  getAssetValue(network: string, symbol: string): number {
-    if (!this.portfolioValue) return 0;
-    
-    const asset = this.portfolioValue.assets.find(
-      a => a.network === network && a.symbol === symbol
-    );
-    
-    return asset ? asset.usdValue : 0;
-  }
-
-  // Get total portfolio value
-  getTotalValue(): number {
-    return this.portfolioValue?.totalUSD || 0;
-  }
-
-  // Refresh portfolio data
-  async refreshPortfolio(): Promise<void> {
-    await this.updatePortfolio();
-  }
-
-  // Clear portfolio data
-  async clearPortfolio(): Promise<void> {
-    this.portfolioValue = null;
-    this.history = [];
-        await this.savePortfolioData();
-  }
-
-  // Get portfolio statistics
-  getStatistics(): {
-    totalValue: number;
-    totalChange24h: number;
-    totalChangePercent: number;
-    assetCount: number;
-    lastUpdated: number | null;
-  } {
-    if (!this.portfolioValue) {
-      return {
-        totalValue: 0,
-        totalChange24h: 0,
-        totalChangePercent: 0,
-        assetCount: 0,
-        lastUpdated: null
-      };
-    }
-
-    return {
-      totalValue: this.portfolioValue.totalUSD,
-      totalChange24h: this.portfolioValue.totalChange24h,
-      totalChangePercent: this.portfolioValue.totalChangePercent,
-      assetCount: this.portfolioValue.assets.length,
-      lastUpdated: this.portfolioValue.lastUpdated
-    };
+    return wallet.accounts.find(acc => acc.id === accountId) || null;
   }
 } 

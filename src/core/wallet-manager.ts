@@ -3,10 +3,11 @@ import { ethers } from 'ethers';
 import { encryptData, decryptData } from '../utils/crypto-utils';
 import { deriveWalletFromSeed, deriveAccountFromSeed } from '../utils/key-derivation';
 import { storage } from '../utils/storage-utils';
-import type { WalletData, WalletAccount } from '../types/index';
+import type { WalletData, WalletAccount, Network } from '../types/index'; // Added Network
 import { DERIVATION_PATHS, generateNetworkAddress } from '../utils/network-address-utils';
 import { PrivateKeyAddressUtils } from '../utils/private-key-address-utils';
-import { NETWORK_CONFIGS } from '../background/index'; // Corrected import path for NETWORK_CONFIGS
+import { getNetworks } from '../utils/web3/network-utils'; // Changed import
+import web3Utils from '../utils/web3-utils'; // Added import for web3Utils
 
 
 // Internal wallet data structure for storage
@@ -17,7 +18,7 @@ interface InternalWalletData {
   // privateKey: string; // Removed for security
   // publicKey: string;  // Removed for security
   network: string;
-  currentNetwork: string;
+  currentNetwork: string | null; // Changed to Network | null
   derivationPath: string;
   createdAt: number;
   encryptedSeedPhrase: string;
@@ -138,6 +139,20 @@ export class WalletManager {
 
   // Convert internal wallet data to public WalletData format
   private convertToWalletData(wallet: InternalWalletData): WalletData {
+    // Ensure currentNetwork is a Network object by looking it up
+    const allNetworks = getNetworks();
+    const networkConfig = allNetworks[wallet.currentNetwork || '']; // Get NetworkConfig by key
+    const networkObject: Network | null = networkConfig ? {
+      id: wallet.currentNetwork || '', // Use the network key as the ID
+      name: networkConfig.name,
+      symbol: networkConfig.symbol,
+      rpcUrl: networkConfig.rpcUrl,
+      chainId: networkConfig.chainId,
+      explorerUrl: networkConfig.explorerUrl,
+      isCustom: false, // Default to false, as NetworkConfig doesn't specify
+      isEnabled: true, // Default to true
+    } : null;
+
     return {
       id: wallet.id,
       name: wallet.name,
@@ -147,9 +162,9 @@ export class WalletManager {
       encryptedSeedPhrase: wallet.encryptedSeedPhrase,
       accounts: wallet.accounts, // Keep full account objects instead of just addresses
       networks: [wallet.network],
-      currentNetwork: wallet.currentNetwork,
+      currentNetwork: networkObject, // Assign the full Network object
       derivationPath: wallet.derivationPath,
-      balance: wallet.accounts[0]?.balances?.[wallet.currentNetwork] || '0',
+      balance: wallet.accounts[0]?.balances?.[wallet.currentNetwork || ''] || '0', // Added nullish coalescing
       createdAt: wallet.createdAt,
       lastUsed: wallet.lastAccessed,
       lastAccessed: wallet.lastAccessed, // Add lastAccessed property for multi-wallet support
@@ -420,15 +435,15 @@ export class WalletManager {
           id: `${wallet.id}-${i}`,
           name: `Account ${i + 1}`,
           addresses: {
-            [wallet.currentNetwork]: acc
+            [wallet.currentNetwork || '']: acc
           },
           derivationPath: wallet.derivationPath,
-          networks: [wallet.currentNetwork],
+          networks: [wallet.currentNetwork || ''],
           balances: {
-            [wallet.currentNetwork]: '0'
+            [wallet.currentNetwork || '']: '0'
           },
           nonces: {
-            [wallet.currentNetwork]: 0
+            [wallet.currentNetwork || '']: 0
           },
           createdAt: wallet.createdAt,
           encryptedSeedPhrase: wallet.encryptedSeedPhrase,
@@ -457,15 +472,15 @@ export class WalletManager {
           id: acc.id || `${wallet.id}-${i}`,
           name: acc.name || `Account ${i + 1}`,
           addresses: {
-            [wallet.currentNetwork]: Object.values(acc.addresses || {})[0] || wallet.address
+            [wallet.currentNetwork || '']: Object.values(acc.addresses || {})[0] || wallet.address
           },
           derivationPath: acc.derivationPath || wallet.derivationPath,
-          networks: [wallet.currentNetwork],
+          networks: [wallet.currentNetwork || ''],
           balances: {
-            [wallet.currentNetwork]: acc.balances?.[wallet.currentNetwork] || '0'
+            [wallet.currentNetwork || '']: acc.balances?.[wallet.currentNetwork || ''] || '0'
           },
           nonces: {
-            [wallet.currentNetwork]: acc.nonces?.[wallet.currentNetwork] || 0
+            [wallet.currentNetwork || '']: acc.nonces?.[wallet.currentNetwork || ''] || 0
           },
           createdAt: acc.createdAt || wallet.createdAt,
           encryptedSeedPhrase: acc.encryptedSeedPhrase || wallet.encryptedSeedPhrase, // Ensure encryptedSeedPhrase is migrated
@@ -551,7 +566,8 @@ export class WalletManager {
     await this.ensureInitialized();
 
     // Validate that the network is configured
-    if (!NETWORK_CONFIGS[networkId.toLowerCase()]) {
+    const allNetworks = getNetworks(); // Call getNetworks to get the array
+    if (!allNetworks[networkId.toLowerCase()]) { // Directly check if the key exists
       console.warn(`Attempted to add unsupported network to account: ${networkId}`);
       throw new Error(`Unsupported network: ${networkId}`);
     }
@@ -712,6 +728,7 @@ export class WalletManager {
       wallet.address = networkAddress || Object.values(account.addresses)[0];
       // wallet.privateKey = account.privateKey; // Removed for security
       // wallet.publicKey = account.publicKey;   // Removed for security
+      wallet.derivationPath = account.derivationPath;
 
       await this.saveWallets();
       
@@ -768,7 +785,7 @@ export class WalletManager {
 
     // Derive new account
     const newAccountIndex = wallet.accounts.length;
-    const derivationPath = `m/44'/60'/0'/0/${newAccountIndex}`;
+    const derivationPath = `m/44'/60'/0'/0/${newAccountIndex}`; // BIP44 path for Ethereum
     const walletData = await deriveAccountFromSeed(seedPhrase, derivationPath);
     
     // Generate addresses for all supported networks
@@ -778,7 +795,8 @@ export class WalletManager {
     const networks: string[] = [];
 
     // Supported networks for address derivation
-    const supportedNetworks = ['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'bitcoin', 'solana', 'ton', 'xrp'];
+    const supportedNetworks = ['ethereum', 'polygon', 'bsc', 'arbitrum', 'optimism', 'avalanche', 
+    'bitcoin', 'litecoin', 'solana', 'tron', 'ton', 'xrp'];
     
     for (const networkId of supportedNetworks) {
       try {
@@ -1049,8 +1067,8 @@ export class WalletManager {
     const activeAccount = currentWalletInternal.accounts.find(acc => acc.isActive) || currentWalletInternal.accounts[0];
     
     return {
-      address: activeAccount.addresses[currentWalletInternal.currentNetwork] || Object.values(activeAccount.addresses)[0],
-      currentNetwork: currentWalletInternal.currentNetwork
+      address: activeAccount.addresses[currentWalletInternal.currentNetwork || ''] || Object.values(activeAccount.addresses)[0],
+      currentNetwork: currentWalletInternal.currentNetwork || ''
     };
   }
 
@@ -1077,9 +1095,7 @@ export class WalletManager {
         throw new Error('Account not found');
       }
 
-      // Import the getRealBalance function
-      const { getRealBalance } = await import('../utils/web3-utils');
-      const balance = await getRealBalance(address, network);
+      const balance = await web3Utils.getRealBalance(address, network); // Use web3Utils.getRealBalance
       
       // Update account balance
       await this.updateAccountBalance(address, balance, network);
@@ -1189,7 +1205,7 @@ export class WalletManager {
     }
 
     // Update wallet to use the selected account
-    wallet.address = account.addresses[wallet.currentNetwork] || Object.values(account.addresses)[0];
+    wallet.address = account.addresses[wallet.currentNetwork || ''] || Object.values(account.addresses)[0];
     // wallet.privateKey = account.privateKey; // Removed for security
     wallet.derivationPath = account.derivationPath;
     wallet.lastAccessed = Date.now();
@@ -1239,7 +1255,7 @@ export class WalletManager {
     
     // If no active account, try to find an account that matches the wallet's current network
     if (!currentAccount) {
-      currentAccount = validAccounts.find(acc => acc.networks.includes(wallet.currentNetwork));
+      currentAccount = validAccounts.find(acc => acc.networks.includes(wallet.currentNetwork || ''));
     }
     
     // If still not found, try to find an account that matches the wallet's address
@@ -1260,7 +1276,7 @@ export class WalletManager {
     console.log('🔍 WalletManager.getCurrentAccountForWallet: Current account:', currentAccount ? {
       id: currentAccount.id,
       name: currentAccount.name,
-      address: currentAccount.addresses[wallet.currentNetwork] || Object.values(currentAccount.addresses)[0]
+      address: currentAccount.addresses[wallet.currentNetwork || ''] || Object.values(currentAccount.addresses)[0]
     } : 'null');
     
     return currentAccount || null;
@@ -1691,10 +1707,10 @@ export class WalletManager {
 
     // If we're removing the current account, switch to the first account
     const accountToRemove = wallet.accounts[accountIndex];
-    if (wallet.address === (accountToRemove.addresses[wallet.currentNetwork] || Object.values(accountToRemove.addresses)[0])) {
+    if (wallet.address === (accountToRemove.addresses[wallet.currentNetwork || ''] || Object.values(accountToRemove.addresses)[0])) {
       const firstAccount = wallet.accounts.find(acc => acc.id !== accountId);
       if (firstAccount) {
-        wallet.address = firstAccount.addresses[wallet.currentNetwork] || Object.values(firstAccount.addresses)[0];
+        wallet.address = firstAccount.addresses[wallet.currentNetwork || ''] || Object.values(firstAccount.addresses)[0];
         // wallet.privateKey = firstAccount.privateKey; // Removed for security
         // wallet.publicKey = firstAccount.publicKey; // Removed for security
         wallet.derivationPath = firstAccount.derivationPath;
@@ -1715,10 +1731,9 @@ export class WalletManager {
     }
 
     try {
-      const { getRealBalance } = await import('../utils/web3-utils');
       const primaryNetwork = account.networks[0];
       const primaryAddress = account.addresses[primaryNetwork];
-      const balance = await getRealBalance(primaryAddress, primaryNetwork);
+      const balance = await web3Utils.getRealBalance(primaryAddress, primaryNetwork); // Use web3Utils.getRealBalance
       
       // Update account balance
       await this.updateAccountBalance(primaryAddress, balance, primaryNetwork);
@@ -1738,6 +1753,18 @@ export class WalletManager {
   // Get accounts for a specific network
   getAccountsByNetwork(network: string): WalletAccount[] {
     return this.getAllAccounts().filter(account => account.networks.includes(network));
+  }
+
+  // Update wallet name
+  async updateWalletName(walletId: string, newName: string): Promise<void> {
+    await this.ensureInitialized();
+    const wallet = this.wallets.find(w => w.id === walletId);
+    if (!wallet) {
+      throw new Error('Wallet not found');
+    }
+    wallet.name = newName;
+    wallet.lastAccessed = Date.now();
+    await this.saveWallets();
   }
 
   // Update account name

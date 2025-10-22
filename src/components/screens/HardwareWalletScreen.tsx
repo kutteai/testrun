@@ -367,7 +367,7 @@ const HardwareWalletScreen: React.FC<ScreenProps> = ({ onNavigate, onGoBack }) =
     return !selectedOption?.supported || selectedOption?.connecting || connectionStatus === 'connecting';
   };
 
-  // Test hardware wallet connection (real implementation)
+  // Function to test basic hardware wallet connectivity and address derivation
   const testConnection = async () => {
     const selectedOption = walletOptions.find(option => option.id === selectedWallet);
     

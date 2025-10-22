@@ -17,6 +17,7 @@ import {
   SignatureApprovalRequest,
   ApprovalResponse,
 } from '../components/modals/ApprovalModal/ApprovalModal.types';
+import { getNetworks } from '../utils/web3/network-utils'; // New import
 
 const coreWalletManagerInstance = new CoreWalletManager();
 
@@ -83,10 +84,47 @@ const stopKeepAlive = () => {
 };
 
 // Placeholder types for now
-type SendTransactionParams = any;
-type SignatureRequest = any;
-type SignTypedDataRequest = any;
-type Token = any;
+type SendTransactionParams = {
+  from: string;
+  to: string;
+  value: string;
+  gasPrice?: string;
+  gasLimit?: string;
+  nonce?: number;
+  data?: string;
+  chainId?: string;
+  origin: string;
+  gasEstimate: string;
+  network: string;
+};
+
+type SignatureRequest = {
+  message: string;
+  from: string;
+  method: string; // e.g., 'personal_sign', 'eth_sign'
+  origin: string;
+  network: string;
+};
+
+type SignTypedDataRequest = {
+  domain: object;
+  types: object;
+  message: object;
+  from: string;
+  method: string; // e.g., 'eth_signTypedData_v4'
+  origin: string;
+  network: string;
+};
+
+type Token = {
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  balance: string;
+  priceUsd?: number;
+  logo?: string;
+};
 
 // ============================================================================
 // CROSS-BROWSER COMPATIBILITY
@@ -94,11 +132,12 @@ type Token = any;
 
 const browserAPI = getBrowser();
 
-// Placeholder for UI approval functions - awaiting full UI implementation
-async function showTransactionApproval(params: any): Promise<boolean> {
-  // In a production environment, this would trigger a UI popup
-  // for the user to review and approve the transaction.
-  console.log('Transaction approval requested (UI pending):', params);
+
+async function showTransactionApproval(params: SendTransactionParams): Promise<boolean> {
+  // This function initiates the transaction approval process by opening a UI popup
+  // for the user to review and approve the transaction. The ApprovalPopupManager
+  // handles the actual display and user interaction.
+  console.log('Transaction approval requested:', params);
 
   const request: TransactionApprovalRequest = {
     origin: params.origin,
@@ -118,10 +157,11 @@ async function showTransactionApproval(params: any): Promise<boolean> {
   }
 }
 
-async function showSignatureApproval(params: any): Promise<boolean> {
-  // In a production environment, this would trigger a UI popup
-  // for the user to review and approve the message signature.
-  console.log('Signature approval requested (UI pending):', params);
+async function showSignatureApproval(params: SignatureRequest): Promise<boolean> {
+  // This function initiates the message signature approval process by opening a UI popup
+  // for the user to review and approve the message. The ApprovalPopupManager
+  // handles the actual display and user interaction.
+  console.log('Signature approval requested:', params);
 
   const request: SignatureApprovalRequest = {
     origin: params.origin,
@@ -151,7 +191,7 @@ async function handleTransactionRequest(txParams: SendTransactionParams, origin:
     if (!currentWallet) {
       throw new Error('No wallet found');
     }
-    const network = currentWallet.currentNetwork;
+    const networkId = currentWallet.currentNetwork?.id || 'ethereum'; // Use network.id
     
     // Validate transaction parameters
     if (!txParams.to || !ethers.isAddress(txParams.to)) {
@@ -159,7 +199,7 @@ async function handleTransactionRequest(txParams: SendTransactionParams, origin:
     }
     
     // Get gas estimate
-    const gasEstimate = await BlockchainService.makeRpcRequestWithFallbacks(network, 'eth_estimateGas', [txParams]);
+    const gasEstimate = await BlockchainService.makeRpcRequestWithFallbacks(networkId, 'eth_estimateGas', [txParams]);
     
     // Show approval dialog with actual transaction details
     const approved = await showTransactionApproval({
@@ -167,7 +207,9 @@ async function handleTransactionRequest(txParams: SendTransactionParams, origin:
       to: txParams.to,
       value: txParams.value,
       gasEstimate,
-      data: txParams.data
+      data: txParams.data,
+      from: txParams.from,
+      network: networkId,
     });
     
     if (!approved) {
@@ -175,7 +217,7 @@ async function handleTransactionRequest(txParams: SendTransactionParams, origin:
     }
     
     // Send actual transaction
-    const txHash = await BlockchainService.sendTransaction(txParams, network);
+    const txHash = await BlockchainService.sendTransaction(txParams, networkId);
     
     return {
       success: true,
@@ -196,12 +238,19 @@ async function handleSigningRequest(method: string, params: any[], origin: strin
     const message = params[0];
     const fromAddress = params[1] || account.addresses[account.networks[0]]; // Use the first address of the account
     
+    const currentWallet = coreWalletManagerInstance.getCurrentWallet();
+    if (!currentWallet) {
+      throw new Error('No wallet found for signing request');
+    }
+    const networkId = currentWallet.currentNetwork?.id || 'ethereum'; // Use network.id
+    
     // Show approval dialog with actual message details
     const approved = await showSignatureApproval({
       origin,
       method,
       message,
       from: fromAddress,
+      network: networkId,
     });
     
     if (!approved) {
@@ -593,83 +642,6 @@ interface TransactionApprovalParams {
 }
 
 // ============================================================================
-// NETWORK CONFIGURATIONS
-export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
-  ethereum: {
-    chainId: '0x1',
-    rpcUrl: 'https://eth.llamarpc.com',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    name: 'Ethereum Mainnet',
-    symbol: 'ETH',
-    explorerUrl: 'https://etherscan.io',
-    apiKey: '' // Placeholder
-  },
-  polygon: {
-    chainId: '0x89',
-    rpcUrl: 'https://polygon-rpc.com',
-    nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
-    name: 'Polygon Mainnet',
-    symbol: 'MATIC',
-    explorerUrl: 'https://polygonscan.com',
-    apiKey: '' // Placeholder
-  },
-  bsc: {
-    chainId: '0x38',
-    rpcUrl: 'https://bsc-dataseed.binance.org',
-    nativeCurrency: { name: 'Binance Coin', symbol: 'BNB', decimals: 18 },
-    name: 'Binance Smart Chain Mainnet',
-    symbol: 'BNB',
-    explorerUrl: 'https://bscscan.com',
-    apiKey: '' // Placeholder
-  },
-  avalanche: {
-    chainId: '0xa86a',
-    rpcUrl: 'https://api.avax.network/ext/bc/C/rpc',
-    nativeCurrency: { name: 'Avalanche', symbol: 'AVAX', decimals: 18 },
-    name: 'Avalanche C-Chain',
-    symbol: 'AVAX',
-    explorerUrl: 'https://snowtrace.io',
-    apiKey: '' // Placeholder
-  },
-  arbitrum: {
-    chainId: '0xa4b1',
-    rpcUrl: 'https://arb1.arbitrum.io/rpc',
-    nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
-    name: 'Arbitrum One',
-    symbol: 'ETH',
-    explorerUrl: 'https://arbiscan.io',
-    apiKey: '' // Placeholder
-  },
-  optimism: {
-    chainId: '0xa',
-    rpcUrl: 'https://mainnet.optimism.io',
-    nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
-    name: 'Optimism Mainnet',
-    symbol: 'ETH',
-    explorerUrl: 'https://optimistic.etherscan.io',
-    apiKey: '' // Placeholder
-  },
-  base: {
-    chainId: '0x2105',
-    rpcUrl: 'https://mainnet.base.org',
-    nativeCurrency: { name: 'Ethereum', symbol: 'ETH', decimals: 18 },
-    name: 'Base Mainnet',
-    symbol: 'ETH',
-    explorerUrl: 'https://basescan.org',
-    apiKey: '' // Placeholder
-  },
-  fantom: {
-    chainId: '0xfa',
-    rpcUrl: 'https://rpc.ftm.tools',
-    nativeCurrency: { name: 'Fantom', symbol: 'FTM', decimals: 18 },
-    name: 'Fantom Opera',
-    symbol: 'FTM',
-    explorerUrl: 'https://ftmscan.com',
-    apiKey: '' // Placeholder
-  }
-};
-
-// ============================================================================
 // ENHANCED MESSAGE HANDLERS
 // ============================================================================
 
@@ -885,8 +857,8 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
         throw new Error('Chain ID is required');
       }
 
-      // Map chainId to networkId using NETWORK_CONFIGS
-      const networkEntry = Object.entries(NETWORK_CONFIGS).find(([, config]) => config.chainId === chainId);
+      const networks = getNetworks();
+      const networkEntry = Object.entries(networks).find(([, config]) => config.chainId === chainId);
       if (!networkEntry) {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
@@ -910,24 +882,24 @@ const messageHandlers: Record<string, (message: any) => Promise<any>> = {
         throw new Error('Full network info (chainId, rpcUrls, chainName, name, symbol, explorerUrl, apiKey) is required');
       }
 
-      // Add the new network to NETWORK_CONFIGS (for this session, ideally persisted)
       const newNetworkId = networkInfo.chainName.toLowerCase().replace(/\s/g, '');
-      if (NETWORK_CONFIGS[newNetworkId]) {
+      const networks = getNetworks();
+      if (networks[newNetworkId]) {
         throw new Error(`Network ${networkInfo.chainName} already exists`);
       }
 
-      NETWORK_CONFIGS[newNetworkId] = {
+      networks[newNetworkId] = {
+        id: newNetworkId, // Add id
         chainId: networkInfo.chainId,
-        rpcUrl: networkInfo.rpcUrls[0], // Use the first RPC URL from the array
+        rpcUrl: networkInfo.rpcUrls[0],
         nativeCurrency: networkInfo.nativeCurrency || { name: 'Unknown', symbol: 'UNK', decimals: 18 },
         name: networkInfo.name,
         symbol: networkInfo.symbol,
         explorerUrl: networkInfo.explorerUrl,
-        apiKey: networkInfo.apiKey
+        apiKey: networkInfo.apiKey,
+        isCustom: true, // New networks are custom
+        isEnabled: true, // New networks are enabled by default
       };
-
-      // Also add to wallet manager if needed (e.g., for specific account settings)
-      // await coreWalletManagerInstance.addNetwork(newNetworkId, networkInfo);
 
       return { success: true, result: { added: true, networkId: newNetworkId } };
 
@@ -1158,21 +1130,23 @@ async function handlePublicMethod(method: string, params: any[]): Promise<any> {
   switch (method) {
     case 'eth_chainId': {
       const currentWallet = coreWalletManagerInstance.getCurrentWallet();
-      const networkConfig = currentWallet?.currentNetwork ? NETWORK_CONFIGS[currentWallet.currentNetwork] : NETWORK_CONFIGS.ethereum;
+      const networkId = currentWallet?.currentNetwork?.id || 'ethereum'; // Use network.id
+      const networkConfig = getNetworks()[networkId];
       return { success: true, data: networkConfig.chainId };
     }
 
     case 'net_version': {
       const currentWallet = coreWalletManagerInstance.getCurrentWallet();
-      const networkConfig = currentWallet?.currentNetwork ? NETWORK_CONFIGS[currentWallet.currentNetwork] : NETWORK_CONFIGS.ethereum;
+      const networkId = currentWallet?.currentNetwork?.id || 'ethereum'; // Use network.id
+      const networkConfig = getNetworks()[networkId];
       return { success: true, data: parseInt(networkConfig.chainId, 16).toString() };
     }
 
     case 'eth_blockNumber':
       try {
         const currentWallet = coreWalletManagerInstance.getCurrentWallet();
-        const network = currentWallet?.currentNetwork || 'ethereum';
-        const blockNumber = await BlockchainService.makeRpcRequestWithFallbacks(network, 'eth_blockNumber', []);
+        const networkId = currentWallet?.currentNetwork?.id || 'ethereum'; // Use network.id
+        const blockNumber = await BlockchainService.makeRpcRequestWithFallbacks(networkId, 'eth_blockNumber', []);
         return { success: true, data: blockNumber };
       } catch (error: any) {
         console.error('Error fetching block number:', error);
@@ -1210,7 +1184,8 @@ async function handleUnlockedWalletRequest(method: string, params: any[], origin
     case 'eth_getBalance': {
       const address = params[0] || account.addresses[account.networks[0]];
       if (!address) throw new Error('No address available');
-      const balance = await BlockchainService.getBalance(address, currentWallet.currentNetwork);
+      const networkId = currentWallet.currentNetwork?.id || 'ethereum'; // Use network.id
+      const balance = await BlockchainService.getBalance(address, networkId);
       return { success: true, data: balance };
     }
 
@@ -1223,8 +1198,8 @@ async function handleUnlockedWalletRequest(method: string, params: any[], origin
     default:
       // Default to making an RPC request for unhandled methods
       try {
-        const network = currentWallet.currentNetwork || 'ethereum';
-        const rpcResult = await BlockchainService.makeRpcRequestWithFallbacks(network, method, params);
+        const networkId = currentWallet.currentNetwork?.id || 'ethereum'; // Use network.id
+        const rpcResult = await BlockchainService.makeRpcRequestWithFallbacks(networkId, method, params);
         return { success: true, data: rpcResult };
       } catch (rpcError: any) {
         throw new Error(`Unsupported method or RPC error: ${method}. Details: ${rpcError.message}`);

@@ -11,6 +11,7 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
     // Merge static networks with dynamic ones from config
     const staticNetworks: Record<string, NetworkConfig> = {
       ethereum: {
+        id: 'ethereum',
         name: 'Ethereum',
         symbol: 'ETH',
         chainId: '1',
@@ -21,9 +22,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       bsc: {
+        id: 'bsc',
         name: 'Binance Smart Chain',
         symbol: 'BNB',
         chainId: '56',
@@ -34,9 +38,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'BNB',
           symbol: 'BNB',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       polygon: {
+        id: 'polygon',
         name: 'Polygon',
         symbol: 'MATIC',
         chainId: '137',
@@ -47,9 +54,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'MATIC',
           symbol: 'MATIC',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       avalanche: {
+        id: 'avalanche',
         name: 'Avalanche',
         symbol: 'AVAX',
         chainId: '43114',
@@ -60,9 +70,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Avalanche',
           symbol: 'AVAX',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       arbitrum: {
+        id: 'arbitrum',
         name: 'Arbitrum One',
         symbol: 'ETH',
         chainId: '42161',
@@ -73,9 +86,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       optimism: {
+        id: 'optimism',
         name: 'Optimism',
         symbol: 'ETH',
         chainId: '10',
@@ -86,9 +102,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       base: {
+        id: 'base',
         name: 'Base',
         symbol: 'ETH',
         chainId: '8453',
@@ -99,9 +118,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       fantom: {
+        id: 'fantom',
         name: 'Fantom',
         symbol: 'FTM',
         chainId: '250',
@@ -112,9 +134,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Fantom',
           symbol: 'FTM',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       zksync: {
+        id: 'zksync',
         name: 'zkSync Era',
         symbol: 'ETH',
         chainId: '324',
@@ -125,9 +150,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       linea: {
+        id: 'linea',
         name: 'Linea',
         symbol: 'ETH',
         chainId: '59144',
@@ -138,9 +166,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       mantle: {
+        id: 'mantle',
         name: 'Mantle',
         symbol: 'MNT',
         chainId: '5000',
@@ -151,9 +182,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Mantle',
           symbol: 'MNT',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       scroll: {
+        id: 'scroll',
         name: 'Scroll',
         symbol: 'ETH',
         chainId: '534352',
@@ -164,9 +198,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       'polygon-zkevm': {
+        id: 'polygon-zkevm',
         name: 'Polygon zkEVM',
         symbol: 'ETH',
         chainId: '1101',
@@ -177,9 +214,12 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       },
       'arbitrum-nova': {
+        id: 'arbitrum-nova',
         name: 'Arbitrum Nova',
         symbol: 'ETH',
         chainId: '42170',
@@ -190,7 +230,9 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
           name: 'Ether',
           symbol: 'ETH',
           decimals: 18
-        }
+        },
+        isCustom: false,
+        isEnabled: true,
       }
     };
 
@@ -198,12 +240,6 @@ export const getNetworks = (): Record<string, NetworkConfig> => {
   }
   return _networks;
 };
-
-export const NETWORKS = new Proxy({} as Record<string, NetworkConfig>, {
-  get(target, prop) {
-    return getNetworks()[prop as string];
-  }
-});
 
 export const getChainTypeForNetwork = (network: string): 'EVM' | 'OTHER' => {
   const evmNetworks = [
