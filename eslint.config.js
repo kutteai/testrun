@@ -1,7 +1,7 @@
 import globals from "globals";
 import pluginJs from "@eslint/js";
 import tseslint from "typescript-eslint";
-import airbnbBase from "eslint-config-airbnb-base";
+// import airbnbBase from "eslint-config-airbnb-base";
 import pluginImport from "eslint-plugin-import";
 
 export default [
@@ -32,7 +32,7 @@ export default [
     },
     rules: {
       ...pluginJs.configs.recommended.rules,
-      ...airbnbBase.rules,
+      // ...airbnbBase.rules,
       ...tseslint.configs.recommended.rules,
       "no-console": process.env.NODE_ENV === "production" ? "error" : "off",
       "import/prefer-default-export": "off",

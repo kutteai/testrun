@@ -6,44 +6,21 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": false,
+    "strict": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
-    "isolatedModules": false,
+    "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    "baseUrl": ".",
-    "downlevelIteration": true,
-    "allowImportingTsExtensions": true,
-    "noImplicitAny": false,
-    "paths": {
-      "@/*": ["./src/*"],
-      "@components/*": ["./src/components/*"],
-      "@hooks/*": ["./src/hooks/*"],
-      "@utils/*": ["./src/utils/*"],
-      "@store/*": ["./src/store/*"],
-      "@assets/*": ["./src/assets/*"],
-      "@types/*": ["./src/types/*"]
-    }
+    "baseUrl": "."
   },
   "include": [
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.js"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "build",
-    "src/**/*.js",
-    "backend"
-  ],
-  "files": [
-    "src/global.d.ts",
-    "src/types/module.d.ts"
   ]
-} 
+}

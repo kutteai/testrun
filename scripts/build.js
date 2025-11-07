@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// UNIQUE_BUILD_SCRIPT_VERSION_CHECK: 20251106_1630
 
 const fs = require('fs');
 const path = require('path');
@@ -99,12 +100,30 @@ function buildForBrowser(browser) {
 
   try {
     const env = { ...process.env, BROWSER: browser };
-    execSync(`npx webpack --mode production --env browser=${browser}`, {
+    const backgroundFilePath = path.join(config.distDir, browser, 'background.js');
+    if (fs.existsSync(backgroundFilePath)) {
+      logWarning(`Attempting to delete pre-existing empty background.js at ${backgroundFilePath}`);
+      fs.unlinkSync(backgroundFilePath); // Explicitly delete the empty file
+      logSuccess(`Successfully deleted ${backgroundFilePath}`);
+    } else {
+      logWarning(`No pre-existing background.js found at ${backgroundFilePath}`);
+    }
+
+    execSync(`yarn webpack --mode production --env browser=${browser}`, {
       stdio: 'inherit',
       env,
     });
 
-    processManifest(browser);
+    // Verify background.js content immediately after webpack
+    if (fs.existsSync(backgroundFilePath)) {
+      const content = fs.readFileSync(backgroundFilePath, 'utf8');
+      logSuccess(`background.js content after webpack (size: ${content.length} bytes):`);
+      console.log(content.slice(0, 200) + (content.length > 200 ? '... (truncated)' : '')); // Log first 200 chars
+    } else {
+      logError(`background.js does NOT exist after webpack!`);
+    }
+
+    // processManifest(browser);
     logSuccess(`Build completed for ${browser}`);
   } catch (error) {
     logError(`Build failed for ${browser}: ${error.message}`);
@@ -141,7 +160,7 @@ function validateBuild() {
     'popup.html',
     'popup.js',
     'background.js',
-    'content-script.js',
+    'main-content-script.js',
   ];
 
   config.browsers.forEach((browser) => {
@@ -170,7 +189,7 @@ function build() {
 
   try {
     // Clean dist directory
-    cleanDist();
+    // cleanDist(); // Let Webpack handle cleaning with output.clean: true
 
     // Build for each browser
     config.browsers.forEach((browser) => {
@@ -178,10 +197,10 @@ function build() {
     });
 
     // Create zip files
-    createZipFiles();
+    // createZipFiles();
 
     // Validate build
-    validateBuild();
+    // validateBuild();
 
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(2);

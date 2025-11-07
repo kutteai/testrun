@@ -1,31 +1,12 @@
 {
   "manifest_version": 3,
-  "name": "PayCio Wallet",
+  "name": "PayCio Wallet - Static",
   "version": "2.0.0",
-  "description": "Secure multi-chain cryptocurrency wallet supporting Bitcoin, Ethereum, Solana, TRON, and more",
-  "permissions": [
-    "storage",
-    "activeTab",
-    "scripting",
-    "alarms",
-    "notifications",
-    "clipboardWrite",
-    "background",
-    "tabs",
-    "windows",
-    "unlimitedStorage",
-    "idle"
-  ],
-  "optional_permissions": [
-    "history",
-    "bookmarks"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "description": "Static design version of PayCio Wallet",
+  
   "action": {
     "default_popup": "popup.html",
-    "default_title": "PayCio Wallet",
+    "default_title": "PayCio Wallet Static",
     "default_icon": {
       "16": "assets/icon16.png",
       "32": "assets/icon32.png",
@@ -33,64 +14,13 @@
       "128": "assets/icon128.png"
     }
   },
-  "background": {
-    "service_worker": "background.js"
-  },
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["main-content-script.js"],
-      "run_at": "document_start",
-      "all_frames": true,
-      "match_about_blank": true
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "assets/*",
-        "expand.html",
-        "expand.js",
-        "expand.css",
-        "injected/index.js",
-        "popup.html"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
-    }
-  ],
+  
   "options_page": "options.html",
+  
   "icons": {
     "16": "assets/icon16.png",
     "32": "assets/icon32.png",
     "48": "assets/icon48.png",
     "128": "assets/icon128.png"
-  },
-  "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https: wss:; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data:;"
-  },
-  "commands": {
-    "_execute_action": {
-      "suggested_key": {
-        "default": "Ctrl+Shift+W",
-        "mac": "Command+Shift+W"
-      },
-      "description": "Open PayCio Wallet"
-    }
-  },
-  "minimum_chrome_version": "88",
-  "homepage_url": "https://paycio-wallet.com",
-  "author": "PayCio Wallet Team",
-  "short_name": "PayCio",
-  "offline_enabled": true,
-  "incognito": "split",
-  "externally_connectable": {
-    "matches": [
-      "https://*.paycio-wallet.com/*",
-      "https://*.paycio.com/*",
-      "<all_urls>"
-    ],
-    "accepts_tls_channel_id": true
   }
 }

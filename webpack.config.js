@@ -8,6 +8,7 @@ const { DefinePlugin } = require('webpack');
 const dotenv = require('dotenv');
 const webpack = require('webpack');
 
+
 // Load environment variables
 dotenv.config();
 
@@ -15,7 +16,8 @@ dotenv.config();
 const { CONFIG } = require('./config.js');
 
 module.exports = (env, argv) => {
-  const isProduction = argv.mode === 'production';
+  const isProduction = false;
+  // argv.mode === 'production';
   const browser = env.browser || 'chrome';
 
   return {
@@ -29,32 +31,19 @@ module.exports = (env, argv) => {
 
     entry: {
       popup: './src/popup/index.tsx',
-      background: './src/background/index.ts',
-      'main-content-script': './src/main-content-script/index.ts',
-      'injected/index': './src/injected/index.ts',
       options: './src/options/index.tsx',
-      expand: './src/expand.tsx',
     },
     output: {
       path: path.resolve(__dirname, `dist/${browser}`),
       filename: '[name].js',
       clean: true,
       publicPath: '',
-      // Important: Set the correct environment for webpack
-      environment: {
-        arrowFunction: false,
-        bigIntLiteral: false,
-        const: false,
-        destructuring: false,
-        dynamicImport: false,
-        forOf: false,
-        module: false,
-      },
     },
     module: {
       rules: [
         {
           test: /\.(ts|tsx)$/,
+          type: 'javascript/auto',
           use: {
             loader: 'ts-loader',
             options: {
@@ -105,28 +94,13 @@ module.exports = (env, argv) => {
       ],
     },
     resolve: {
-      extensions: ['.ts', '.tsx', '.js', '.jsx', '.wasm', '.mjs'],
+      extensions: ['.ts', '.tsx', '.js', '.jsx'],
       alias: {
         '@': path.resolve(__dirname, 'src'),
         'react/jsx-runtime': require.resolve('react/jsx-runtime'),
       },
       fallback: {
-        process: require.resolve('process/browser.js'),
-        buffer: require.resolve('buffer'),
-        crypto: require.resolve('crypto-browserify'),
-        stream: require.resolve('stream-browserify'),
-        path: require.resolve('path-browserify'),
-        fs: false,
-        net: false,
-        tls: false,
-        http: require.resolve('stream-http'),
-        https: require.resolve('https-browserify'),
-        zlib: require.resolve('browserify-zlib'),
-        url: require.resolve('url/'),
-        assert: require.resolve('assert/'),
-        util: require.resolve('util/'),
-        os: require.resolve('os-browserify/browser'),
-        vm: require.resolve('vm-browserify'),
+        // Remove all fallbacks for functional Node.js modules
       },
       // Add module resolution for node_modules
       modules: [
@@ -141,7 +115,6 @@ module.exports = (env, argv) => {
       // Environment variables
       new DefinePlugin({
         'process.env': JSON.stringify({
-          ...process.env,
           NODE_ENV: argv.mode,
           BROWSER: browser,
         }),
@@ -158,8 +131,6 @@ module.exports = (env, argv) => {
 
       // Provide Buffer and process globals
       new webpack.ProvidePlugin({
-        Buffer: ['buffer', 'Buffer'],
-        process: 'process/browser.js',
         global: 'globalThis',
       }),
 
@@ -192,20 +163,6 @@ module.exports = (env, argv) => {
         } : false,
       }),
 
-      new HtmlWebpackPlugin({
-        template: './src/expand.html',
-        filename: 'expand.html',
-        chunks: ['expand'],
-        inject: true,
-        minify: isProduction ? {
-          removeComments: true,
-          collapseWhitespace: true,
-          removeRedundantAttributes: true,
-          removeScriptTypeAttributes: true,
-          removeStyleLinkTypeAttributes: true,
-        } : false,
-      }),
-
       // CSS extraction
       new MiniCssExtractPlugin({
         filename: '[name].css',
@@ -219,16 +176,7 @@ module.exports = (env, argv) => {
             to: 'manifest.json',
             transform: (content) => {
               const manifest = JSON.parse(content.toString());
-
-              // Update manifest for different browsers
-              if (browser === 'firefox') {
-                // Firefox specific changes
-                delete manifest.background.service_worker;
-                manifest.background.scripts = ['background.js'];
-              } else if (browser === 'edge') {
-                // Edge specific changes if needed
-              }
-
+              // No browser-specific modifications needed for a static manifest
               return JSON.stringify(manifest, null, 2);
             },
           },
@@ -237,16 +185,19 @@ module.exports = (env, argv) => {
             to: 'assets',
             noErrorOnMissing: true,
           },
-          {
-            from: 'src/ui/popup.html',
-            to: 'ui/popup.html',
-            noErrorOnMissing: true,
-          },
-          {
-            from: 'src/ui/styles',
-            to: 'ui/styles',
-            noErrorOnMissing: true,
-          },
+          // Remove UI specific copies if src/ui is removed as well
+          // If these paths don't exist, CopyWebpackPlugin will report warnings, but not fail the build.
+          // If they should exist for static purposes, leave them. For now, assume they are functional related.
+          // {
+          //   from: 'src/ui/popup.html',
+          //   to: 'ui/popup.html',
+          //   noErrorOnMissing: true,
+          // },
+          // {
+          //   from: 'src/ui/styles',
+          //   to: 'ui/styles',
+          //   noErrorOnMissing: true,
+          // },
         ],
       }),
 
@@ -286,12 +237,13 @@ module.exports = (env, argv) => {
             chunks: 'all',
             enforce: true,
           },
+          // Remove background chunk optimization
         },
       },
     },
     devtool: isProduction ? false : 'cheap-module-source-map',
     watch: argv.mode === 'development',
-    watchOptions: {
+        watchOptions: {
       ignored: /node_modules/,
       aggregateTimeout: 300,
       poll: 1000,
